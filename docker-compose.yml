@@ -1,0 +1,30 @@
+services:
+  koda:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+    ports:
+      - "3004:3004"
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+    environment:
+      - NODE_ENV=development
+      - NEXT_TELEMETRY_DISABLED=1
+      - WATCHPACK_POLLING=true
+    restart: unless-stopped
+
+  koda-prod:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+    ports:
+      - "3005:3004"
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+    profiles:
+      - prod
