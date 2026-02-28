@@ -54,6 +54,15 @@ enum MessageVisibility {
   COACH_ONLY
 }
 
+enum AgeGroup {
+  UNDER_10
+  UNDER_12
+  UNDER_14
+  UNDER_16
+  UNDER_18
+  SENIOR
+}
+
 model User {
   id           String    @id @default(uuid())
   email        String    @unique
@@ -84,6 +93,10 @@ model User {
   sentMessages       Message[]      @relation("SentMessages")
   conversationParticipants ConversationParticipant[]
   auditLogs          AuditLog[]
+  squadMemberships   SquadMember[]
+  coachSquads        Squad[]
+  sessions           Session[]      @relation("PlayerSessions")
+  coachSessions      Session[]     @relation("CoachSessions")
 }
 
 model Video {
@@ -245,4 +258,58 @@ model AuditLog {
 
   @@index([userId])
   @@index([createdAt])
+}
+
+model Squad {
+  id        String     @id @default(uuid())
+  name      String
+  coachId   String
+  ageGroup  AgeGroup?
+  clubName  String?
+  isActive  Boolean    @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  coach    User          @relation(fields: [coachId], references: [id], onDelete: Cascade)
+  members  SquadMember[]
+  sessions Session[]
+
+  @@index([coachId])
+}
+
+model SquadMember {
+  id       String   @id @default(uuid())
+  squadId  String
+  userId   String
+  joinedAt DateTime @default(now())
+
+  squad Squad @relation(fields: [squadId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([squadId, userId])
+  @@index([squadId])
+  @@index([userId])
+}
+
+model Session {
+  id          String    @id @default(uuid())
+  coachId     String
+  squadId     String?
+  title       String
+  description String?   @db.Text
+  scheduledAt DateTime
+  endsAt      DateTime
+  startedAt   DateTime?
+  completedAt DateTime?
+  attendees   Int?
+  notes       String?   @db.Text
+  createdAt   DateTime  @default(now())
+
+  coach   User    @relation("CoachSessions", fields: [coachId], references: [id], onDelete: Cascade)
+  players User[] @relation("PlayerSessions")
+  squad   Squad? @relation(fields: [squadId], references: [id], onDelete: SetNull)
+
+  @@index([coachId])
+  @@index([squadId])
+  @@index([scheduledAt])
 }
