@@ -10,6 +10,16 @@ This document describes schema limitations and placeholder implementations for t
 - **GET /api/analysis/:id/stream**: SSE mock that emits progress stages (EXTRACTING_FRAMES → POSE_ANALYSIS → SHOT_CLASSIFICATION → GENERATING_FEEDBACK → complete). No real-time worker integration.
 - **Prisma 7**: `prisma.config.ts` required; `DATABASE_URL` must be set for `prisma generate` and migrations.
 
+## Module 4: Analysis Results & Progress (4.4, 4.8)
+
+- **GET /api/analysis/:id**: Enhanced with `video` (id, filename, durationSeconds, resolutionWidth, resolutionHeight, cdnUrl) and `scores` object for charting. RBAC: owner, coach, admin.
+- **GET /api/analysis/:id/report**: MVP placeholder. Returns JSON metadata; PDF generation via Puppeteer/BullMQ not implemented.
+- **GET /api/progress/:userId**: Returns totalSessions, avgGrade, gradeLetter, bestShot, recentSessions. Derived from Analysis table.
+- **GET /api/progress/:userId/trend**: Returns `{ trend: [{ date, grade, analysisId }] }` for line chart.
+- **GET /api/progress/:userId/shots**: Returns `{ shots: [{ shotType, count, percentage }], totalAnalyses }` for doughnut chart.
+- **GET /api/progress/:userId/achievements**: Returns empty array. UserAchievement and Achievement models not in schema.
+- **RBAC**: Player self, coach, admin allowed. Parent linked child requires GuardianLink (not in schema); parent can only view own progress until GuardianLink added.
+
 ## Current Implementation
 
 - **Prisma schema**: Extended with `User`, `ConsentRecord`, `PrivacyPreferences`, `Video`, `Analysis` models.
