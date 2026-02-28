@@ -1,12 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { userSchema } from "../schema";
 import { prisma } from "@/prisma/client";
+import { getAuthUser } from "@/lib/get-auth-user";
+import { canViewUser } from "@/lib/rbac";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const authUser = await getAuthUser(request);
+  if (!authUser) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { id } = await params;
+  if (!canViewUser(authUser.id, authUser.role, id)) {
+    return NextResponse.json(
+      { error: "Forbidden - insufficient permissions to view this user" },
+      { status: 403 }
+    );
+  }
+
   const user = await prisma.user.findUnique({
     where: { id },
   });
