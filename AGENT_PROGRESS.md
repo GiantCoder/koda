@@ -68,13 +68,13 @@ This tracker coordinates backend/frontend parallel work for each feature using i
 - Notes: `Implemented and merged into develop. Push blocked: no origin remote configured. FE routes /messages and /messages/:conversationId return 200. API /api/conversations currently 500 in running container due Prisma client/runtime setup.`
 
 ### 6) Team / Roster
-- Status: `not_started`
-- Frontend branch/worktree: `TBD`
-- Backend branch/worktree: `TBD`
-- Notes: `TBD`
+- Status: `completed`
+- Frontend branch/worktree: `feature/koda-team-fe` at `/Users/mattotoole/Documents/code/v8/.worktrees/koda/team-fe`
+- Backend branch/worktree: `feature/koda-team-be` at `/Users/mattotoole/Documents/code/v8/.worktrees/koda/team-be`
+- Notes: `Implemented and merged into develop. Push blocked: no origin remote configured. FE route /team returns 200. APIs /api/squads and /api/sessions currently 500 in running container due Prisma client/runtime setup.`
 
 ## Finalisation Checklist (After all 6 modules)
 
-- [ ] Frontend + backend feature branches all merged into `develop`
-- [ ] `git checkout develop` in primary repo
-- [ ] Delete all feature worktrees to reclaim disk space
+- [x] Frontend + backend feature branches all merged into `develop`
+- [x] `git checkout develop` in primary repo
+- [x] Delete all feature worktrees to reclaim disk space
