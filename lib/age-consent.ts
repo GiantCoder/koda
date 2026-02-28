@@ -27,3 +27,8 @@ export function getConsentStatusForAge(age: number | null): ConsentStatus {
 export function requiresGuardianConsent(age: number | null): boolean {
   return age !== null && age < 18;
 }
+
+/** Returns true if user is under 18 (minor). Used for safeguarding in messaging. */
+export function isMinor(age: number | null): boolean {
+  return age !== null && age < 18;
+}
