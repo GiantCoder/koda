@@ -48,6 +48,12 @@ enum ShotType {
   UNKNOWN
 }
 
+enum MessageVisibility {
+  STANDARD
+  PARENT_VISIBLE
+  COACH_ONLY
+}
+
 model User {
   id           String    @id @default(uuid())
   email        String    @unique
@@ -73,6 +79,11 @@ model User {
   consentRecord      ConsentRecord?
   privacyPreferences PrivacyPreferences?
   videos             Video[]
+  parentLinks        GuardianLink[] @relation("ParentLinks")
+  childLinks         GuardianLink[] @relation("ChildLinks")
+  sentMessages       Message[]      @relation("SentMessages")
+  conversationParticipants ConversationParticipant[]
+  auditLogs          AuditLog[]
 }
 
 model Video {
@@ -161,4 +172,77 @@ model PrivacyPreferences {
   updatedAt               DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model GuardianLink {
+  id           String   @id @default(uuid())
+  parentId     String
+  childId      String
+  relationship String   // 'mother' | 'father' | 'guardian' | 'other'
+  isVerified   Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  parent User @relation("ParentLinks", fields: [parentId], references: [id], onDelete: Cascade)
+  child  User @relation("ChildLinks", fields: [childId], references: [id], onDelete: Cascade)
+
+  @@unique([parentId, childId])
+  @@index([childId])
+}
+
+model Conversation {
+  id        String   @id @default(uuid())
+  subject   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  participants ConversationParticipant[]
+  messages     Message[]
+}
+
+model ConversationParticipant {
+  id             String    @id @default(uuid())
+  conversationId String
+  userId         String
+  joinedAt       DateTime  @default(now())
+  lastReadAt     DateTime?
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+}
+
+model Message {
+  id             String           @id @default(uuid())
+  conversationId String
+  senderId       String
+  content        String           @db.Text
+  visibility     MessageVisibility @default(STANDARD)
+  attachmentUrl  String?
+  attachmentType String?
+  isDeleted     Boolean          @default(false)
+  sentAt         DateTime         @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, sentAt])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  action     String   // 'conversation_created_minor' | 'video_uploaded' | etc.
+  entityType String?
+  entityId   String?
+  metadata   Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([createdAt])
 }
