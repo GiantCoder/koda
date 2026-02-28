@@ -7,10 +7,75 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum Role {
+  PLAYER
+  PARENT
+  COACH
+  ADMIN
+}
+
+enum ConsentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  NOT_REQUIRED
+}
+
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String?
+  name         String?
+  displayName  String  @default("")
+  firstName    String?
+  lastName     String?
+  role         Role      @default(PLAYER)
+  dateOfBirth  DateTime?
+  ageGroup     String?
+  clubOrSchool String?
+  primaryPosition String?
+  battingStyle String?
+  bowlingStyle String?
+  profileVisibility String @default("COACHES_PARENTS")
+  isActive     Boolean   @default(true)
+  emailVerified Boolean  @default(false)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  lastLoginAt  DateTime?
+
+  consentRecord      ConsentRecord?
+  privacyPreferences PrivacyPreferences?
+}
+
+model ConsentRecord {
+  id                    String        @id @default(uuid())
+  userId                String        @unique
+  guardianName          String?
+  guardianEmail         String?
+  guardianRelationship  String?
+  consentStatus        ConsentStatus @default(PENDING)
+  verificationToken    String?       @unique
+  tokenExpiresAt       DateTime?
+  approvedAt           DateTime?
+  rejectedAt           DateTime?
+  ipAddress            String?
+  userAgent            String?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PrivacyPreferences {
+  id                      String   @id @default(uuid())
+  userId                  String   @unique
+  performanceAnalytics    Boolean  @default(true)
+  marketingCommunications Boolean  @default(false)
+  coachParentComms        Boolean  @default(true)
+  profileVisibility       String   @default("COACHES_PARENTS")
+  consentVersion          String   @default("1.0")
+  consentedAt             DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
