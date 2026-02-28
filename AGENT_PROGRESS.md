@@ -44,10 +44,10 @@ This tracker coordinates backend/frontend parallel work for each feature using i
 - Notes: `Implemented and merged into develop. Push blocked: no origin remote configured. Container lint checks attempted; long-running Docker install/build flow needs cleanup for deterministic CI execution.`
 
 ### 2) Dashboard + Profile/Settings
-- Status: `not_started`
-- Frontend branch/worktree: `TBD`
-- Backend branch/worktree: `TBD`
-- Notes: `TBD`
+- Status: `completed`
+- Frontend branch/worktree: `feature/koda-dashboard-profile-fe` at `/Users/mattotoole/Documents/code/v8/.worktrees/koda/dashboard-profile-fe`
+- Backend branch/worktree: `feature/koda-dashboard-profile-be` at `/Users/mattotoole/Documents/code/v8/.worktrees/koda/dashboard-profile-be`
+- Notes: `Implemented and merged into develop. Push blocked: no origin remote configured. FE routes /dashboard,/profile,/settings return 200 in container; /api/dashboard/summary currently 500 in running app due missing generated Prisma client in container runtime.`
 
 ### 3) Video Upload + Analysis Processing
 - Status: `not_started`
