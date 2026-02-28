@@ -1,49 +1,325 @@
 "use client";
 
-import React from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
+import { Card, CardContent } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
+import { ShotGradeCard } from "@/app/components/analysis/ShotGradeCard";
+import { CoachingTipsPanel, type CoachingTip } from "@/app/components/analysis/CoachingTipsPanel";
+import { TagStrip, type ShotTag } from "@/app/components/analysis/TagStrip";
+import { TechniqueRadarChart, type RadarDataPoint } from "@/app/components/analysis/TechniqueRadarChart";
+import { LoadingSpinner } from "@/app/components/common/LoadingSpinner";
+import { useMockAuth } from "@/app/hooks/useMockAuth";
 
-/**
- * Placeholder for Shot Analysis Results (Module 4.10).
- * Linked from processing completion redirect.
- */
+interface AnalysisResult {
+  id: string;
+  videoId: string;
+  status: string;
+  shotType: string | null;
+  shotConfidence: number | null;
+  gradeOverall: number | null;
+  gradeLetter: string | null;
+  scoreBacklift: number | null;
+  scoreWeightTransfer: number | null;
+  scoreHeadPosition: number | null;
+  scoreFollowThrough: number | null;
+  scoreTiming: number | null;
+  scoreBalance: number | null;
+  scoreFootwork: number | null;
+  scoreShotSelection: number | null;
+  coachingTips: unknown;
+  video?: { cdnUrl: string | null; durationSeconds: number | null; resolutionWidth: number | null; resolutionHeight: number | null };
+}
+
+function formatShotType(s: string): string {
+  return s
+    .split("_")
+    .map((w) => w.charAt(0) + w.slice(1).toLowerCase())
+    .join(" ");
+}
+
+function gradeFromScore(score: number): string {
+  if (score >= 85) return "A";
+  if (score >= 75) return "B+";
+  if (score >= 65) return "B";
+  if (score >= 55) return "C+";
+  return "C";
+}
+
+function starRatingFromScore(score: number): number {
+  if (score >= 90) return 5;
+  if (score >= 80) return 4;
+  if (score >= 70) return 3;
+  if (score >= 60) return 2;
+  return 1;
+}
+
+function parseCoachingTips(raw: unknown): CoachingTip[] {
+  if (!raw) return [];
+  if (Array.isArray(raw)) {
+    return raw.map((t) => ({
+      title: typeof t === "object" && t !== null && "title" in t ? String((t as { title: unknown }).title) : "Tip",
+      body: typeof t === "object" && t !== null && "body" in t ? String((t as { body: unknown }).body) : "",
+      type: typeof t === "object" && t !== null && "type" in t ? (t as { type: unknown }).type as "strength" | "improvement" | "recommendation" : undefined,
+    }));
+  }
+  return [];
+}
+
+function deriveTags(analysis: AnalysisResult): ShotTag[] {
+  const tags: ShotTag[] = [];
+  if (analysis.shotType) {
+    tags.push({ label: formatShotType(analysis.shotType), type: "neutral" });
+  }
+  const scores = [
+    { k: "Backlift", v: analysis.scoreBacklift },
+    { k: "WeightTransfer", v: analysis.scoreWeightTransfer },
+    { k: "HeadPosition", v: analysis.scoreHeadPosition },
+    { k: "FollowThrough", v: analysis.scoreFollowThrough },
+    { k: "Timing", v: analysis.scoreTiming },
+  ];
+  scores.forEach(({ k, v }) => {
+    if (v != null) {
+      tags.push({
+        label: k,
+        type: v >= 85 ? "strength" : v < 70 ? "improvement" : "neutral",
+      });
+    }
+  });
+  return tags.length > 0 ? tags : [
+    { label: "CoverDrive", type: "neutral" },
+    { label: "GoodBalance", type: "strength" },
+    { label: "HighElbow", type: "strength" },
+    { label: "HeadMovement", type: "improvement" },
+  ];
+}
+
+function deriveRadarData(analysis: AnalysisResult): RadarDataPoint[] {
+  const dims = [
+    { key: "Head Position", val: analysis.scoreHeadPosition },
+    { key: "Weight Transfer", val: analysis.scoreWeightTransfer },
+    { key: "Backlift", val: analysis.scoreBacklift },
+    { key: "Shot Selection", val: analysis.scoreShotSelection },
+    { key: "Footwork", val: analysis.scoreFootwork },
+    { key: "Balance", val: analysis.scoreBalance },
+    { key: "Timing", val: analysis.scoreTiming },
+    { key: "Follow-Through", val: analysis.scoreFollowThrough },
+  ];
+  return dims
+    .filter((d) => d.val != null)
+    .map((d) => ({ dimension: d.key, value: d.val as number, fullMark: 100 }));
+}
+
 export default function AnalysisResultsPage() {
   const params = useParams();
   const videoId = typeof params.videoId === "string" ? params.videoId : null;
+  const { role } = useMockAuth();
+  const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchAnalysis = useCallback(async () => {
+    if (!videoId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/analysis/video/${videoId}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error ?? `Failed to load analysis (${res.status})`);
+      }
+      const data = await res.json();
+      setAnalysis(data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load analysis");
+      setAnalysis(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [videoId]);
+
+  useEffect(() => {
+    void fetchAnalysis();
+  }, [fetchAnalysis]);
+
+  if (!videoId) {
+    return (
+      <div className="mx-auto max-w-4xl">
+        <Card>
+          <CardContent className="py-8">
+            <p className="text-[var(--text-secondary)]">No video selected.</p>
+            <Link href="/upload" className="mt-4 inline-block">
+              <Button>Upload a Video</Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="mx-auto flex max-w-4xl flex-col items-center justify-center py-24">
+        <LoadingSpinner size="lg" />
+        <p className="mt-4 text-sm text-[var(--text-secondary)]">
+          Loading analysis results…
+        </p>
+      </div>
+    );
+  }
+
+  if (error || !analysis) {
+    return (
+      <div className="mx-auto max-w-4xl">
+        <Card className="border-[var(--danger)]/50">
+          <CardContent className="py-8">
+            <p className="text-[var(--danger)]">{error ?? "Analysis not found"}</p>
+            <div className="mt-4 flex gap-2">
+              <Button onClick={fetchAnalysis}>Retry</Button>
+              <Link href="/upload">
+                <Button variant="secondary">Upload Another</Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const overall = analysis.gradeOverall ?? 0;
+  const gradeLetter = analysis.gradeLetter ?? gradeFromScore(overall);
+  const metrics = [
+    { label: "Backlift", value: analysis.scoreBacklift ?? 0 },
+    { label: "Weight Transfer", value: analysis.scoreWeightTransfer ?? 0 },
+    { label: "Head Position", value: analysis.scoreHeadPosition ?? 0 },
+    { label: "Follow-Through", value: analysis.scoreFollowThrough ?? 0 },
+    { label: "Timing", value: analysis.scoreTiming ?? 0 },
+  ].filter((m) => m.value > 0);
+
+  const tips = parseCoachingTips(analysis.coachingTips);
+  const defaultTips: CoachingTip[] = tips.length > 0 ? tips : [
+    { title: "Excellent Front Foot Movement", body: "Your weight transfer onto the front foot was well timed.", type: "strength" },
+    { title: "Watch Your Head Position", body: "Try to keep your head more still over the ball for better balance.", type: "improvement" },
+    { title: "Practice Recommendation", body: "Focus on drills that emphasize keeping the head still during front-foot drives.", type: "recommendation" },
+  ];
+
+  const tags = deriveTags(analysis);
+  const radarData = deriveRadarData(analysis);
+  const defaultRadar: RadarDataPoint[] = radarData.length > 0 ? radarData : [
+    { dimension: "Head Position", value: analysis.scoreHeadPosition ?? 76 },
+    { dimension: "Weight Transfer", value: analysis.scoreWeightTransfer ?? 88 },
+    { dimension: "Backlift", value: analysis.scoreBacklift ?? 92 },
+    { dimension: "Shot Selection", value: analysis.scoreShotSelection ?? 85 },
+    { dimension: "Footwork", value: analysis.scoreFootwork ?? 82 },
+    { dimension: "Balance", value: analysis.scoreBalance ?? 90 },
+    { dimension: "Timing", value: analysis.scoreTiming ?? 85 },
+    { dimension: "Follow-Through", value: analysis.scoreFollowThrough ?? 90 },
+  ];
+
+  const shotLabel = analysis.shotType
+    ? `${formatShotType(analysis.shotType)} — ${Math.round((analysis.shotConfidence ?? 0) * 100)}% confidence`
+    : "Shot classified";
+
+  const resolution = analysis.video?.resolutionWidth && analysis.video?.resolutionHeight
+    ? `${analysis.video.resolutionWidth}p`
+    : "1080p";
 
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="mx-auto max-w-7xl">
+      <div className="mb-6 flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+        <Link href="/dashboard" className="hover:text-[var(--primary)]">Home</Link>
+        <span>/</span>
+        <Link href="/progress" className="hover:text-[var(--primary)]">Analysis</Link>
+        <span>/</span>
+        <span className="text-[var(--text-primary)]">Shot Review</span>
+      </div>
+
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-[var(--text-primary)]">
-          Analysis Complete
+          Shot Analysis Results
         </h1>
         <p className="mt-1 text-[var(--text-secondary)]">
-          {videoId
-            ? `Results for video ${videoId} will appear here.`
-            : "No video selected."}
+          Analyzed on {new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
         </p>
       </div>
 
-      <Card>
-        <CardHeader>Shot Analysis Results</CardHeader>
-        <CardContent>
-          <p className="text-[var(--text-secondary)]">
-            The full shot analysis view (video player, grade card, coaching tips,
-            radar chart) will be implemented in a future module.
+      {role === "coach" && (
+        <div className="mb-6 rounded-lg border border-[var(--warning)]/50 bg-[var(--warning)]/10 px-4 py-3">
+          <p className="text-sm text-[var(--text-primary)]">
+            <strong>Coach view:</strong> You are viewing this player&apos;s analysis. Add timestamped annotations via the annotation panel.
           </p>
-          <div className="mt-4 flex gap-2">
-            <Link href="/upload">
-              <Button>Analyse Another Shot</Button>
-            </Link>
-            <Link href="/dashboard">
-              <Button variant="secondary">Back to Dashboard</Button>
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
+        </div>
+      )}
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-2 space-y-6">
+          <Card>
+            <CardContent className="p-0">
+              <div className="relative aspect-video w-full bg-black">
+                {analysis.video?.cdnUrl ? (
+                  <video
+                    src={analysis.video.cdnUrl}
+                    controls
+                    className="h-full w-full object-contain"
+                    preload="metadata"
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center bg-[var(--surface-secondary)]">
+                    <p className="text-[var(--text-secondary)]">Video preview unavailable</p>
+                  </div>
+                )}
+                <div className="absolute right-3 top-3 flex items-center gap-2 rounded-lg bg-black/60 px-3 py-2">
+                  <span className="text-xs text-white">Skeleton Overlay</span>
+                  <div className="h-5 w-10 rounded-full bg-[var(--surface-secondary)]" role="switch" aria-checked="false" />
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2 p-4">
+                <span className="rounded-full bg-[var(--success)]/20 px-3 py-1 text-xs font-medium text-[var(--success)]">
+                  {shotLabel}
+                </span>
+                <span className="rounded-full bg-[var(--surface-secondary)] px-3 py-1 text-xs text-[var(--text-secondary)]">
+                  {analysis.video?.durationSeconds ? `${analysis.video.durationSeconds}s` : "0.2s"}
+                </span>
+                <span className="rounded-full bg-[var(--surface-secondary)] px-3 py-1 text-xs text-[var(--text-secondary)]">
+                  {resolution}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          <CoachingTipsPanel tips={defaultTips} />
+          <TagStrip tags={tags} />
+          <TechniqueRadarChart data={defaultRadar} />
+        </div>
+
+        <div className="space-y-6">
+          <ShotGradeCard
+            gradeLetter={gradeLetter}
+            starRating={starRatingFromScore(overall)}
+            metrics={metrics.length > 0 ? metrics : [
+              { label: "Backlift", value: 92 },
+              { label: "Weight Transfer", value: 88 },
+              { label: "Head Position", value: 76 },
+              { label: "Follow-Through", value: 90 },
+              { label: "Timing", value: 85 },
+            ]}
+            overallScore={overall || 86.2}
+          />
+        </div>
+      </div>
+
+      <div className="mt-8 flex flex-wrap gap-3">
+        <Link href="/upload">
+          <Button variant="secondary">Analyse Another Shot</Button>
+        </Link>
+        <Link href="/progress">
+          <Button variant="secondary">View Progress</Button>
+        </Link>
+        <Link href="/dashboard">
+          <Button>Start Training Drill</Button>
+        </Link>
+      </div>
     </div>
   );
 }
