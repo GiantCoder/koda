@@ -4,7 +4,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 enum Role {
@@ -19,6 +18,34 @@ enum ConsentStatus {
   APPROVED
   REJECTED
   NOT_REQUIRED
+}
+
+enum AnalysisStatus {
+  QUEUED
+  EXTRACTING_FRAMES
+  POSE_ANALYSIS
+  SHOT_CLASSIFICATION
+  GENERATING_FEEDBACK
+  COMPLETE
+  FAILED
+}
+
+enum ShotType {
+  COVER_DRIVE
+  OFF_DRIVE
+  STRAIGHT_DRIVE
+  ON_DRIVE
+  SWEEP
+  REVERSE_SWEEP
+  PULL
+  HOOK
+  CUT
+  GLANCE
+  DEFENSIVE
+  LATE_CUT
+  FLICK
+  SCOOP
+  UNKNOWN
 }
 
 model User {
@@ -45,6 +72,62 @@ model User {
 
   consentRecord      ConsentRecord?
   privacyPreferences PrivacyPreferences?
+  videos             Video[]
+}
+
+model Video {
+  id              String    @id @default(uuid())
+  userId          String
+  filename        String
+  originalFormat  String
+  storagePath     String
+  cdnUrl          String?
+  fileSizeBytes   BigInt
+  durationSeconds Float?
+  resolutionWidth Int?
+  resolutionHeight Int?
+  uploadedAt      DateTime  @default(now())
+  isDeleted       Boolean   @default(false)
+  deletedAt       DateTime?
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  analysis Analysis?
+
+  @@index([userId])
+}
+
+model Analysis {
+  id                   String         @id @default(uuid())
+  videoId              String         @unique
+  status               AnalysisStatus @default(QUEUED)
+  shotType             ShotType?
+  shotConfidence       Float?
+  gradeOverall         Float?
+  gradeLetter          String?
+  scoreBacklift        Float?
+  scoreWeightTransfer  Float?
+  scoreHeadPosition    Float?
+  scoreFollowThrough   Float?
+  scoreTiming          Float?
+  scoreBalance         Float?
+  scoreFootwork        Float?
+  scoreShotSelection   Float?
+  poseDataPath         String?
+  skeletonOverlayPath  String?
+  coachingTips        Json?
+  rawGeminiResponse   Json?
+  rawOpenAiResponse   Json?
+  analysisVersion     String         @default("1.0")
+  processingMs        Int?
+  errorMessage        String?        @db.Text
+  startedAt           DateTime?
+  completedAt         DateTime?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@index([status])
 }
 
 model ConsentRecord {
