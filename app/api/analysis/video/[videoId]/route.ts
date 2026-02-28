@@ -36,6 +36,7 @@ export async function GET(
 
   const analysis = await prisma.analysis.findUnique({
     where: { videoId },
+    include: { video: true },
   });
 
   if (!analysis) {
