@@ -1,47 +1,37 @@
-import Image from "next/image";
+import Link from "next/link";
 
 export default function Home() {
   return (
-    <div className="flex min-h-screen items-center justify-center font-sans">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 sm:items-start">
-        <Image
-          className=""
-          src="/koda_logo.png"
-          alt="Koda logo"
-          width={160}
-          height={40}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            Your home for cricket coaching biometrics.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="/blog"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              our blog
-            </a>{" "}
-            or the{" "}
-            <a
-              href="/help-center"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              our help center
-            </a>.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="/auth/sign-up"
-            target="_blank"
-            rel="noopener noreferrer"
+    <div className="flex min-h-screen flex-col bg-[var(--background)] font-sans">
+      <header className="flex items-center justify-between p-6">
+        <span className="text-xl font-bold text-[var(--primary)]">Koda Cricket</span>
+        <Link
+          href="/login"
+          className="rounded-lg px-4 py-2 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--surface-secondary)]"
+        >
+          Sign In
+        </Link>
+      </header>
+      <main className="flex flex-1 flex-col items-center justify-center px-6 py-16">
+        <h1 className="max-w-2xl text-center text-4xl font-bold leading-tight tracking-tight text-[var(--text-primary)]">
+          Welcome to Koda Cricket
+        </h1>
+        <p className="mt-4 max-w-xl text-center text-lg text-[var(--text-secondary)]">
+          AI-powered video analysis for cricket coaches, parents, and young players aged 7–18.
+        </p>
+        <div className="mt-8 flex flex-col gap-4 sm:flex-row">
+          <Link
+            href="/register"
+            className="flex h-12 items-center justify-center rounded-lg bg-[var(--primary)] px-6 font-medium text-white transition-colors hover:bg-[var(--primary-hover)]"
           >
-            Sign Up
-          </a>
+            Get Started
+          </Link>
+          <Link
+            href="/login"
+            className="flex h-12 items-center justify-center rounded-lg border border-[var(--surface-secondary)] bg-[var(--surface)] px-6 font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-secondary)]"
+          >
+            Sign In
+          </Link>
         </div>
       </main>
     </div>
