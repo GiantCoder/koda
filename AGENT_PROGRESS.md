@@ -56,10 +56,10 @@ This tracker coordinates backend/frontend parallel work for each feature using i
 - Notes: `Implemented and merged into develop. Push blocked: no origin remote configured. FE routes /upload and /analysis/:videoId/processing return 200 in container. API checks: /api/video/upload responds (405 for HEAD), /api/videos still 500 due Prisma client/runtime setup in running container.`
 
 ### 4) Analysis Results + Progress/Trends
-- Status: `not_started`
-- Frontend branch/worktree: `TBD`
-- Backend branch/worktree: `TBD`
-- Notes: `TBD`
+- Status: `completed`
+- Frontend branch/worktree: `feature/koda-analysis-progress-fe` at `/Users/mattotoole/Documents/code/v8/.worktrees/koda/analysis-progress-fe`
+- Backend branch/worktree: `feature/koda-analysis-progress-be` at `/Users/mattotoole/Documents/code/v8/.worktrees/koda/analysis-progress-be`
+- Notes: `Implemented and merged into develop. Push blocked: no origin remote configured. FE routes /progress and /analysis/:videoId return 200 (first compile can be slow). API checks for /api/progress and /api/progress/:userId currently 500 in running container due Prisma client/runtime setup.`
 
 ### 5) Messaging + Safeguarding
 - Status: `not_started`
