@@ -199,9 +199,13 @@ export default function DashboardHeader() {
   return (
     <header className="sticky top-0 z-50 flex items-center justify-between border-b border-[var(--surface-secondary)] bg-[var(--surface)] px-6 py-4">
       <Link href="/" className="flex items-center gap-2">
-        <div className="flex h-8 w-8 items-center justify-center rounded bg-[var(--surface-secondary)]">
-          <span className="text-sm font-bold text-[var(--primary)]">✓</span>
-        </div>
+        <Image
+          src="/koda.png"
+          alt="Koda Cricket logo"
+          width={32}
+          height={32}
+          className="h-8 w-8 rounded-md object-cover"
+        />
         <span className="text-xl font-bold text-[var(--text-primary)]">
           Koda Cricket
         </span>

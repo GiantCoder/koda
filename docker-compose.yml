@@ -1,4 +1,4 @@
-version: "3.9"
+name: koda
 
 services:
   app:
@@ -6,7 +6,7 @@ services:
       context: .
       dockerfile: Dockerfile
       target: development
-    container_name: koda_app
+    container_name: koda-web-app
     ports:
       - "3000:3000"
     environment:
@@ -45,7 +45,7 @@ services:
       context: .
       dockerfile: Dockerfile
       target: development
-    container_name: koda_worker
+    container_name: koda-worker
     ports:
       - "3001:3001"
     environment:
@@ -76,7 +76,7 @@ services:
     build:
       context: ./services/mediapipe
       dockerfile: Dockerfile
-    container_name: koda_mediapipe
+    container_name: koda-mediapipe
     ports:
       - "8001:8001"
     environment:
@@ -99,7 +99,7 @@ services:
 
   mysql:
     image: mysql:8.0
-    container_name: koda_mysql
+    container_name: koda-database
     ports:
       - "3306:3306"
     environment:
@@ -125,7 +125,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: koda_redis
+    container_name: koda-redis
     ports:
       - "6379:6379"
     volumes:
@@ -141,7 +141,7 @@ services:
 
   minio:
     image: minio/minio:latest
-    container_name: koda_minio
+    container_name: koda-minio
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -161,7 +161,7 @@ services:
 
   minio-init:
     image: minio/mc:latest
-    container_name: koda_minio_init
+    container_name: koda-minio-init
     depends_on:
       minio:
         condition: service_healthy
@@ -179,7 +179,7 @@ services:
 
   langfuse:
     image: langfuse/langfuse:latest
-    container_name: koda_langfuse
+    container_name: koda-langfuse
     ports:
       - "3100:3000"
     environment:
@@ -196,7 +196,7 @@ services:
 
   langfuse-db:
     image: postgres:15-alpine
-    container_name: koda_langfuse_db
+    container_name: koda-langfuse-database
     environment:
       POSTGRES_USER: langfuse
       POSTGRES_PASSWORD: langfuse
@@ -213,7 +213,7 @@ services:
 
   mailpit:
     image: axllent/mailpit:latest
-    container_name: koda_mailpit
+    container_name: koda-mailpit
     ports:
       - "8025:8025"
       - "1025:1025"
