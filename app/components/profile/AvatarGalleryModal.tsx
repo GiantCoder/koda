@@ -31,11 +31,15 @@ export default function AvatarGalleryModal({
 }: AvatarGalleryModalProps) {
   const [avatarCategories, setAvatarCategories] = useState<AvatarCategory[]>([]);
   const [activeCategory, setActiveCategory] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadedAvatarIds, setLoadedAvatarIds] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (!isOpen) return;
 
     let isMounted = true;
+    setIsLoading(true);
+    setLoadedAvatarIds({});
     fetch("/api/avatars")
       .then((response) => response.json())
       .then((payload: { categories?: AvatarCategory[] }) => {
@@ -49,6 +53,10 @@ export default function AvatarGalleryModal({
       .catch(() => {
         if (!isMounted) return;
         setAvatarCategories([]);
+      })
+      .finally(() => {
+        if (!isMounted) return;
+        setIsLoading(false);
       });
 
     return () => {
@@ -97,10 +105,18 @@ export default function AvatarGalleryModal({
           </div>
         </div>
         <div className="max-h-[55vh] overflow-y-auto p-4">
-          {activeCategoryData?.avatars?.length ? (
+          {isLoading ? (
+            <div className="flex min-h-[180px] items-center justify-center">
+              <div className="flex items-center gap-3 text-sm text-[var(--text-secondary)]">
+                <span className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--surface-secondary)] border-t-[var(--primary)]" />
+                Loading avatars...
+              </div>
+            </div>
+          ) : activeCategoryData?.avatars?.length ? (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
               {activeCategoryData.avatars.map((avatar) => {
                 const isSelected = avatar.url === selectedAvatarUrl;
+                const isAvatarLoaded = Boolean(loadedAvatarIds[avatar.id]);
                 return (
                   <button
                     key={avatar.id}
@@ -112,13 +128,32 @@ export default function AvatarGalleryModal({
                         : "border-[var(--surface-secondary)] hover:border-[var(--text-secondary)]"
                     }`}
                   >
-                    <Image
-                      src={avatar.url}
-                      alt={avatar.name}
-                      width={96}
-                      height={96}
-                      className="mx-auto h-20 w-20 rounded-full object-cover"
-                    />
+                    <div className="relative mx-auto h-20 w-20">
+                      {!isAvatarLoaded && (
+                        <span className="absolute inset-0 z-10 m-auto h-6 w-6 animate-spin rounded-full border-2 border-[var(--surface-secondary)] border-t-[var(--primary)]" />
+                      )}
+                      <Image
+                        src={avatar.url}
+                        alt={avatar.name}
+                        width={96}
+                        height={96}
+                        onLoad={() =>
+                          setLoadedAvatarIds((current) => ({
+                            ...current,
+                            [avatar.id]: true,
+                          }))
+                        }
+                        onError={() =>
+                          setLoadedAvatarIds((current) => ({
+                            ...current,
+                            [avatar.id]: true,
+                          }))
+                        }
+                        className={`mx-auto h-20 w-20 rounded-full object-cover transition-opacity ${
+                          isAvatarLoaded ? "opacity-100" : "opacity-0"
+                        }`}
+                      />
+                    </div>
                   </button>
                 );
               })}
