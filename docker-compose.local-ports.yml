@@ -1,0 +1,14 @@
+services:
+  app:
+    ports:
+      - "3005:3000"
+  worker:
+    ports:
+      - "3011:3001"
+  redis:
+    ports:
+      - "6385:6379"
+  minio:
+    ports:
+      - "9010:9000"
+      - "9011:9001"

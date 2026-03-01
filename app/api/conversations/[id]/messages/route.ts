@@ -5,6 +5,7 @@ import { sendMessageSchema, paginationSchema } from "../../schema";
 import { MessageVisibility } from "@prisma/client";
 import { getMessageVisibilityForRecipient, getParentVisibilityMetadata } from "@/lib/messaging-safeguarding";
 import { z } from "zod";
+import { redis } from "@/src/lib/redis";
 
 const idParamSchema = z.object({ id: z.string().uuid() });
 
@@ -156,6 +157,22 @@ export async function POST(
   });
 
   const parentMeta = getParentVisibilityMetadata(firstRecipient, visibility);
+
+  await redis.publish(
+    `conversation:${conversationId}`,
+    JSON.stringify({
+      type: "message_created",
+      conversationId,
+      message: {
+        id: message.id,
+        content: message.content,
+        senderId: message.sender.id,
+        senderDisplayName: message.sender.displayName,
+        sentAt: message.sentAt,
+        visibility: message.visibility,
+      },
+    })
+  );
 
   return NextResponse.json({
     id: message.id,

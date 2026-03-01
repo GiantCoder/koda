@@ -2,17 +2,12 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/prisma/client";
 import { getAuthUser } from "@/lib/get-auth-user";
 import { z } from "zod";
+import Redis from "ioredis";
+import { canViewUser } from "@/lib/rbac";
 
 const idParamSchema = z.object({
   id: z.string().uuid(),
 });
-
-const SSE_STAGES = [
-  { stage: "EXTRACTING_FRAMES", progress: 15, message: "Extracting key frames..." },
-  { stage: "POSE_ANALYSIS", progress: 45, message: "Analysing body position..." },
-  { stage: "SHOT_CLASSIFICATION", progress: 70, message: "Classifying shot type..." },
-  { stage: "GENERATING_FEEDBACK", progress: 85, message: "Generating coaching tips..." },
-] as const;
 
 export async function GET(
   request: NextRequest,
@@ -51,35 +46,92 @@ export async function GET(
     });
   }
 
-  if (analysis.video.userId !== user.id) {
+  if (!canViewUser(user.id, user.role, analysis.video.userId)) {
     return new Response(JSON.stringify({ error: "Forbidden" }), {
       status: 403,
     });
   }
 
   const encoder = new TextEncoder();
+  const redisUrl = process.env.REDIS_URL ?? "redis://localhost:6379";
+  const subscriber = new Redis(redisUrl);
+  const channel = `analysis:${id}`;
+  const initialEvent =
+    analysis.status === "COMPLETE"
+      ? { type: "complete", analysisId: id, redirectUrl: `/analysis/${analysis.videoId}` }
+      : analysis.status === "FAILED"
+        ? { type: "error", analysisId: id, message: analysis.errorMessage ?? "Analysis failed" }
+        : { stage: analysis.status, progress: 10, message: "Analysis queued" };
+
   const stream = new ReadableStream({
     async start(controller) {
-      for (const payload of SSE_STAGES) {
+      let isClosed = false;
+      const closeStream = async () => {
+        if (isClosed) return;
+        isClosed = true;
+        clearTimeout(timeoutId);
+        try {
+          await subscriber.unsubscribe(channel);
+        } catch {
+          // ignore
+        }
+        try {
+          await subscriber.quit();
+        } catch {
+          // ignore
+        }
+        controller.close();
+      };
+
+      const timeoutId = setTimeout(() => {
         controller.enqueue(
-          encoder.encode(`event: stage\ndata: ${JSON.stringify(payload)}\n\n`)
+          encoder.encode(`event: timeout\ndata: ${JSON.stringify({ message: "Stream timeout" })}\n\n`)
         );
-        await new Promise((r) => setTimeout(r, 800));
-      }
+        void closeStream();
+      }, 5 * 60 * 1000);
+
+      subscriber.on("message", (_incomingChannel, message) => {
+        controller.enqueue(encoder.encode(`event: stage\ndata: ${message}\n\n`));
+        try {
+          const payload = JSON.parse(message) as { type?: string };
+          if (payload.type === "complete" || payload.type === "error") {
+            void closeStream();
+          }
+        } catch {
+          // keep stream alive if event payload is not JSON
+        }
+      });
+
+      await subscriber.subscribe(channel);
+
       controller.enqueue(
         encoder.encode(
-          `event: complete\ndata: ${JSON.stringify({ analysisId: id, redirectUrl: `/analysis/${id}` })}\n\n`
+          `event: connected\ndata: ${JSON.stringify({ analysisId: id, status: analysis.status })}\n\n`
         )
       );
-      controller.close();
+      controller.enqueue(encoder.encode(`event: stage\ndata: ${JSON.stringify(initialEvent)}\n\n`));
     },
+    async cancel() {
+      await subscriber.unsubscribe(channel);
+      await subscriber.quit();
+    },
+  });
+
+  request.signal.addEventListener("abort", async () => {
+    try {
+      await subscriber.unsubscribe(channel);
+      await subscriber.quit();
+    } catch {
+      // ignore teardown errors
+    }
   });
 
   return new Response(stream, {
     headers: {
       "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
+      "Cache-Control": "no-cache, no-transform",
       Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
     },
   });
 }

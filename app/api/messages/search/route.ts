@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/get-auth-user";
+import { prisma } from "@/prisma/client";
 
-/**
- * GET /api/messages/search
- * Placeholder: search messages. Full implementation would use full-text search
- * (e.g. PostgreSQL tsvector) or Elasticsearch.
- */
 export async function GET(request: NextRequest) {
   const user = await getAuthUser(request);
   if (!user) {
@@ -15,9 +11,40 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const q = searchParams.get("q") ?? "";
 
+  if (!q.trim()) {
+    return NextResponse.json({ messages: [], query: q });
+  }
+
+  const participantConversations = await prisma.conversationParticipant.findMany({
+    where: { userId: user.id },
+    select: { conversationId: true },
+  });
+  const conversationIds = participantConversations.map((entry) => entry.conversationId);
+  if (!conversationIds.length) {
+    return NextResponse.json({ messages: [], query: q });
+  }
+
+  const messages = await prisma.message.findMany({
+    where: {
+      conversationId: { in: conversationIds },
+      isDeleted: false,
+      content: { contains: q, mode: "insensitive" },
+    },
+    orderBy: { sentAt: "desc" },
+    take: 50,
+    include: {
+      sender: { select: { id: true, displayName: true, role: true } },
+    },
+  });
+
   return NextResponse.json({
-    messages: [],
     query: q,
-    message: "Search not implemented. Use GET /api/conversations/:id/messages for conversation messages.",
+    messages: messages.map((message) => ({
+      id: message.id,
+      conversationId: message.conversationId,
+      content: message.content,
+      sentAt: message.sentAt,
+      sender: message.sender,
+    })),
   });
 }

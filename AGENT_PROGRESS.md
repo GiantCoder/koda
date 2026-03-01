@@ -78,3 +78,48 @@ This tracker coordinates backend/frontend parallel work for each feature using i
 - [x] Frontend + backend feature branches all merged into `develop`
 - [x] `git checkout develop` in primary repo
 - [x] Delete all feature worktrees to reclaim disk space
+
+## Phase 2: Detailed Prompt Compliance Pass
+
+- Status: `in_progress`
+- Scope: `Docker spec parity + src scaffolding + API route alignment + testing/storybook skeletons`
+- Done:
+  - Replaced `docker-compose.yml` with multi-service stack (`app`, `worker`, `mysql`, `redis`, `minio`, `langfuse`, `mailpit`, `mediapipe`) and service health/dependency wiring.
+  - Replaced root `Dockerfile` stages to `base/development/builder/production` matching DOCKER spec naming.
+  - Updated `Makefile` to target `app` service and added helper open commands.
+  - Added/updated compliance scaffolds under `src/lib`, `src/store`, `src/components`, `tests/e2e`, and missing API route paths.
+  - Added `.env.local` (from example placeholders) to allow compose-based local execution.
+- Remaining:
+  - Resolve architecture mismatch against prompt (`Vite FE + Next BE` vs current single Next app) if required.
+  - Replace placeholder implementations with full PRD-grade behavior for workers, SSE, annotation persistence, and safeguarding.
+  - Run full container verification (`docker compose up`, migrations, seed, lint/test/e2e) after container build/install settles.
+
+## Phase 3: Core Behavior Hardening
+
+- Status: `in_progress`
+- Done:
+  - Implemented refresh-token cookie flow with Redis-backed token storage and rotation in:
+    - `app/api/auth/register/route.ts`
+    - `app/api/auth/login/route.ts`
+    - `app/api/auth/refresh/route.ts`
+    - `app/api/auth/logout/route.ts`
+  - Upgraded `lib/auth.ts` with access/refresh token helpers and typed payload handling.
+  - Added middleware auth enforcement for `/api/*` (excluding auth + health) and security headers in `src/middleware.ts`.
+  - Added header-aware auth extraction in `lib/get-auth-user.ts` to consume middleware-injected identity.
+  - Converted annotation endpoint from placeholder to Prisma-backed persistence in `app/api/analysis/[id]/annotations/route.ts`.
+  - Aligned Prisma datasource provider to MySQL in `prisma/schema.prisma`.
+  - Wired BullMQ queue usage from API and worker runtime:
+    - `app/api/analysis/route.ts` now enqueues `analysis` jobs.
+    - `workers/videoWorker.ts` now updates video metadata, emits Redis stage event, and enqueues analysis.
+    - `workers/analysisWorker.ts` now runs staged pipeline updates, persists analysis scores/grade, and emits completion/error SSE events through Redis pub/sub.
+    - `workers/emailWorker.ts` now sends transactional emails via Resend (or logs when key absent).
+    - `workers/index.ts` now imports worker instances and publishes failure events to analysis channels.
+  - Replaced mock SSE in `app/api/analysis/[id]/stream/route.ts` with Redis-backed subscription stream and timeout/teardown handling.
+  - Added Redis pub/sub broadcast in `app/api/conversations/[id]/messages/route.ts`.
+  - Replaced message search placeholder with Prisma-backed query in `app/api/messages/search/route.ts`.
+- Remaining:
+  - Resolve migration history mismatch:
+    - Existing mismatch was remediated by resetting DBs and generating a clean MySQL baseline migration (`20260228215632_init_mysql_baseline`).
+    - Legacy migration SQL files are now no-op placeholders to preserve order after reset.
+  - Finish worker pipelines (video/analysis/email) from PRD section requirements.
+  - Replace mock SSE and messaging pub/sub placeholders with end-to-end Redis-backed event flow.

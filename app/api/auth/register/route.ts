@@ -1,28 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/prisma/client";
 import { registerSchema } from "../schema";
-import { hashPassword, signJwt } from "@/lib/auth";
-import {
-  getAgeFromDateOfBirth,
-  getConsentStatusForAge,
-} from "@/lib/age-consent";
+import { hashPassword, generateAccessToken, generateRefreshToken } from "@/lib/auth";
+import { getAgeFromDateOfBirth, getConsentStatusForAge } from "@/lib/age-consent";
 import { ConsentStatus } from "@prisma/client";
+import { redis } from "@/src/lib/redis";
+
+const REFRESH_COOKIE_NAME = "koda_refresh_token";
+const REFRESH_TTL_SECONDS = 60 * 60 * 24 * 7;
 
 export async function POST(request: NextRequest) {
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json(
-      { error: "Invalid JSON body" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Invalid JSON body", code: "BAD_REQUEST" }, { status: 400 });
   }
 
   const validation = registerSchema.safeParse(body);
   if (!validation.success) {
     return NextResponse.json(
-      { error: "Validation failed", details: validation.error.flatten() },
+      { error: "Validation failed", code: "VALIDATION_ERROR", details: validation.error.flatten() },
       { status: 400 }
     );
   }
@@ -39,52 +37,61 @@ export async function POST(request: NextRequest) {
   });
   if (existing) {
     return NextResponse.json(
-      { error: "An account with this email already exists" },
+      { error: "An account with this email already exists", code: "EMAIL_EXISTS" },
       { status: 409 }
     );
   }
 
   const passwordHash = await hashPassword(data.password);
 
-  const user = await prisma.user.create({
-    data: {
-      email: data.email.toLowerCase(),
-      passwordHash,
-      displayName: data.displayName,
-      name: data.displayName,
-      role: data.role,
-      dateOfBirth,
-      isActive: consentStatus === ConsentStatus.NOT_REQUIRED,
-      consentRecord:
-        consentStatus !== ConsentStatus.NOT_REQUIRED
-          ? {
-              create: {
-                consentStatus,
-              },
-            }
-          : undefined,
-      privacyPreferences: {
-        create: {
-          performanceAnalytics: data.privacyPreferences.performanceAnalytics,
-          marketingCommunications:
-            data.privacyPreferences.marketingCommunications,
-          coachParentComms: data.privacyPreferences.coachParentComms,
+  const user = await prisma.$transaction(async (tx) =>
+    tx.user.create({
+      data: {
+        email: data.email.toLowerCase(),
+        passwordHash,
+        displayName: data.displayName,
+        name: data.displayName,
+        role: data.role,
+        dateOfBirth,
+        isActive: consentStatus === ConsentStatus.NOT_REQUIRED,
+        emailVerified: true,
+        consentRecord: {
+          create: {
+            consentStatus,
+          },
+        },
+        privacyPreferences: {
+          create: {
+            performanceAnalytics: data.privacyPreferences.performanceAnalytics,
+            marketingCommunications: data.privacyPreferences.marketingCommunications,
+            coachParentComms: data.privacyPreferences.coachParentComms,
+          },
         },
       },
-    },
-    include: {
-      consentRecord: true,
-      privacyPreferences: true,
-    },
-  });
+      include: {
+        consentRecord: true,
+        privacyPreferences: true,
+      },
+    })
+  );
 
-  const token = await signJwt({
+  const accessToken = await generateAccessToken({
     sub: user.id,
     userId: user.id,
     role: user.role,
+    email: user.email,
+    ageGroup: user.ageGroup,
   });
+  const { token: refreshToken, tokenId } = await generateRefreshToken({
+    sub: user.id,
+    userId: user.id,
+    role: user.role,
+    email: user.email,
+    ageGroup: user.ageGroup,
+  });
+  await redis.set(`refresh:${user.id}:${tokenId}`, "1", "EX", REFRESH_TTL_SECONDS);
 
-  return NextResponse.json(
+  const response = NextResponse.json(
     {
       user: {
         id: user.id,
@@ -94,9 +101,19 @@ export async function POST(request: NextRequest) {
         consentStatus: user.consentRecord?.consentStatus ?? ConsentStatus.NOT_REQUIRED,
         requiresConsent: consentStatus !== ConsentStatus.NOT_REQUIRED,
       },
-      accessToken: token,
+      accessToken,
       expiresIn: 900,
     },
     { status: 201 }
   );
+
+  response.cookies.set(REFRESH_COOKIE_NAME, refreshToken, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: REFRESH_TTL_SECONDS,
+  });
+
+  return response;
 }

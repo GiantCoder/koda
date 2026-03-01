@@ -6,6 +6,7 @@ import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 import { Input } from "@/app/components/ui/Input";
 import { Select } from "@/app/components/ui/Select";
+import { setOnboardingComplete } from "@/app/lib/auth";
 
 const POSITIONS = [
   { value: "batsman", label: "Batsman" },
@@ -42,7 +43,8 @@ export default function ProfilePage() {
   const [privacy, setPrivacy] = useState("coaches-parents");
 
   const handleFinish = () => {
-    router.push("/");
+    setOnboardingComplete(true);
+    router.push("/dashboard");
   };
 
   return (

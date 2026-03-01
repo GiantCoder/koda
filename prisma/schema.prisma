@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
 }
 
 enum Role {
@@ -97,6 +97,7 @@ model User {
   coachSquads        Squad[]
   sessions           Session[]      @relation("PlayerSessions")
   coachSessions      Session[]     @relation("CoachSessions")
+  annotationsAuthored Annotation[] @relation("AnnotationAuthor")
 }
 
 model Video {
@@ -150,8 +151,26 @@ model Analysis {
   updatedAt           DateTime       @updatedAt
 
   video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  annotations Annotation[]
 
   @@index([status])
+}
+
+model Annotation {
+  id          String   @id @default(uuid())
+  analysisId  String
+  authorId    String
+  timestampMs Int
+  content     String   @db.Text
+  isPrivate   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  analysis Analysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  author   User     @relation("AnnotationAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([analysisId, createdAt])
+  @@index([authorId])
 }
 
 model ConsentRecord {

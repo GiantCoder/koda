@@ -1,24 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/prisma/client";
 import { loginSchema } from "../schema";
-import { verifyPassword, signJwt } from "@/lib/auth";
+import { verifyPassword, generateAccessToken, generateRefreshToken } from "@/lib/auth";
 import { ConsentStatus } from "@prisma/client";
+import { redis } from "@/src/lib/redis";
+
+const REFRESH_COOKIE_NAME = "koda_refresh_token";
+const REFRESH_TTL_SECONDS = 60 * 60 * 24 * 7;
 
 export async function POST(request: NextRequest) {
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json(
-      { error: "Invalid JSON body" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Invalid JSON body", code: "BAD_REQUEST" }, { status: 400 });
   }
 
   const validation = loginSchema.safeParse(body);
   if (!validation.success) {
     return NextResponse.json(
-      { error: "Validation failed", details: validation.error.flatten() },
+      { error: "Validation failed", code: "VALIDATION_ERROR", details: validation.error.flatten() },
       { status: 400 }
     );
   }
@@ -32,7 +33,7 @@ export async function POST(request: NextRequest) {
 
   if (!user || !user.passwordHash) {
     return NextResponse.json(
-      { error: "Invalid email or password" },
+      { error: "Invalid email or password", code: "INVALID_CREDENTIALS" },
       { status: 401 }
     );
   }
@@ -40,17 +41,21 @@ export async function POST(request: NextRequest) {
   const valid = await verifyPassword(password, user.passwordHash);
   if (!valid) {
     return NextResponse.json(
-      { error: "Invalid email or password" },
+      { error: "Invalid email or password", code: "INVALID_CREDENTIALS" },
       { status: 401 }
     );
+  }
+
+  if (!user.emailVerified) {
+    return NextResponse.json({ error: "Email not verified", code: "EMAIL_NOT_VERIFIED" }, { status: 403 });
   }
 
   if (!user.isActive) {
     return NextResponse.json(
       {
         error: "Account is inactive",
-        requiresConsent:
-          user.consentRecord?.consentStatus === ConsentStatus.PENDING,
+        code: "ACCOUNT_INACTIVE",
+        consentPending: user.consentRecord?.consentStatus === ConsentStatus.PENDING,
       },
       { status: 403 }
     );
@@ -61,13 +66,23 @@ export async function POST(request: NextRequest) {
     data: { lastLoginAt: new Date() },
   });
 
-  const token = await signJwt({
+  const accessToken = await generateAccessToken({
     sub: user.id,
     userId: user.id,
     role: user.role,
+    email: user.email,
+    ageGroup: user.ageGroup,
   });
+  const { token: refreshToken, tokenId } = await generateRefreshToken({
+    sub: user.id,
+    userId: user.id,
+    role: user.role,
+    email: user.email,
+    ageGroup: user.ageGroup,
+  });
+  await redis.set(`refresh:${user.id}:${tokenId}`, "1", "EX", REFRESH_TTL_SECONDS);
 
-  return NextResponse.json({
+  const response = NextResponse.json({
     user: {
       id: user.id,
       email: user.email,
@@ -75,7 +90,17 @@ export async function POST(request: NextRequest) {
       role: user.role,
       consentStatus: user.consentRecord?.consentStatus ?? ConsentStatus.NOT_REQUIRED,
     },
-    accessToken: token,
+    accessToken,
     expiresIn: 900,
   });
+
+  response.cookies.set(REFRESH_COOKIE_NAME, refreshToken, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: REFRESH_TTL_SECONDS,
+  });
+
+  return response;
 }

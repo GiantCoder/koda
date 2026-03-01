@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/prisma/client";
 import { getAuthUser } from "@/lib/get-auth-user";
 import { analysisCreateSchema } from "./schema";
+import { Queue } from "bullmq";
+
+const queueConnection = { url: process.env.REDIS_URL ?? "redis://localhost:6379" };
+const analysisQueue = new Queue("analysis", { connection: queueConnection });
 
 export async function POST(request: NextRequest) {
   const user = await getAuthUser(request);
@@ -60,8 +64,11 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  // TODO: Enqueue BullMQ analysis job when worker available
-  console.info(`[MVP] Analysis ${analysis.id} created for video ${videoId}; BullMQ job would be enqueued`);
+  await analysisQueue.add("analysis.pipeline", {
+    videoId,
+    userId: user.id,
+    analysisId: analysis.id,
+  });
 
   return NextResponse.json({
     id: analysis.id,

@@ -7,7 +7,7 @@ import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 import { Input } from "@/app/components/ui/Input";
 import { loginSchema, type LoginFormData } from "@/app/lib/validators";
-import { setAuthToken } from "@/app/lib/auth";
+import { getPostAuthRoute, setAuthToken } from "@/app/lib/auth";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -27,7 +27,7 @@ export default function LoginPage() {
 
     // Mock: accept any valid form and set token
     setAuthToken("mock-token-" + Date.now());
-    router.push("/onboarding/role");
+    router.push(getPostAuthRoute());
   };
 
   return (

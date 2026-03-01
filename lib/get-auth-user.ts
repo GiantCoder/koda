@@ -6,6 +6,17 @@ export async function getAuthUser(request: Request): Promise<{
   email: string;
   role: string;
 } | null> {
+  const headerUserId = request.headers.get("x-auth-user-id");
+  const headerRole = request.headers.get("x-auth-role");
+  if (headerUserId && headerRole) {
+    const userFromHeaders = await prisma.user.findUnique({
+      where: { id: headerUserId },
+      select: { id: true, email: true, role: true, isActive: true },
+    });
+    if (!userFromHeaders || !userFromHeaders.isActive) return null;
+    return userFromHeaders;
+  }
+
   const token = getBearerToken(request);
   if (!token) return null;
 
