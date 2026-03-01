@@ -1,9 +1,14 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
+import { useState } from "react";
 import { useMockAuth } from "@/app/hooks/useMockAuth";
 import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
+import AvatarGalleryModal from "@/app/components/profile/AvatarGalleryModal";
+import { clearAuthToken, setProfileAvatarUrl } from "@/app/lib/auth";
+import { useProfileAvatar } from "@/app/hooks/useProfileAvatar";
 
 function CalendarIcon() {
   return (
@@ -47,6 +52,9 @@ function CameraIcon() {
 
 export default function ProfilePage() {
   const { user } = useMockAuth();
+  const selectedAvatarUrl = useProfileAvatar();
+  const [isAvatarGalleryOpen, setIsAvatarGalleryOpen] = useState(false);
+
   const displayName = user
     ? `${user.firstName} ${user.lastName}`
     : "User";
@@ -69,12 +77,23 @@ export default function ProfilePage() {
           <Card>
             <div className="flex flex-col items-center py-4">
               <div className="relative">
-                <div className="flex h-24 w-24 items-center justify-center rounded-full bg-[var(--surface-secondary)] text-2xl font-semibold text-[var(--primary)]">
-                  {user?.firstName?.[0] ?? "U"}
-                  {user?.lastName?.[0] ?? ""}
-                </div>
+                {selectedAvatarUrl ? (
+                  <Image
+                    src={selectedAvatarUrl}
+                    alt="Selected avatar"
+                    width={96}
+                    height={96}
+                    className="h-24 w-24 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-24 w-24 items-center justify-center rounded-full bg-[var(--surface-secondary)] text-2xl font-semibold text-[var(--primary)]">
+                    {user?.firstName?.[0] ?? "U"}
+                    {user?.lastName?.[0] ?? ""}
+                  </div>
+                )}
                 <button
                   type="button"
+                  onClick={() => setIsAvatarGalleryOpen(true)}
                   className="absolute bottom-0 right-0 flex h-8 w-8 items-center justify-center rounded-full bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)]"
                   aria-label="Change profile photo"
                 >
@@ -113,9 +132,7 @@ export default function ProfilePage() {
                   variant="ghost"
                   className="w-full justify-start gap-2"
                   onClick={() => {
-                    if (typeof window !== "undefined") {
-                      localStorage.removeItem("koda_auth_token");
-                    }
+                    clearAuthToken();
                   }}
                 >
                   <LogoutIcon />
@@ -150,6 +167,14 @@ export default function ProfilePage() {
           </Card>
         </div>
       </div>
+      <AvatarGalleryModal
+        isOpen={isAvatarGalleryOpen}
+        onClose={() => setIsAvatarGalleryOpen(false)}
+        selectedAvatarUrl={selectedAvatarUrl}
+        onSelect={(avatarUrl) => {
+          setProfileAvatarUrl(avatarUrl);
+        }}
+      />
     </div>
   );
 }

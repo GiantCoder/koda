@@ -1,9 +1,11 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTheme } from "@/app/hooks/useTheme";
 import { useMockAuth } from "@/app/hooks/useMockAuth";
+import { useProfileAvatar } from "@/app/hooks/useProfileAvatar";
 
 function ProgressChartIcon() {
   return (
@@ -184,6 +186,7 @@ export default function DashboardHeader() {
   const pathname = usePathname();
   const { theme, toggleTheme } = useTheme();
   const { user, role } = useMockAuth();
+  const avatarUrl = useProfileAvatar();
   const navItems =
     role === "coach"
       ? [
@@ -257,10 +260,20 @@ export default function DashboardHeader() {
         </button>
 
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--surface-secondary)] text-sm font-semibold text-[var(--primary)]">
-            {user?.firstName?.[0] ?? "U"}
-            {user?.lastName?.[0] ?? ""}
-          </div>
+          {avatarUrl ? (
+            <Image
+              src={avatarUrl}
+              alt="Profile avatar"
+              width={40}
+              height={40}
+              className="h-10 w-10 rounded-full object-cover"
+            />
+          ) : (
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--surface-secondary)] text-sm font-semibold text-[var(--primary)]">
+              {user?.firstName?.[0] ?? "U"}
+              {user?.lastName?.[0] ?? ""}
+            </div>
+          )}
           <div>
             <p className="text-sm font-medium text-[var(--text-primary)]">
               {user?.firstName} {user?.lastName}
