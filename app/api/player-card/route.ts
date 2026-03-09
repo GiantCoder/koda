@@ -3,8 +3,12 @@ import type { BgMode, CardRole, CardTier, PlayerCard, SportIcon } from "@prisma/
 import { prisma } from "@/prisma/client";
 import { getAuthUser } from "@/lib/get-auth-user";
 import { deriveCardStats, deriveCardTier } from "@/lib/player-card-stats";
+import { getSignedUrl } from "@/src/lib/storage";
 import type { PlayerCardDto } from "@/types/player-card";
 import { updatePlayerCardSchema } from "@/types/player-card";
+
+const STORAGE_BUCKET = process.env.STORAGE_BUCKET_VIDEOS ?? "koda-videos";
+const ASSET_SIGNED_URL_TTL_SECONDS = 60 * 15;
 
 function computeOverall(card: {
   statTec: number;
@@ -42,7 +46,63 @@ function toDto(card: {
   };
 }
 
-function toDtoFromModel(card: PlayerCard): PlayerCardDto {
+function extractStorageKeyFromUrl(rawValue: string): string | null {
+  try {
+    const parsedUrl = new URL(rawValue);
+    const normalizedPath = parsedUrl.pathname.replace(/^\/+/, "");
+
+    if (normalizedPath.startsWith(`${STORAGE_BUCKET}/`)) {
+      return normalizedPath.slice(STORAGE_BUCKET.length + 1);
+    }
+
+    if (normalizedPath.startsWith("player-cards/")) {
+      return normalizedPath;
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function isStorageObjectKey(value: string): boolean {
+  return value.startsWith("player-cards/") && !value.includes("://");
+}
+
+function toStorageReference(value: string | null | undefined): string | null | undefined {
+  if (value == null) {
+    return value;
+  }
+  if (isStorageObjectKey(value)) {
+    return value;
+  }
+  const extractedKey = extractStorageKeyFromUrl(value);
+  return extractedKey ?? value;
+}
+
+async function resolveAssetUrl(value: string | null): Promise<string | null> {
+  if (!value) {
+    return null;
+  }
+
+  if (isStorageObjectKey(value)) {
+    return getSignedUrl(value, ASSET_SIGNED_URL_TTL_SECONDS);
+  }
+
+  const extractedKey = extractStorageKeyFromUrl(value);
+  if (extractedKey) {
+    return getSignedUrl(extractedKey, ASSET_SIGNED_URL_TTL_SECONDS);
+  }
+
+  return value;
+}
+
+async function toDtoFromModel(card: PlayerCard): Promise<PlayerCardDto> {
+  const [profilePhotoUrl, backgroundUrl] = await Promise.all([
+    resolveAssetUrl(card.profilePhotoUrl),
+    resolveAssetUrl(card.backgroundUrl),
+  ]);
+
   return toDto({
     id: card.id,
     userId: card.userId,
@@ -56,8 +116,8 @@ function toDtoFromModel(card: PlayerCard): PlayerCardDto {
     statCon: card.statCon,
     statPac: card.statPac,
     statFie: card.statFie,
-    profilePhotoUrl: card.profilePhotoUrl,
-    backgroundUrl: card.backgroundUrl,
+    profilePhotoUrl,
+    backgroundUrl,
     backgroundMode: card.backgroundMode,
   });
 }
@@ -73,7 +133,7 @@ export async function GET(request: NextRequest) {
   });
 
   if (existingCard) {
-    return NextResponse.json(toDtoFromModel(existingCard));
+    return NextResponse.json(await toDtoFromModel(existingCard));
   }
 
   const [userProfile, analyses] = await Promise.all([
@@ -172,11 +232,15 @@ export async function PUT(request: NextRequest) {
     create: {
       userId: authUser.id,
       ...validation.data,
+      profilePhotoUrl: toStorageReference(validation.data.profilePhotoUrl),
+      backgroundUrl: toStorageReference(validation.data.backgroundUrl),
     },
     update: {
       ...validation.data,
+      profilePhotoUrl: toStorageReference(validation.data.profilePhotoUrl),
+      backgroundUrl: toStorageReference(validation.data.backgroundUrl),
     },
   });
 
-  return NextResponse.json(toDtoFromModel(saved));
+  return NextResponse.json(await toDtoFromModel(saved));
 }

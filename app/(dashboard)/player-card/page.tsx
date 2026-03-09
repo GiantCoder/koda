@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
 import PlayerCardDisplay from "@/app/components/player-card/PlayerCardDisplay";
 import PlayerCardEditor from "@/app/components/player-card/PlayerCardEditor";
@@ -22,6 +22,7 @@ const uploadResponseSchema = z.object({
 
 export default function PlayerCardPage() {
   const dispatch = useAppDispatch();
+  const [uiError, setUiError] = useState<string | null>(null);
   const { card, loading, saving, generatingBg, aiBgCss, error } = useAppSelector(
     (state) => state.playerCard
   );
@@ -50,17 +51,23 @@ export default function PlayerCardPage() {
   }, [card]);
 
   const uploadImage = async (file: File): Promise<string> => {
+    const mockUser = getMockUser();
+    if (!mockUser) {
+      throw new Error("No authenticated user available for upload.");
+    }
+
     const formData = new FormData();
     formData.append("file", file);
 
     const response = await fetch("/api/player-card/upload-image", {
       method: "POST",
-      headers: buildMockAuthHeaders(getMockUser()),
+      headers: buildMockAuthHeaders(mockUser),
       body: formData,
     });
 
     if (!response.ok) {
-      throw new Error("Image upload failed");
+      const responseBody = (await response.json().catch(() => ({}))) as { error?: string };
+      throw new Error(responseBody.error ?? "Image upload failed");
     }
 
     const raw = (await response.json()) as unknown;
@@ -84,9 +91,9 @@ export default function PlayerCardPage() {
         </p>
       </div>
 
-      {error ? (
+      {error || uiError ? (
         <div className="mb-4 rounded-lg border border-red-400/35 bg-red-400/10 p-3 text-sm text-red-300">
-          {error}
+          {error ?? uiError}
         </div>
       ) : null}
 
@@ -108,9 +115,15 @@ export default function PlayerCardPage() {
           onChange={(partial) => dispatch(updateLocalCard(partial))}
           onSave={() => {
             if (!canSaveInput) return;
-            void dispatch(savePlayerCard(canSaveInput));
+            setUiError(null);
+            void dispatch(savePlayerCard(canSaveInput)).then((result) => {
+              if (savePlayerCard.rejected.match(result)) {
+                setUiError("Saving failed. Please try again.");
+              }
+            });
           }}
           onGenerateBg={() => {
+            setUiError(null);
             void dispatch(
               generateBackground({
                 tier: card.tier,
@@ -120,19 +133,31 @@ export default function PlayerCardPage() {
             ).then((result) => {
               if (generateBackground.fulfilled.match(result)) {
                 dispatch(updateLocalCard({ backgroundMode: "AI", backgroundUrl: null }));
+              } else {
+                setUiError("AI background generation failed. Please try again.");
               }
             });
           }}
           onProfileUpload={(file) => {
-            void uploadImage(file).then((url) => {
-              dispatch(updateLocalCard({ profilePhotoUrl: url }));
-            });
+            setUiError(null);
+            void uploadImage(file)
+              .then((url) => {
+                dispatch(updateLocalCard({ profilePhotoUrl: url }));
+              })
+              .catch((uploadError: unknown) => {
+                setUiError(uploadError instanceof Error ? uploadError.message : "Image upload failed.");
+              });
           }}
           onBgUpload={(file) => {
-            void uploadImage(file).then((url) => {
-              dispatch(setAiBgCss(null));
-              dispatch(updateLocalCard({ backgroundUrl: url, backgroundMode: "UPLOAD" }));
-            });
+            setUiError(null);
+            void uploadImage(file)
+              .then((url) => {
+                dispatch(setAiBgCss(null));
+                dispatch(updateLocalCard({ backgroundUrl: url, backgroundMode: "UPLOAD" }));
+              })
+              .catch((uploadError: unknown) => {
+                setUiError(uploadError instanceof Error ? uploadError.message : "Image upload failed.");
+              });
           }}
         />
       </div>

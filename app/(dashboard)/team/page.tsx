@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useMockAuth } from "@/app/hooks/useMockAuth";
 import { buildMockAuthHeaders } from "@/app/lib/mock-auth-headers";
 import { ECBSafeguardingBanner } from "@/app/components/coach/ECBSafeguardingBanner";
+import PlayerCardDisplay from "@/app/components/player-card/PlayerCardDisplay";
+import PlayerCardEditor from "@/app/components/player-card/PlayerCardEditor";
 import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
 import { StatCard } from "@/app/components/dashboard/StatCard";
 import { Button } from "@/app/components/ui/Button";
@@ -13,6 +15,7 @@ import { Input } from "@/app/components/ui/Input";
 import { EmptyState } from "@/app/components/common/EmptyState";
 import { LoadingSpinner } from "@/app/components/common/LoadingSpinner";
 import { type MockPlayer, type PlayerStatus } from "@/app/lib/mock-roster";
+import type { PlayerCardDto, UpdatePlayerCardInput } from "@/types/player-card";
 
 function SearchIcon() {
   return (
@@ -271,6 +274,12 @@ interface RosterPlayer extends MockPlayer {
   squadNames: string[];
 }
 
+interface TeamPlayerCardEntry {
+  playerId: string;
+  playerName: string;
+  card: PlayerCardDto;
+}
+
 const AGE_GROUP_OPTIONS = [
   { value: "UNDER_10", label: "Under 10" },
   { value: "UNDER_12", label: "Under 12" },
@@ -318,6 +327,16 @@ export default function CoachRosterPage() {
     clubOrSchool: "",
     profileVisibility: "",
   });
+  const [playerCardEntries, setPlayerCardEntries] = useState<TeamPlayerCardEntry[]>([]);
+  const [cardsLoading, setCardsLoading] = useState(false);
+  const [cardsError, setCardsError] = useState<string | null>(null);
+  const [isCardModalOpen, setIsCardModalOpen] = useState(false);
+  const [selectedCardPlayerId, setSelectedCardPlayerId] = useState("");
+  const [editingCard, setEditingCard] = useState<PlayerCardDto | null>(null);
+  const [cardAiBgCss, setCardAiBgCss] = useState<string | null>(null);
+  const [cardSaving, setCardSaving] = useState(false);
+  const [cardGeneratingBg, setCardGeneratingBg] = useState(false);
+  const [cardModalError, setCardModalError] = useState<string | null>(null);
 
   const mapApiPlayers = useCallback((rawPlayers: unknown[]): RosterPlayer[] => {
     return rawPlayers
@@ -373,6 +392,39 @@ export default function CoachRosterPage() {
       });
   }, []);
 
+  const loadTeamPlayerCards = useCallback(async (players: RosterPlayer[]) => {
+    if (!user || players.length === 0) {
+      setPlayerCardEntries([]);
+      return;
+    }
+
+    setCardsLoading(true);
+    setCardsError(null);
+    try {
+      const cards = await Promise.all(
+        players.map(async (player) => {
+          const response = await fetch(`/api/team/players/${player.id}/player-card`, {
+            headers: buildMockAuthHeaders(user),
+          });
+          if (!response.ok) {
+            throw new Error("Failed to load team player cards");
+          }
+          const card = (await response.json()) as PlayerCardDto;
+          return {
+            playerId: player.id,
+            playerName: player.name,
+            card,
+          } satisfies TeamPlayerCardEntry;
+        })
+      );
+      setPlayerCardEntries(cards);
+    } catch (error) {
+      setCardsError(error instanceof Error ? error.message : "Failed to load player cards");
+    } finally {
+      setCardsLoading(false);
+    }
+  }, [user]);
+
   React.useEffect(() => {
     let cancelled = false;
     async function loadRoster() {
@@ -393,6 +445,7 @@ export default function CoachRosterPage() {
         const players = Array.isArray(data.players) ? mapApiPlayers(data.players) : [];
         if (cancelled) return;
         setTeamPlayers(players);
+        void loadTeamPlayerCards(players);
         setPageState(players.length > 0 ? "ready" : "empty");
       } catch (error) {
         if (cancelled) return;
@@ -404,7 +457,7 @@ export default function CoachRosterPage() {
     return () => {
       cancelled = true;
     };
-  }, [mapApiPlayers, role, user]);
+  }, [loadTeamPlayerCards, mapApiPlayers, role, user]);
 
   // Redirect non-coaches
   React.useEffect(() => {
@@ -448,6 +501,30 @@ export default function CoachRosterPage() {
     return { totalPlayers, activeSessions, pendingReviews, avgGrade };
   }, [teamPlayers]);
 
+  const selectedCardPlayer = useMemo(
+    () => teamPlayers.find((player) => player.id === selectedCardPlayerId) ?? null,
+    [selectedCardPlayerId, teamPlayers]
+  );
+
+  const editingCardInput = useMemo((): UpdatePlayerCardInput | null => {
+    if (!editingCard) return null;
+    return {
+      displayName: editingCard.displayName,
+      tier: editingCard.tier,
+      role: editingCard.role,
+      sportIcon: editingCard.sportIcon,
+      statTec: editingCard.statTec,
+      statPow: editingCard.statPow,
+      statTim: editingCard.statTim,
+      statCon: editingCard.statCon,
+      statPac: editingCard.statPac,
+      statFie: editingCard.statFie,
+      profilePhotoUrl: editingCard.profilePhotoUrl,
+      backgroundUrl: editingCard.backgroundUrl,
+      backgroundMode: editingCard.backgroundMode,
+    };
+  }, [editingCard]);
+
   const refreshRoster = useCallback(async () => {
     if (!user) return;
     const response = await fetch("/api/team/players", {
@@ -460,8 +537,9 @@ export default function CoachRosterPage() {
     const data = await response.json();
     const players = Array.isArray(data.players) ? mapApiPlayers(data.players) : [];
     setTeamPlayers(players);
+    await loadTeamPlayerCards(players);
     setPageState(players.length > 0 ? "ready" : "empty");
-  }, [mapApiPlayers, user]);
+  }, [loadTeamPlayerCards, mapApiPlayers, user]);
 
   const handleViewVideo = useCallback((player: MockPlayer) => {
     router.push(`/upload?assignee=${player.id}`);
@@ -480,6 +558,31 @@ export default function CoachRosterPage() {
     setNewPlayerForm({ displayName: "", firstName: "", lastName: "" });
     setIsAddModalOpen(true);
   }, []);
+
+  const openCardEditorForPlayer = useCallback(
+    async (playerId: string) => {
+      if (!user) return;
+      setSelectedCardPlayerId(playerId);
+      setCardModalError(null);
+      setCardAiBgCss(null);
+      setCardSaving(false);
+      setCardGeneratingBg(false);
+      setIsCardModalOpen(true);
+      setEditingCard(null);
+
+      const response = await fetch(`/api/team/players/${playerId}/player-card`, {
+        headers: buildMockAuthHeaders(user),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        setCardModalError((body as { error?: string }).error ?? "Failed to load player card.");
+        return;
+      }
+      const card = (await response.json()) as PlayerCardDto;
+      setEditingCard(card);
+    },
+    [user]
+  );
 
   const handleEdit = useCallback((player: MockPlayer) => {
     const rosterPlayer = teamPlayers.find((candidate) => candidate.id === player.id);
@@ -641,6 +744,102 @@ export default function CoachRosterPage() {
     setSelectedPlayer(null);
   }, [refreshRoster, selectedPlayer, user]);
 
+  const uploadCardImage = useCallback(
+    async (file: File): Promise<string> => {
+      if (!user) throw new Error("Unauthorized");
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await fetch("/api/player-card/upload-image", {
+        method: "POST",
+        headers: buildMockAuthHeaders(user),
+        body: formData,
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error((body as { error?: string }).error ?? "Image upload failed");
+      }
+      const payload = (await response.json()) as { url?: string };
+      if (!payload.url) {
+        throw new Error("Image upload failed");
+      }
+      return payload.url;
+    },
+    [user]
+  );
+
+  const saveCoachEditedCard = useCallback(async () => {
+    if (!user || !selectedCardPlayerId || !editingCardInput) return;
+    setCardSaving(true);
+    setCardModalError(null);
+    try {
+      const response = await fetch(`/api/team/players/${selectedCardPlayerId}/player-card`, {
+        method: "PUT",
+        headers: {
+          ...buildMockAuthHeaders(user),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(editingCardInput),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error((body as { error?: string }).error ?? "Failed to save player card");
+      }
+      const saved = (await response.json()) as PlayerCardDto;
+      setEditingCard(saved);
+      setPlayerCardEntries((current) =>
+        current.map((entry) =>
+          entry.playerId === selectedCardPlayerId ? { ...entry, card: saved } : entry
+        )
+      );
+    } catch (error) {
+      setCardModalError(error instanceof Error ? error.message : "Failed to save player card");
+    } finally {
+      setCardSaving(false);
+    }
+  }, [editingCardInput, selectedCardPlayerId, user]);
+
+  const generateCoachCardBackground = useCallback(async () => {
+    if (!user || !editingCard) return;
+    setCardGeneratingBg(true);
+    setCardModalError(null);
+    try {
+      const response = await fetch("/api/player-card/generate-background", {
+        method: "POST",
+        headers: {
+          ...buildMockAuthHeaders(user),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          tier: editingCard.tier,
+          role: editingCard.role,
+          sportIcon: editingCard.sportIcon,
+        }),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error((body as { error?: string }).error ?? "Generation failed");
+      }
+      const payload = (await response.json()) as { css?: string };
+      if (!payload.css) {
+        throw new Error("Generation failed");
+      }
+      setCardAiBgCss(payload.css);
+      setEditingCard((current) =>
+        current
+          ? {
+              ...current,
+              backgroundMode: "AI",
+              backgroundUrl: null,
+            }
+          : current
+      );
+    } catch (error) {
+      setCardModalError(error instanceof Error ? error.message : "Generation failed");
+    } finally {
+      setCardGeneratingBg(false);
+    }
+  }, [editingCard, user]);
+
   if (role !== "coach" && role !== "parent" && role !== "admin") {
     return null;
   }
@@ -718,6 +917,50 @@ export default function CoachRosterPage() {
           icon={<ClockIcon />}
         />
       </div>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <span>Team Player Cards</span>
+        </CardHeader>
+        <CardContent>
+          {cardsLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <LoadingSpinner size="lg" />
+            </div>
+          ) : cardsError ? (
+            <p className="text-sm text-[var(--danger)]">{cardsError}</p>
+          ) : playerCardEntries.length === 0 ? (
+            <p className="text-sm text-[var(--text-secondary)]">
+              No player cards available yet.
+            </p>
+          ) : (
+            <div className="flex gap-4 overflow-x-auto pb-2">
+              {playerCardEntries.map((entry) => (
+                <div key={entry.playerId} className="shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => void openCardEditorForPlayer(entry.playerId)}
+                    className="mb-2 text-left text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--primary)]"
+                  >
+                    {entry.playerName}
+                  </button>
+                  <PlayerCardDisplay card={entry.card} aiBgCss={null} compact interactive={false} />
+                </div>
+              ))}
+
+              {(role === "coach" || role === "admin") && (
+                <button
+                  type="button"
+                  onClick={() => setIsCardModalOpen(true)}
+                  className="mt-6 flex h-[360px] w-[250px] shrink-0 items-center justify-center rounded-2xl border border-dashed border-[var(--surface-secondary)] bg-[var(--surface-secondary)]/20 text-sm font-semibold text-[var(--text-secondary)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
+                >
+                  + Add / Edit Player Card
+                </button>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Player roster table */}
       <Card>
@@ -915,6 +1158,139 @@ export default function CoachRosterPage() {
           )}
         </CardContent>
       </Card>
+
+      {isCardModalOpen && (role === "coach" || role === "admin") && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="max-h-[95vh] w-full max-w-6xl overflow-y-auto rounded-xl bg-[var(--surface)] p-5">
+            <div className="mb-3 flex items-start justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-[var(--text-primary)]">Edit Player Card</h3>
+                <p className="text-sm text-[var(--text-secondary)]">
+                  Update a player's card. The player will receive a notification after save.
+                </p>
+              </div>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setIsCardModalOpen(false);
+                  setCardModalError(null);
+                  setSelectedCardPlayerId("");
+                  setEditingCard(null);
+                }}
+              >
+                Close
+              </Button>
+            </div>
+
+            <div className="mb-4">
+              <Select
+                label="Player"
+                options={teamPlayers.map((player) => ({ value: player.id, label: player.name }))}
+                value={selectedCardPlayerId}
+                onChange={(event) => {
+                  const nextPlayerId = event.target.value;
+                  if (!nextPlayerId) return;
+                  void openCardEditorForPlayer(nextPlayerId);
+                }}
+              />
+            </div>
+
+            {cardModalError ? (
+              <p className="mb-3 rounded-md border border-[var(--danger)]/30 bg-[var(--danger)]/10 p-2 text-sm text-[var(--danger)]">
+                {cardModalError}
+              </p>
+            ) : null}
+
+            {selectedCardPlayer && editingCard ? (
+              <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
+                <PlayerCardDisplay
+                  card={editingCard}
+                  aiBgCss={cardAiBgCss}
+                  compact
+                  onDisplayNameCommit={(displayName) =>
+                    setEditingCard((current) =>
+                      current
+                        ? {
+                            ...current,
+                            displayName,
+                          }
+                        : current
+                    )
+                  }
+                />
+                <PlayerCardEditor
+                  card={editingCard}
+                  aiBgCss={cardAiBgCss}
+                  generatingBg={cardGeneratingBg}
+                  saving={cardSaving}
+                  onChange={(partial) =>
+                    setEditingCard((current) =>
+                      current
+                        ? {
+                            ...current,
+                            ...partial,
+                            overall: Math.round(
+                              ((partial.statTec ?? current.statTec) +
+                                (partial.statPow ?? current.statPow) +
+                                (partial.statTim ?? current.statTim) +
+                                (partial.statCon ?? current.statCon) +
+                                (partial.statPac ?? current.statPac) +
+                                (partial.statFie ?? current.statFie)) /
+                                6
+                            ),
+                          }
+                        : current
+                    )
+                  }
+                  onSave={() => void saveCoachEditedCard()}
+                  onGenerateBg={() => void generateCoachCardBackground()}
+                  onProfileUpload={(file) => {
+                    void uploadCardImage(file)
+                      .then((url) =>
+                        setEditingCard((current) =>
+                          current
+                            ? {
+                                ...current,
+                                profilePhotoUrl: url,
+                              }
+                            : current
+                        )
+                      )
+                      .catch((error: unknown) =>
+                        setCardModalError(
+                          error instanceof Error ? error.message : "Image upload failed"
+                        )
+                      );
+                  }}
+                  onBgUpload={(file) => {
+                    void uploadCardImage(file)
+                      .then((url) =>
+                        setEditingCard((current) =>
+                          current
+                            ? {
+                                ...current,
+                                backgroundUrl: url,
+                                backgroundMode: "UPLOAD",
+                              }
+                            : current
+                        )
+                      )
+                      .catch((error: unknown) =>
+                        setCardModalError(
+                          error instanceof Error ? error.message : "Image upload failed"
+                        )
+                      );
+                  }}
+                />
+              </div>
+            ) : (
+              <p className="text-sm text-[var(--text-secondary)]">
+                Select a player to load and edit their card.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">

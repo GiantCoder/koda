@@ -65,6 +65,16 @@ Rules:
     .trim();
 }
 
+function extractJsonObject(rawText: string): string | null {
+  const withoutFences = rawText.replace(/```json|```/gi, "").trim();
+  const start = withoutFences.indexOf("{");
+  const end = withoutFences.lastIndexOf("}");
+  if (start === -1 || end === -1 || end <= start) {
+    return null;
+  }
+  return withoutFences.slice(start, end + 1);
+}
+
 export async function POST(request: NextRequest) {
   const authUser = await getAuthUser(request);
   if (!authUser) {
@@ -109,7 +119,12 @@ export async function POST(request: NextRequest) {
 
     const textBlock = response.content.find((block) => block.type === "text");
     const rawText = textBlock?.type === "text" ? textBlock.text.trim() : "";
-    const parsedJson = JSON.parse(rawText) as unknown;
+    const jsonPayload = extractJsonObject(rawText);
+    if (!jsonPayload) {
+      return NextResponse.json({ error: "Generation failed" }, { status: 500 });
+    }
+
+    const parsedJson = JSON.parse(jsonPayload) as unknown;
     const parsed = generatedResponseSchema.safeParse(parsedJson);
 
     if (!parsed.success) {

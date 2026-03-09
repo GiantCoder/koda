@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { PlayerCardDto } from "@/types/player-card";
 import { TIER_THEMES } from "./playerCardThemes";
 
@@ -82,7 +82,12 @@ export default function PlayerCardDisplay({
   const [hovering, setHovering] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(card.displayName.toUpperCase());
+  const [profileImageBroken, setProfileImageBroken] = useState(false);
   const theme = TIER_THEMES[card.tier];
+
+  useEffect(() => {
+    setProfileImageBroken(false);
+  }, [card.profilePhotoUrl]);
 
   const size = compact
     ? { width: 250, height: 360, perspective: 750 }
@@ -158,11 +163,12 @@ export default function PlayerCardDisplay({
           >
             <div className="absolute inset-0" style={{ background: resolvedBg }} />
 
-            {card.profilePhotoUrl ? (
+            {card.profilePhotoUrl && !profileImageBroken ? (
               <img
                 src={card.profilePhotoUrl}
-                alt={`${card.displayName} profile`}
+                alt={`${card.displayName}`}
                 className="absolute inset-0 h-full w-full object-cover object-top"
+                onError={() => setProfileImageBroken(true)}
                 style={{
                   maskImage: "linear-gradient(180deg, black 0%, black 50%, transparent 88%)",
                   WebkitMaskImage: "linear-gradient(180deg, black 0%, black 50%, transparent 88%)",
@@ -209,7 +215,7 @@ export default function PlayerCardDisplay({
                   </div>
                 </div>
 
-                {!card.profilePhotoUrl ? (
+                {!card.profilePhotoUrl || profileImageBroken ? (
                   <div
                     className="mt-1 text-[78px] leading-none opacity-20"
                     style={{ filter: `drop-shadow(0 0 14px ${theme.accent})` }}
