@@ -63,11 +63,20 @@ function BarChartIcon() {
   );
 }
 
+function TargetIcon() {
+  return (
+    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  );
+}
+
 const baseNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: HomeIcon },
   { href: "/team", label: "Team", icon: TeamIcon },
   { href: "/messages", label: "Messages", icon: MessageIcon },
   { href: "/upload", label: "Upload", icon: UploadIcon },
+  { href: "/shadow-batting", label: "Shadow Batting", icon: TargetIcon },
   { href: "/progress", label: "Progress", icon: BarChartIcon },
   { href: "/profile", label: "Profile", icon: ProfileIcon },
 ];
