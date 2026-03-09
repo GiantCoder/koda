@@ -98,6 +98,7 @@ model User {
   sessions           Session[]      @relation("PlayerSessions")
   coachSessions      Session[]     @relation("CoachSessions")
   annotationsAuthored Annotation[] @relation("AnnotationAuthor")
+  collections        Collection[]
 }
 
 model Video {
@@ -115,8 +116,9 @@ model Video {
   isDeleted       Boolean   @default(false)
   deletedAt       DateTime?
 
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  analysis Analysis?
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  analysis   Analysis?
+  savedClips SavedClip[]
 
   @@index([userId])
 }
@@ -331,4 +333,36 @@ model Session {
   @@index([coachId])
   @@index([squadId])
   @@index([scheduledAt])
+}
+
+model Collection {
+  id          String   @id @default(uuid())
+  userId      String
+  name        String
+  description String?  @db.Text
+  isPublic    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  savedClips SavedClip[]
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model SavedClip {
+  id           String   @id @default(uuid())
+  collectionId String
+  videoId      String
+  notes        String?  @db.Text
+  savedAt      DateTime @default(now())
+
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  video      Video      @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@unique([collectionId, videoId])
+  @@index([collectionId])
+  @@index([videoId])
+  @@index([savedAt])
 }
