@@ -26,43 +26,28 @@ export async function GET(
       where: {
         id,
         isDeleted: false,
-        analysis: {
-          status: "COMPLETE",
-        },
       },
       include: {
         user: {
           select: {
             id: true,
             displayName: true,
-            avatarUrl: true,
           },
         },
-        analysis: {
-          select: {
-            id: true,
-            shotType: true,
-            shotConfidence: true,
-            gradeOverall: true,
-            gradeLetter: true,
-            scoreBacklift: true,
-            scoreWeightTransfer: true,
-            scoreHeadPosition: true,
-            scoreFollowThrough: true,
-            scoreTiming: true,
-            scoreBalance: true,
-            scoreFootwork: true,
-            scoreShotSelection: true,
-            coachingTips: true,
-            completedAt: true,
-          },
-        },
+        analysis: true,
       },
     });
 
-    if (!video || !video.analysis) {
+    if (!video) {
       return NextResponse.json(
         { error: "Clip not found" },
+        { status: 404 }
+      );
+    }
+
+    if (!video.analysis || video.analysis.status !== "COMPLETE") {
+      return NextResponse.json(
+        { error: "Analysis not available for this clip" },
         { status: 404 }
       );
     }
@@ -72,10 +57,6 @@ export async function GET(
       where: {
         id: { not: id },
         isDeleted: false,
-        analysis: {
-          status: "COMPLETE",
-          shotType: video.analysis.shotType,
-        },
       },
       include: {
         user: {
@@ -83,16 +64,13 @@ export async function GET(
             displayName: true,
           },
         },
-        analysis: {
-          select: {
-            shotType: true,
-            gradeLetter: true,
-          },
-        },
+        analysis: true,
       },
       take: 4,
       orderBy: { uploadedAt: "desc" },
-    });
+    }).then((videos) => 
+      videos.filter((v) => v.analysis && v.analysis.status === "COMPLETE" && v.analysis.shotType === video.analysis?.shotType)
+    );
 
     const formattedClip = {
       id: video.id,
@@ -109,7 +87,7 @@ export async function GET(
       likes: 37,
       uploadedBy: video.user.displayName,
       uploadedById: video.user.id,
-      uploadedByAvatar: video.user.avatarUrl,
+      uploadedByAvatar: null,
       uploadedAt: video.uploadedAt.toISOString(),
       analysis: {
         scores: {
