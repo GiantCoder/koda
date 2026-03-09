@@ -10,7 +10,23 @@ interface VideoJobData {
 
 const connection = { url: process.env.REDIS_URL ?? "redis://localhost:6379" };
 const analysisQueue = new Queue("analysis", { connection });
-const redisPublisher = new Redis(connection.url);
+const redisPublisher = new Redis(connection.url, {
+  maxRetriesPerRequest: null,
+  retryStrategy(times) {
+    const delay = Math.min(times * 50, 2000);
+    return delay;
+  },
+  enableReadyCheck: true,
+  lazyConnect: false,
+});
+
+redisPublisher.on("error", (err) => {
+  console.error("Redis connection error:", err.message);
+});
+
+redisPublisher.on("connect", () => {
+  console.log("Redis publisher connected");
+});
 
 export const videoWorker = new Worker<VideoJobData>(
   "video-processing",

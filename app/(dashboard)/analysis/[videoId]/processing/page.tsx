@@ -13,7 +13,7 @@ export default function AnalysisProcessingPage() {
   const router = useRouter();
   const videoId = typeof params.videoId === "string" ? params.videoId : null;
 
-  const { status, error, retry, refetch } = useAnalysisStatus({
+  const { status, error, retry } = useAnalysisStatus({
     videoId,
     enabled: !!videoId,
     pollIntervalMs: 3000,
@@ -21,11 +21,6 @@ export default function AnalysisProcessingPage() {
       router.push(`/analysis/${s.id}`);
     },
   });
-
-  useEffect(() => {
-    if (!videoId) return;
-    void refetch();
-  }, [videoId, refetch]);
 
   const handleCancel = useCallback(() => {
     router.push("/upload");

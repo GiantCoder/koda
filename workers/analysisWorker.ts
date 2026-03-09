@@ -11,7 +11,23 @@ interface AnalysisJobData {
 }
 
 const connection = { url: process.env.REDIS_URL ?? "redis://localhost:6379" };
-const redisPublisher = new Redis(connection.url);
+const redisPublisher = new Redis(connection.url, {
+  maxRetriesPerRequest: null,
+  retryStrategy(times) {
+    const delay = Math.min(times * 50, 2000);
+    return delay;
+  },
+  enableReadyCheck: true,
+  lazyConnect: false,
+});
+
+redisPublisher.on("error", (err) => {
+  console.error("Redis connection error:", err.message);
+});
+
+redisPublisher.on("connect", () => {
+  console.log("Redis publisher connected");
+});
 
 async function publishStage(analysisId: string, payload: Record<string, unknown>): Promise<void> {
   await redisPublisher.publish(`analysis:${analysisId}`, JSON.stringify(payload));

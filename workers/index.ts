@@ -9,7 +9,23 @@ import { videoWorker } from "./videoWorker";
 import Redis from "ioredis";
 
 const connection = { url: process.env.REDIS_URL ?? "redis://localhost:6379" };
-const redisPublisher = new Redis(connection.url);
+const redisPublisher = new Redis(connection.url, {
+  maxRetriesPerRequest: null,
+  retryStrategy(times) {
+    const delay = Math.min(times * 50, 2000);
+    return delay;
+  },
+  enableReadyCheck: true,
+  lazyConnect: false,
+});
+
+redisPublisher.on("error", (err) => {
+  console.error("Redis connection error:", err.message);
+});
+
+redisPublisher.on("connect", () => {
+  console.log("Redis publisher connected");
+});
 
 const videoQueue = new Queue("video-processing", { connection });
 const analysisQueue = new Queue("analysis", { connection });

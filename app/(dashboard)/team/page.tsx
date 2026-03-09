@@ -299,6 +299,13 @@ export default function CoachRosterPage() {
     firstName: "",
     lastName: "",
   });
+  const [addPlayerMode, setAddPlayerMode] = useState<"single" | "bulk">("single");
+  const [bulkPlayerLines, setBulkPlayerLines] = useState("");
+  const [bulkAddSummary, setBulkAddSummary] = useState<{
+    created: number;
+    failed: number;
+    errors: string[];
+  } | null>(null);
   const [editPlayerForm, setEditPlayerForm] = useState({
     displayName: "",
     firstName: "",
@@ -467,6 +474,9 @@ export default function CoachRosterPage() {
 
   const handleAddPlayer = useCallback(() => {
     setModalError(null);
+    setBulkAddSummary(null);
+    setBulkPlayerLines("");
+    setAddPlayerMode("single");
     setNewPlayerForm({ displayName: "", firstName: "", lastName: "" });
     setIsAddModalOpen(true);
   }, []);
@@ -529,6 +539,49 @@ export default function CoachRosterPage() {
     setIsModalSubmitting(false);
     setIsAddModalOpen(false);
   }, [newPlayerForm, refreshRoster, user]);
+
+  const submitBulkAddPlayers = useCallback(async () => {
+    if (!user) return;
+    const entries = bulkPlayerLines
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    if (entries.length === 0) {
+      setModalError("Add at least one player name");
+      return;
+    }
+
+    setIsModalSubmitting(true);
+    setModalError(null);
+    const errors: string[] = [];
+    let created = 0;
+    let failed = 0;
+
+    for (const name of entries) {
+      const response = await fetch("/api/team/players", {
+        method: "POST",
+        headers: {
+          ...buildMockAuthHeaders(user),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ displayName: name }),
+      });
+      if (response.ok) {
+        created += 1;
+        continue;
+      }
+      failed += 1;
+      const body = await response.json().catch(() => ({}));
+      errors.push(`${name}: ${body.error ?? "Failed to create player"}`);
+    }
+
+    await refreshRoster();
+    setIsModalSubmitting(false);
+    setBulkAddSummary({ created, failed, errors });
+    if (failed === 0) {
+      setIsAddModalOpen(false);
+    }
+  }, [bulkPlayerLines, refreshRoster, user]);
 
   const submitEditPlayer = useCallback(async () => {
     if (!user || !selectedPlayer) return;
@@ -870,29 +923,86 @@ export default function CoachRosterPage() {
             <p className="mt-1 text-sm text-[var(--text-secondary)]">
               Create a new player profile. A name is sufficient; other details can be added later.
             </p>
+            <div className="mt-4 flex gap-2">
+              <Button
+                variant={addPlayerMode === "single" ? "primary" : "secondary"}
+                onClick={() => {
+                  setAddPlayerMode("single");
+                  setModalError(null);
+                  setBulkAddSummary(null);
+                }}
+                disabled={isModalSubmitting}
+              >
+                Single
+              </Button>
+              <Button
+                variant={addPlayerMode === "bulk" ? "primary" : "secondary"}
+                onClick={() => {
+                  setAddPlayerMode("bulk");
+                  setModalError(null);
+                  setBulkAddSummary(null);
+                }}
+                disabled={isModalSubmitting}
+              >
+                Bulk
+              </Button>
+            </div>
             <div className="mt-4 space-y-3">
-              <Input
-                label="Player name"
-                value={newPlayerForm.displayName}
-                onChange={(event) =>
-                  setNewPlayerForm((current) => ({ ...current, displayName: event.target.value }))
-                }
-              />
-              <Input
-                label="First name (optional)"
-                value={newPlayerForm.firstName}
-                onChange={(event) =>
-                  setNewPlayerForm((current) => ({ ...current, firstName: event.target.value }))
-                }
-              />
-              <Input
-                label="Last name (optional)"
-                value={newPlayerForm.lastName}
-                onChange={(event) =>
-                  setNewPlayerForm((current) => ({ ...current, lastName: event.target.value }))
-                }
-              />
+              {addPlayerMode === "single" ? (
+                <>
+                  <Input
+                    label="Player name"
+                    value={newPlayerForm.displayName}
+                    onChange={(event) =>
+                      setNewPlayerForm((current) => ({ ...current, displayName: event.target.value }))
+                    }
+                  />
+                  <Input
+                    label="First name (optional)"
+                    value={newPlayerForm.firstName}
+                    onChange={(event) =>
+                      setNewPlayerForm((current) => ({ ...current, firstName: event.target.value }))
+                    }
+                  />
+                  <Input
+                    label="Last name (optional)"
+                    value={newPlayerForm.lastName}
+                    onChange={(event) =>
+                      setNewPlayerForm((current) => ({ ...current, lastName: event.target.value }))
+                    }
+                  />
+                </>
+              ) : (
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-[var(--text-primary)]">
+                    Players (one per line)
+                  </label>
+                  <textarea
+                    value={bulkPlayerLines}
+                    onChange={(event) => setBulkPlayerLines(event.target.value)}
+                    placeholder={"Alex Johnson\nSam Carter\nPriya Shah"}
+                    className="min-h-[180px] w-full rounded-md border border-[var(--surface-secondary)] bg-[var(--surface)] px-3 py-2 text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:border-[var(--primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+                  />
+                  <p className="mt-1 text-xs text-[var(--text-secondary)]">
+                    Tip: paste a roster list and submit once.
+                  </p>
+                </div>
+              )}
               {modalError && <p className="text-sm text-[var(--danger)]">{modalError}</p>}
+              {bulkAddSummary && (
+                <div className="rounded-md border border-[var(--surface-secondary)] bg-[var(--surface-secondary)]/40 p-3">
+                  <p className="text-sm text-[var(--text-primary)]">
+                    Added {bulkAddSummary.created} player(s), failed {bulkAddSummary.failed}.
+                  </p>
+                  {bulkAddSummary.errors.length > 0 && (
+                    <ul className="mt-2 space-y-1 text-xs text-[var(--danger)]">
+                      {bulkAddSummary.errors.slice(0, 6).map((error) => (
+                        <li key={error}>{error}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
             </div>
             <div className="mt-5 flex justify-end gap-2">
               <Button
@@ -905,8 +1015,19 @@ export default function CoachRosterPage() {
               >
                 Cancel
               </Button>
-              <Button onClick={() => void submitAddPlayer()} disabled={isModalSubmitting}>
-                {isModalSubmitting ? "Saving..." : "Create Player"}
+              <Button
+                onClick={() =>
+                  void (addPlayerMode === "single" ? submitAddPlayer() : submitBulkAddPlayers())
+                }
+                disabled={isModalSubmitting}
+              >
+                {isModalSubmitting
+                  ? addPlayerMode === "single"
+                    ? "Saving..."
+                    : "Uploading..."
+                  : addPlayerMode === "single"
+                    ? "Create Player"
+                    : "Add Players"}
               </Button>
             </div>
           </div>

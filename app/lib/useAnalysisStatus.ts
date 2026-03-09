@@ -75,6 +75,14 @@ export function useAnalysisStatus({
   const [error, setError] = useState<Error | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onCompleteRef = useRef(onComplete);
+  const onErrorRef = useRef(onError);
+
+  // Keep callback refs up to date
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+    onErrorRef.current = onError;
+  });
 
   const fetchStatus = useCallback(async () => {
     if (!videoId) return null;
@@ -90,16 +98,16 @@ export function useAnalysisStatus({
         error: data.error,
       };
       setStatus(next);
-      if (next.stage === "complete") onComplete?.(next);
-      if (next.stage === "failed" && next.error) onError?.(new Error(next.error));
+      if (next.stage === "complete") onCompleteRef.current?.(next);
+      if (next.stage === "failed" && next.error) onErrorRef.current?.(new Error(next.error));
       return next;
     } catch (err) {
       const e = err instanceof Error ? err : new Error(String(err));
       setError(e);
-      onError?.(e);
+      onErrorRef.current?.(e);
       return null;
     }
-  }, [videoId, onComplete, onError]);
+  }, [videoId]);
 
   const startPolling = useCallback(() => {
     if (!videoId || !enabled) return;
@@ -143,12 +151,12 @@ export function useAnalysisStatus({
         };
         setStatus(next);
         if (next.stage === "complete") {
-          onComplete?.(next);
+          onCompleteRef.current?.(next);
           es.close();
           eventSourceRef.current = null;
         }
         if (next.stage === "failed" && next.error) {
-          onError?.(new Error(next.error));
+          onErrorRef.current?.(new Error(next.error));
           es.close();
           eventSourceRef.current = null;
         }
@@ -164,7 +172,7 @@ export function useAnalysisStatus({
       // Fallback to polling
       startPolling();
     };
-  }, [videoId, enabled, sseEndpoint, onComplete, onError, startPolling]);
+  }, [videoId, enabled, sseEndpoint, startPolling]);
 
   useEffect(() => {
     if (!videoId || !enabled) {
