@@ -3,19 +3,16 @@
 import React, { useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useMockAuth } from "@/app/hooks/useMockAuth";
+import { buildMockAuthHeaders } from "@/app/lib/mock-auth-headers";
 import { ECBSafeguardingBanner } from "@/app/components/coach/ECBSafeguardingBanner";
 import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
 import { StatCard } from "@/app/components/dashboard/StatCard";
 import { Button } from "@/app/components/ui/Button";
 import { Select } from "@/app/components/ui/Select";
+import { Input } from "@/app/components/ui/Input";
 import { EmptyState } from "@/app/components/common/EmptyState";
 import { LoadingSpinner } from "@/app/components/common/LoadingSpinner";
-import {
-  MOCK_PLAYERS,
-  MOCK_ROSTER_STATS,
-  type MockPlayer,
-  type PlayerStatus,
-} from "@/app/lib/mock-roster";
+import { type MockPlayer, type PlayerStatus } from "@/app/lib/mock-roster";
 
 function SearchIcon() {
   return (
@@ -260,41 +257,167 @@ function getActivityDotClass(activity: string): string {
 
 type PageState = "loading" | "ready" | "error" | "empty";
 
+interface RosterPlayer extends MockPlayer {
+  email: string;
+  firstName: string;
+  lastName: string;
+  dateOfBirth: string;
+  ageGroup: string;
+  primaryPosition: string;
+  battingStyle: string;
+  bowlingStyle: string;
+  clubOrSchool: string;
+  profileVisibility: string;
+  squadNames: string[];
+}
+
+const AGE_GROUP_OPTIONS = [
+  { value: "UNDER_10", label: "Under 10" },
+  { value: "UNDER_12", label: "Under 12" },
+  { value: "UNDER_14", label: "Under 14" },
+  { value: "UNDER_16", label: "Under 16" },
+  { value: "UNDER_18", label: "Under 18" },
+  { value: "SENIOR", label: "Senior" },
+];
+
 export default function CoachRosterPage() {
   const router = useRouter();
-  const { role } = useMockAuth();
+  const { user, role } = useMockAuth();
   const [pageState, setPageState] = useState<PageState>("loading");
   const [searchQuery, setSearchQuery] = useState("");
   const [squadFilter, setSquadFilter] = useState("all");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [teamPlayers, setTeamPlayers] = useState<RosterPlayer[]>([]);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [selectedPlayer, setSelectedPlayer] = useState<RosterPlayer | null>(null);
+  const [modalError, setModalError] = useState<string | null>(null);
+  const [isModalSubmitting, setIsModalSubmitting] = useState(false);
+  const [newPlayerForm, setNewPlayerForm] = useState({
+    displayName: "",
+    firstName: "",
+    lastName: "",
+  });
+  const [editPlayerForm, setEditPlayerForm] = useState({
+    displayName: "",
+    firstName: "",
+    lastName: "",
+    dateOfBirth: "",
+    ageGroup: "",
+    primaryPosition: "",
+    battingStyle: "",
+    bowlingStyle: "",
+    clubOrSchool: "",
+    profileVisibility: "",
+  });
 
-  // Simulate initial load
-  React.useEffect(() => {
-    const t = setTimeout(() => {
-      setPageState("ready");
-    }, 600);
-    return () => clearTimeout(t);
+  const mapApiPlayers = useCallback((rawPlayers: unknown[]): RosterPlayer[] => {
+    return rawPlayers
+      .filter(
+        (
+          player
+        ): player is {
+          id: string;
+          displayName: string;
+          email?: string;
+          firstName?: string | null;
+          lastName?: string | null;
+          dateOfBirth?: string | null;
+          ageGroup?: string | null;
+          primaryPosition?: string | null;
+          battingStyle?: string | null;
+          bowlingStyle?: string | null;
+          clubOrSchool?: string | null;
+          profileVisibility?: string | null;
+          squadNames?: string[];
+        } =>
+          Boolean(player && typeof player === "object" && "id" in player && "displayName" in player)
+      )
+      .map((player) => {
+        const initials = player.displayName
+          .split(" ")
+          .filter(Boolean)
+          .slice(0, 2)
+          .map((token) => token[0]?.toUpperCase() ?? "")
+          .join("") || "PL";
+        return {
+          id: player.id,
+          name: player.displayName,
+          position: "Player",
+          avatarInitials: initials,
+          latestGrade: "N/A",
+          lastSession: "No analysis yet",
+          activity: "moderate",
+          status: "in_progress",
+          squad: Array.isArray(player.squadNames) && player.squadNames.length > 0 ? player.squadNames[0] : undefined,
+          squadNames: Array.isArray(player.squadNames) ? player.squadNames : [],
+          email: player.email ?? "",
+          firstName: player.firstName ?? "",
+          lastName: player.lastName ?? "",
+          dateOfBirth: player.dateOfBirth ? String(player.dateOfBirth).slice(0, 10) : "",
+          ageGroup: player.ageGroup ?? "",
+          primaryPosition: player.primaryPosition ?? "",
+          battingStyle: player.battingStyle ?? "",
+          bowlingStyle: player.bowlingStyle ?? "",
+          clubOrSchool: player.clubOrSchool ?? "",
+          profileVisibility: player.profileVisibility ?? "",
+        } satisfies RosterPlayer;
+      });
   }, []);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    async function loadRoster() {
+      if ((role !== "coach" && role !== "parent" && role !== "admin") || !user) {
+        return;
+      }
+      setPageState("loading");
+      setErrorMessage(null);
+      try {
+        const response = await fetch("/api/team/players", {
+          headers: buildMockAuthHeaders(user),
+        });
+        if (!response.ok) {
+          const errorBody = await response.json().catch(() => ({}));
+          throw new Error(errorBody.error ?? "Failed to load players");
+        }
+        const data = await response.json();
+        const players = Array.isArray(data.players) ? mapApiPlayers(data.players) : [];
+        if (cancelled) return;
+        setTeamPlayers(players);
+        setPageState(players.length > 0 ? "ready" : "empty");
+      } catch (error) {
+        if (cancelled) return;
+        setErrorMessage(error instanceof Error ? error.message : "Failed to load roster");
+        setPageState("error");
+      }
+    }
+    void loadRoster();
+    return () => {
+      cancelled = true;
+    };
+  }, [mapApiPlayers, role, user]);
 
   // Redirect non-coaches
   React.useEffect(() => {
-    if (role !== "coach") {
+    if (role !== "coach" && role !== "parent" && role !== "admin") {
       router.replace("/dashboard");
     }
   }, [role, router]);
 
   const squadOptions = useMemo(() => {
     const squads = Array.from(
-      new Set(MOCK_PLAYERS.map((p) => p.squad).filter(Boolean))
+      new Set(teamPlayers.map((p) => p.squad).filter(Boolean))
     ) as string[];
     return [
       { value: "all", label: "All Players" },
       ...squads.map((s) => ({ value: s, label: s })),
     ];
-  }, []);
+  }, [teamPlayers]);
 
   const filteredPlayers = useMemo(() => {
-    let list = MOCK_PLAYERS;
+    let list = teamPlayers;
     if (squadFilter !== "all") {
       list = list.filter((p) => p.squad === squadFilter);
     }
@@ -307,34 +430,165 @@ export default function CoachRosterPage() {
       );
     }
     return list;
-  }, [searchQuery, squadFilter]);
+  }, [searchQuery, squadFilter, teamPlayers]);
+
+  const rosterStats = useMemo(() => {
+    const totalPlayers = teamPlayers.length;
+    const activeSessions = teamPlayers.filter((player) => player.activity === "active").length;
+    const pendingReviews = teamPlayers.filter((player) => player.status === "review_needed").length;
+    const gradedPlayers = teamPlayers.filter((player) => player.latestGrade !== "N/A");
+    const avgGrade = gradedPlayers.length > 0 ? "B" : "N/A";
+    return { totalPlayers, activeSessions, pendingReviews, avgGrade };
+  }, [teamPlayers]);
+
+  const refreshRoster = useCallback(async () => {
+    if (!user) return;
+    const response = await fetch("/api/team/players", {
+      headers: buildMockAuthHeaders(user),
+    });
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({}));
+      throw new Error(errorBody.error ?? "Failed to load players");
+    }
+    const data = await response.json();
+    const players = Array.isArray(data.players) ? mapApiPlayers(data.players) : [];
+    setTeamPlayers(players);
+    setPageState(players.length > 0 ? "ready" : "empty");
+  }, [mapApiPlayers, user]);
 
   const handleViewVideo = useCallback((player: MockPlayer) => {
-    // Stub: open player's latest analysis
-    console.log("View video for", player.name);
-  }, []);
+    router.push(`/upload?assignee=${player.id}`);
+  }, [router]);
 
   const handleMessage = useCallback((player: MockPlayer) => {
     // Stub: open messaging panel
     router.push(`/messages?player=${player.id}`);
   }, [router]);
 
-  const handleEdit = useCallback((player: MockPlayer) => {
-    // Stub: open player profile edit sheet
-    console.log("Edit profile for", player.name);
+  const handleAddPlayer = useCallback(() => {
+    setModalError(null);
+    setNewPlayerForm({ displayName: "", firstName: "", lastName: "" });
+    setIsAddModalOpen(true);
   }, []);
 
-  const handleAddPlayer = useCallback(() => {
-    // Stub: add player modal/sheet
-    console.log("Add player");
-  }, []);
+  const handleEdit = useCallback((player: MockPlayer) => {
+    const rosterPlayer = teamPlayers.find((candidate) => candidate.id === player.id);
+    if (!rosterPlayer) return;
+    setSelectedPlayer(rosterPlayer);
+    setEditPlayerForm({
+      displayName: rosterPlayer.name,
+      firstName: rosterPlayer.firstName,
+      lastName: rosterPlayer.lastName,
+      dateOfBirth: rosterPlayer.dateOfBirth,
+      ageGroup: rosterPlayer.ageGroup,
+      primaryPosition: rosterPlayer.primaryPosition,
+      battingStyle: rosterPlayer.battingStyle,
+      bowlingStyle: rosterPlayer.bowlingStyle,
+      clubOrSchool: rosterPlayer.clubOrSchool,
+      profileVisibility: rosterPlayer.profileVisibility,
+    });
+    setModalError(null);
+    setIsEditModalOpen(true);
+  }, [teamPlayers]);
 
   const handleRemovePlayer = useCallback((player: MockPlayer) => {
-    // Stub: remove player confirmation
-    console.log("Remove player", player.name);
-  }, []);
+    const rosterPlayer = teamPlayers.find((candidate) => candidate.id === player.id);
+    if (!rosterPlayer) return;
+    setSelectedPlayer(rosterPlayer);
+    setModalError(null);
+    setIsDeleteModalOpen(true);
+  }, [teamPlayers]);
 
-  if (role !== "coach") {
+  const submitAddPlayer = useCallback(async () => {
+    if (!user) return;
+    if (!newPlayerForm.displayName.trim()) {
+      setModalError("Player name is required");
+      return;
+    }
+    setIsModalSubmitting(true);
+    setModalError(null);
+    const response = await fetch("/api/team/players", {
+      method: "POST",
+      headers: {
+        ...buildMockAuthHeaders(user),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        displayName: newPlayerForm.displayName.trim(),
+        firstName: newPlayerForm.firstName.trim() || undefined,
+        lastName: newPlayerForm.lastName.trim() || undefined,
+      }),
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      setModalError(body.error ?? "Failed to create player");
+      setIsModalSubmitting(false);
+      return;
+    }
+    await refreshRoster();
+    setIsModalSubmitting(false);
+    setIsAddModalOpen(false);
+  }, [newPlayerForm, refreshRoster, user]);
+
+  const submitEditPlayer = useCallback(async () => {
+    if (!user || !selectedPlayer) return;
+    if (!editPlayerForm.displayName.trim()) {
+      setModalError("Player name is required");
+      return;
+    }
+    setIsModalSubmitting(true);
+    setModalError(null);
+    const response = await fetch(`/api/team/players/${selectedPlayer.id}`, {
+      method: "PUT",
+      headers: {
+        ...buildMockAuthHeaders(user),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        displayName: editPlayerForm.displayName.trim(),
+        firstName: editPlayerForm.firstName.trim() || null,
+        lastName: editPlayerForm.lastName.trim() || null,
+        dateOfBirth: editPlayerForm.dateOfBirth || null,
+        ageGroup: editPlayerForm.ageGroup || null,
+        primaryPosition: editPlayerForm.primaryPosition.trim() || null,
+        battingStyle: editPlayerForm.battingStyle.trim() || null,
+        bowlingStyle: editPlayerForm.bowlingStyle.trim() || null,
+        clubOrSchool: editPlayerForm.clubOrSchool.trim() || null,
+        profileVisibility: editPlayerForm.profileVisibility || null,
+      }),
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      setModalError(body.error ?? "Failed to update player");
+      setIsModalSubmitting(false);
+      return;
+    }
+    await refreshRoster();
+    setIsModalSubmitting(false);
+    setIsEditModalOpen(false);
+  }, [editPlayerForm, refreshRoster, selectedPlayer, user]);
+
+  const submitRemovePlayer = useCallback(async () => {
+    if (!user || !selectedPlayer) return;
+    setIsModalSubmitting(true);
+    setModalError(null);
+    const response = await fetch(`/api/team/players/${selectedPlayer.id}`, {
+      method: "DELETE",
+      headers: buildMockAuthHeaders(user),
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      setModalError(body.error ?? "Failed to remove player");
+      setIsModalSubmitting(false);
+      return;
+    }
+    await refreshRoster();
+    setIsModalSubmitting(false);
+    setIsDeleteModalOpen(false);
+    setSelectedPlayer(null);
+  }, [refreshRoster, selectedPlayer, user]);
+
+  if (role !== "coach" && role !== "parent" && role !== "admin") {
     return null;
   }
 
@@ -380,32 +634,34 @@ export default function CoachRosterPage() {
             />
           </div>
         </div>
-        <Button onClick={handleAddPlayer} className="shrink-0">
-          <PlusIcon />
-          <span className="ml-2">Add Player</span>
-        </Button>
+        {(role === "coach" || role === "admin") && (
+          <Button onClick={handleAddPlayer} className="shrink-0">
+            <PlusIcon />
+            <span className="ml-2">Add Player</span>
+          </Button>
+        )}
       </div>
 
       {/* Key metrics */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="Total Players"
-          value={MOCK_ROSTER_STATS.totalPlayers}
+          value={rosterStats.totalPlayers}
           icon={<UsersIcon />}
         />
         <StatCard
           label="Active Sessions"
-          value={MOCK_ROSTER_STATS.activeSessions}
+          value={rosterStats.activeSessions}
           icon={<PlayIcon />}
         />
         <StatCard
           label="Avg. Grade"
-          value={MOCK_ROSTER_STATS.avgGrade}
+          value={rosterStats.avgGrade}
           icon={<StarIcon />}
         />
         <StatCard
           label="Pending Reviews"
-          value={MOCK_ROSTER_STATS.pendingReviews}
+          value={rosterStats.pendingReviews}
           icon={<ClockIcon />}
         />
       </div>
@@ -436,8 +692,10 @@ export default function CoachRosterPage() {
                 variant="secondary"
                 className="mt-4"
                 onClick={() => {
-                  setPageState("loading");
-                  setTimeout(() => setPageState("ready"), 600);
+                  void refreshRoster().catch((error: unknown) => {
+                    setErrorMessage(error instanceof Error ? error.message : "Failed to load roster");
+                    setPageState("error");
+                  });
                 }}
               >
                 Retry
@@ -445,7 +703,7 @@ export default function CoachRosterPage() {
             </div>
           )}
 
-          {pageState === "ready" && filteredPlayers.length === 0 && (
+          {(pageState === "ready" || pageState === "empty") && filteredPlayers.length === 0 && (
             <EmptyState
               title="No players found"
               description={
@@ -453,8 +711,16 @@ export default function CoachRosterPage() {
                   ? "Try adjusting your search or filter."
                   : "Add players to your roster to get started."
               }
-              actionLabel={!searchQuery && squadFilter === "all" ? "Add Player" : undefined}
-              onAction={!searchQuery && squadFilter === "all" ? handleAddPlayer : undefined}
+              actionLabel={
+                !searchQuery && squadFilter === "all" && (role === "coach" || role === "admin")
+                  ? "Add Player"
+                  : undefined
+              }
+              onAction={
+                !searchQuery && squadFilter === "all" && (role === "coach" || role === "admin")
+                  ? handleAddPlayer
+                  : undefined
+              }
               icon={<GroupIcon />}
             />
           )}
@@ -596,6 +862,191 @@ export default function CoachRosterPage() {
           )}
         </CardContent>
       </Card>
+
+      {isAddModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-lg rounded-xl bg-[var(--surface)] p-5">
+            <h3 className="text-lg font-semibold text-[var(--text-primary)]">Add Player</h3>
+            <p className="mt-1 text-sm text-[var(--text-secondary)]">
+              Create a new player profile. A name is sufficient; other details can be added later.
+            </p>
+            <div className="mt-4 space-y-3">
+              <Input
+                label="Player name"
+                value={newPlayerForm.displayName}
+                onChange={(event) =>
+                  setNewPlayerForm((current) => ({ ...current, displayName: event.target.value }))
+                }
+              />
+              <Input
+                label="First name (optional)"
+                value={newPlayerForm.firstName}
+                onChange={(event) =>
+                  setNewPlayerForm((current) => ({ ...current, firstName: event.target.value }))
+                }
+              />
+              <Input
+                label="Last name (optional)"
+                value={newPlayerForm.lastName}
+                onChange={(event) =>
+                  setNewPlayerForm((current) => ({ ...current, lastName: event.target.value }))
+                }
+              />
+              {modalError && <p className="text-sm text-[var(--danger)]">{modalError}</p>}
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setIsAddModalOpen(false);
+                  setModalError(null);
+                }}
+                disabled={isModalSubmitting}
+              >
+                Cancel
+              </Button>
+              <Button onClick={() => void submitAddPlayer()} disabled={isModalSubmitting}>
+                {isModalSubmitting ? "Saving..." : "Create Player"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isEditModalOpen && selectedPlayer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-[var(--surface)] p-5">
+            <h3 className="text-lg font-semibold text-[var(--text-primary)]">Edit Player Profile</h3>
+            <p className="mt-1 text-sm text-[var(--text-secondary)]">
+              Update technical and profile details for {selectedPlayer.name}.
+            </p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <Input
+                label="Display name"
+                value={editPlayerForm.displayName}
+                onChange={(event) =>
+                  setEditPlayerForm((current) => ({ ...current, displayName: event.target.value }))
+                }
+              />
+              <Input
+                label="Date of birth"
+                type="date"
+                value={editPlayerForm.dateOfBirth}
+                onChange={(event) =>
+                  setEditPlayerForm((current) => ({ ...current, dateOfBirth: event.target.value }))
+                }
+              />
+              <Input
+                label="First name"
+                value={editPlayerForm.firstName}
+                onChange={(event) =>
+                  setEditPlayerForm((current) => ({ ...current, firstName: event.target.value }))
+                }
+              />
+              <Input
+                label="Last name"
+                value={editPlayerForm.lastName}
+                onChange={(event) =>
+                  setEditPlayerForm((current) => ({ ...current, lastName: event.target.value }))
+                }
+              />
+              <Input
+                label="Primary position"
+                value={editPlayerForm.primaryPosition}
+                onChange={(event) =>
+                  setEditPlayerForm((current) => ({ ...current, primaryPosition: event.target.value }))
+                }
+              />
+              <Select
+                label="Age group"
+                options={AGE_GROUP_OPTIONS}
+                value={editPlayerForm.ageGroup}
+                onChange={(event) =>
+                  setEditPlayerForm((current) => ({ ...current, ageGroup: event.target.value }))
+                }
+              />
+              <Input
+                label="Batting style"
+                value={editPlayerForm.battingStyle}
+                onChange={(event) =>
+                  setEditPlayerForm((current) => ({ ...current, battingStyle: event.target.value }))
+                }
+              />
+              <Input
+                label="Bowling style"
+                value={editPlayerForm.bowlingStyle}
+                onChange={(event) =>
+                  setEditPlayerForm((current) => ({ ...current, bowlingStyle: event.target.value }))
+                }
+              />
+              <Input
+                label="Club or school"
+                value={editPlayerForm.clubOrSchool}
+                onChange={(event) =>
+                  setEditPlayerForm((current) => ({ ...current, clubOrSchool: event.target.value }))
+                }
+              />
+              <Select
+                label="Profile visibility"
+                options={[
+                  { value: "COACHES_PARENTS", label: "Coaches & Parents" },
+                  { value: "COACHES_ONLY", label: "Coaches Only" },
+                  { value: "PUBLIC", label: "Public" },
+                ]}
+                value={editPlayerForm.profileVisibility}
+                onChange={(event) =>
+                  setEditPlayerForm((current) => ({ ...current, profileVisibility: event.target.value }))
+                }
+              />
+            </div>
+            {modalError && <p className="mt-3 text-sm text-[var(--danger)]">{modalError}</p>}
+            <div className="mt-5 flex justify-end gap-2">
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setIsEditModalOpen(false);
+                  setSelectedPlayer(null);
+                  setModalError(null);
+                }}
+                disabled={isModalSubmitting}
+              >
+                Cancel
+              </Button>
+              <Button onClick={() => void submitEditPlayer()} disabled={isModalSubmitting}>
+                {isModalSubmitting ? "Saving..." : "Save Changes"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isDeleteModalOpen && selectedPlayer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-xl bg-[var(--surface)] p-5">
+            <h3 className="text-lg font-semibold text-[var(--text-primary)]">Remove Player</h3>
+            <p className="mt-2 text-sm text-[var(--text-secondary)]">
+              Are you sure you want to remove {selectedPlayer.name} from this roster?
+            </p>
+            {modalError && <p className="mt-3 text-sm text-[var(--danger)]">{modalError}</p>}
+            <div className="mt-5 flex justify-end gap-2">
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setIsDeleteModalOpen(false);
+                  setSelectedPlayer(null);
+                  setModalError(null);
+                }}
+                disabled={isModalSubmitting}
+              >
+                Cancel
+              </Button>
+              <Button onClick={() => void submitRemovePlayer()} disabled={isModalSubmitting}>
+                {isModalSubmitting ? "Removing..." : "Remove"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

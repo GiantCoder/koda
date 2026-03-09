@@ -2,6 +2,7 @@ import { Worker, type Job } from "bullmq";
 import Redis from "ioredis";
 import { prisma } from "@/prisma/client";
 import { calculateGrade } from "@/src/lib/grading";
+import { classifyShotWithGemini, scoreBiomechanicsWithGemini } from "@/src/lib/llm/gemini";
 
 interface AnalysisJobData {
   videoId: string;
@@ -20,6 +21,7 @@ export const analysisWorker = new Worker<AnalysisJobData>(
   "analysis",
   async (job: Job<AnalysisJobData>) => {
     const { analysisId, videoId } = job.data;
+    let geminiRawResponse: Record<string, unknown> | null = null;
 
     await prisma.analysis.update({
       where: { id: analysisId },
@@ -44,9 +46,70 @@ export const analysisWorker = new Worker<AnalysisJobData>(
     });
 
     await new Promise((resolve) => setTimeout(resolve, 250));
+    const video = await prisma.video.findUnique({
+      where: { id: videoId },
+      select: {
+        filename: true,
+        durationSeconds: true,
+        resolutionWidth: true,
+        resolutionHeight: true,
+      },
+    });
+
+    const fallbackShotType = "COVER_DRIVE";
+    const fallbackShotConfidence = 0.84;
+    const fallbackScores = [78, 81, 74, 77, 80, 79, 75, 76];
+
+    let detectedShotType = fallbackShotType;
+    let detectedShotConfidence = fallbackShotConfidence;
+    let metricScores = fallbackScores;
+
+    try {
+      const classification = await classifyShotWithGemini({
+        videoId,
+        filename: video?.filename ?? "unknown",
+        durationSeconds: video?.durationSeconds,
+        resolutionWidth: video?.resolutionWidth,
+        resolutionHeight: video?.resolutionHeight,
+      });
+
+      const scoring = await scoreBiomechanicsWithGemini({
+        shotType: classification.shotType,
+        durationSeconds: video?.durationSeconds,
+      });
+
+      detectedShotType = classification.shotType;
+      detectedShotConfidence = classification.confidence;
+      metricScores = scoring.scores;
+      geminiRawResponse = {
+        classification: {
+          text: classification.rawResponseText,
+          shotType: classification.shotType,
+          confidence: classification.confidence,
+          reasons: classification.reasons,
+        },
+        scoring: {
+          text: scoring.rawResponseText,
+          scores: scoring.scores,
+        },
+      };
+    } catch (error) {
+      geminiRawResponse = {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Gemini call failed, using fallback analysis values",
+      };
+    }
+
     await prisma.analysis.update({
       where: { id: analysisId },
-      data: { status: "SHOT_CLASSIFICATION", shotType: "COVER_DRIVE", shotConfidence: 0.84 },
+      data: {
+        status: "SHOT_CLASSIFICATION",
+        shotType: detectedShotType,
+        shotConfidence: detectedShotConfidence,
+        rawGeminiResponse: geminiRawResponse,
+      },
     });
     await publishStage(analysisId, {
       stage: "SHOT_CLASSIFICATION",
@@ -65,8 +128,7 @@ export const analysisWorker = new Worker<AnalysisJobData>(
       message: "Generating coaching feedback...",
     });
 
-    const metricScores = [78, 81, 74, 77, 80, 79, 75, 76];
-    const grade = calculateGrade("COVER_DRIVE", metricScores);
+    const grade = calculateGrade(detectedShotType, metricScores);
 
     await prisma.analysis.update({
       where: { id: analysisId },
@@ -74,6 +136,8 @@ export const analysisWorker = new Worker<AnalysisJobData>(
         status: "COMPLETE",
         gradeOverall: grade.score,
         gradeLetter: grade.letter,
+        shotType: detectedShotType,
+        shotConfidence: detectedShotConfidence,
         scoreBacklift: metricScores[0],
         scoreWeightTransfer: metricScores[1],
         scoreHeadPosition: metricScores[2],

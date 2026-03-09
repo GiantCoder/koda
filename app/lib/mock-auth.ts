@@ -18,8 +18,8 @@ export interface MockUser {
 const MOCK_USER_KEY = "koda_mock_user";
 
 const DEFAULT_COACH: MockUser = {
-  id: "mock-1",
-  email: "sarah.johnson@email.com",
+  id: "bea4ab63-eb31-4a64-8650-cbc339fae01b",
+  email: "coach@test.com",
   firstName: "Sarah",
   lastName: "Johnson",
   role: "coach",
@@ -28,20 +28,20 @@ const DEFAULT_COACH: MockUser = {
 };
 
 const DEFAULT_PLAYER: MockUser = {
-  id: "mock-2",
-  email: "tom.wilson@email.com",
-  firstName: "Tom",
-  lastName: "Wilson",
+  id: "2298d34b-321a-4200-af3e-0159dd1594ec",
+  email: "player@test.com",
+  firstName: "Alex",
+  lastName: "Johnson",
   role: "player",
   joinedAt: "January 2024",
   avatarUrl: undefined,
 };
 
 const DEFAULT_PARENT: MockUser = {
-  id: "mock-3",
-  email: "parent@email.com",
-  firstName: "Emma",
-  lastName: "Johnson",
+  id: "f3580587-2e11-4a02-b994-fee948a8a630",
+  email: "parent@test.com",
+  firstName: "Michael",
+  lastName: "Thompson",
   role: "parent",
   joinedAt: "February 2024",
   avatarUrl: undefined,

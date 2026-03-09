@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl as awsGetSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const client = new S3Client({
@@ -27,7 +27,7 @@ export async function uploadToStorage(key: string, buffer: Buffer, contentType: 
 
 /** Generate a presigned URL for object access. */
 export async function getSignedUrl(key: string, expirySeconds: number): Promise<string> {
-  const command = new PutObjectCommand({
+  const command = new GetObjectCommand({
     Bucket: videosBucket,
     Key: key,
   });

@@ -60,7 +60,16 @@ function parseCoachingTips(raw: unknown): CoachingTip[] {
   if (Array.isArray(raw)) {
     return raw.map((t) => ({
       title: typeof t === "object" && t !== null && "title" in t ? String((t as { title: unknown }).title) : "Tip",
-      body: typeof t === "object" && t !== null && "body" in t ? String((t as { body: unknown }).body) : "",
+      body:
+        typeof t === "object" && t !== null && "body" in t
+          ? String((t as { body: unknown }).body)
+          : typeof t === "object" && t !== null && "description" in t
+            ? String((t as { description: unknown }).description)
+            : "",
+      description:
+        typeof t === "object" && t !== null && "description" in t
+          ? String((t as { description: unknown }).description)
+          : undefined,
       type: typeof t === "object" && t !== null && "type" in t ? (t as { type: unknown }).type as "strength" | "improvement" | "recommendation" : undefined,
     }));
   }
@@ -224,6 +233,7 @@ export default function AnalysisResultsPage() {
   const resolution = analysis.video?.resolutionWidth && analysis.video?.resolutionHeight
     ? `${analysis.video.resolutionWidth}p`
     : "1080p";
+  const previewSrc = `/api/videos/${analysis.videoId}/stream`;
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -257,9 +267,9 @@ export default function AnalysisResultsPage() {
           <Card>
             <CardContent className="p-0">
               <div className="relative aspect-video w-full bg-black">
-                {analysis.video?.cdnUrl ? (
+                {analysis.video ? (
                   <video
-                    src={analysis.video.cdnUrl}
+                    src={previewSrc}
                     controls
                     className="h-full w-full object-contain"
                     preload="metadata"

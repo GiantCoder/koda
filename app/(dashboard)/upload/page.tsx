@@ -1,13 +1,16 @@
 "use client";
 
 import React, { useCallback, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
+import { Select } from "@/app/components/ui/Select";
 import { PreUploadChecklist } from "@/app/components/video/PreUploadChecklist";
 import { BestCameraAngleCard } from "@/app/components/video/BestCameraAngleCard";
 import { RecentUploadsList, type RecentUpload } from "@/app/components/video/RecentUploadsList";
 import { Progress } from "@/app/components/ui/Progress";
+import { useMockAuth } from "@/app/hooks/useMockAuth";
+import { buildMockAuthHeaders } from "@/app/lib/mock-auth-headers";
 import {
   validateVideoFile,
   formatFileSize,
@@ -46,12 +49,54 @@ function LockIcon() {
 
 export default function UploadPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { user, role } = useMockAuth();
   const [file, setFile] = useState<File | null>(null);
   const [validationError, setValidationError] = useState("");
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [assignablePlayers, setAssignablePlayers] = useState<Array<{ id: string; displayName: string }>>([]);
+  const [assigneeUserId, setAssigneeUserId] = useState("");
+
+  React.useEffect(() => {
+    let cancelled = false;
+    async function loadPlayers() {
+      if (role !== "coach" && role !== "parent") {
+        return;
+      }
+      try {
+        const res = await fetch("/api/team/players", {
+          headers: buildMockAuthHeaders(user),
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        const players = Array.isArray(data.players)
+          ? data.players
+              .filter((player): player is { id: string; displayName: string } =>
+                Boolean(player && typeof player.id === "string" && typeof player.displayName === "string")
+              )
+          : [];
+        if (cancelled) return;
+        setAssignablePlayers(players);
+        const preselectedAssignee = searchParams.get("assignee");
+        if (preselectedAssignee && players.some((player) => player.id === preselectedAssignee)) {
+          setAssigneeUserId(preselectedAssignee);
+          return;
+        }
+        if (role === "parent" && players.length === 1) {
+          setAssigneeUserId(players[0].id);
+        }
+      } catch {
+        // Keep upload flow functional even if player list endpoint is unavailable.
+      }
+    }
+    void loadPlayers();
+    return () => {
+      cancelled = true;
+    };
+  }, [role, user, searchParams]);
 
   const handleValidation = useCallback(
     (f: File) => {
@@ -125,10 +170,14 @@ export default function UploadPage() {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("title", file.name);
+    if (assigneeUserId) {
+      formData.append("assigneeUserId", assigneeUserId);
+    }
 
     try {
       const res = await fetch("/api/video/upload", {
         method: "POST",
+        headers: buildMockAuthHeaders(user),
         body: formData,
       });
 
@@ -144,9 +193,15 @@ export default function UploadPage() {
       setIsUploading(false);
       setUploadProgress(0);
     }
-  }, [file, router]);
+  }, [file, router, assigneeUserId, user]);
 
   const formatChips = ["MP4", "MOV", "AVI", `MAX ${MAX_FILE_SIZE_BYTES / (1024 * 1024)}MB`];
+  const assigneeOptions = assignablePlayers.map((player) => ({
+    value: player.id,
+    label: player.displayName,
+  }));
+  const needsParentSelection = role === "parent" && assignablePlayers.length > 1 && !assigneeUserId;
+  const preventUpload = needsParentSelection;
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -233,6 +288,24 @@ export default function UploadPage() {
                 </p>
               )}
 
+              {(role === "coach" || role === "parent") && assignablePlayers.length > 0 && (
+                <div className="rounded-lg border border-[var(--surface-secondary)] bg-[var(--surface-secondary)]/40 p-3">
+                  {role === "parent" && assignablePlayers.length === 1 ? (
+                    <p className="text-sm text-[var(--text-secondary)]">
+                      This upload will be assigned to <span className="font-medium text-[var(--text-primary)]">{assignablePlayers[0].displayName}</span>.
+                    </p>
+                  ) : (
+                    <Select
+                      label={role === "coach" ? "Assign to player (optional)" : "Assign to child player"}
+                      options={assigneeOptions}
+                      value={assigneeUserId}
+                      onChange={(e) => setAssigneeUserId(e.target.value)}
+                      error={needsParentSelection ? "Please choose which child this video is for." : undefined}
+                    />
+                  )}
+                </div>
+              )}
+
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
                   <LockIcon />
@@ -249,7 +322,7 @@ export default function UploadPage() {
                   </Button>
                   <Button
                     onClick={file ? handleUploadAndStartAnalysis : handleBrowse}
-                    disabled={isUploading}
+                    disabled={isUploading || preventUpload}
                     className="gap-2 bg-[var(--primary)] hover:bg-[var(--primary-hover)]"
                   >
                     {isUploading ? "Uploading…" : file ? "Upload & Analyze" : "Choose File"}

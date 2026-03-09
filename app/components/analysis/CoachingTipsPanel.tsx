@@ -6,6 +6,7 @@ import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
 export interface CoachingTip {
   title: string;
   body: string;
+  description?: string;
   type?: "strength" | "improvement" | "recommendation";
 }
 
@@ -62,7 +63,12 @@ export function CoachingTipsPanel({ tips }: CoachingTipsPanelProps) {
             className={`rounded-r-lg border-l-4 bg-[var(--surface-secondary)] p-3 ${getTipBorderColor(tip.type)}`}
           >
             <p className="font-medium text-[var(--text-primary)]">{tip.title}</p>
-            <p className="mt-1 text-sm text-[var(--text-secondary)]">{tip.body}</p>
+            {tip.body ? (
+              <p className="mt-1 text-sm text-[var(--text-secondary)]">{tip.body}</p>
+            ) : null}
+            {tip.description && tip.description !== tip.body ? (
+              <p className="mt-1 text-sm text-[var(--text-secondary)]">{tip.description}</p>
+            ) : null}
           </div>
         ))}
       </CardContent>

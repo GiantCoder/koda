@@ -15,10 +15,10 @@ function VideoCameraIcon({ className = "h-5 w-5" }: { className?: string }) {
   );
 }
 
-function CheckCircleIcon({ className = "h-4 w-4" }: { className?: string }) {
+function CheckCircleIcon({ className = "" }: { className?: string }) {
   return (
     <svg
-      className={className}
+      className={`h-4 w-4 ${className}`.trim()}
       fill="none"
       stroke="currentColor"
       viewBox="0 0 24 24"
@@ -79,15 +79,15 @@ export function BestCameraAngleCard() {
 
         <ul className="space-y-2">
           <li className="flex items-start gap-2 text-sm">
-            <CheckCircleIcon className="mt-0.5 shrink-0 text-[var(--cricket-green)]" />
+            <CheckCircleIcon className="mt-0.5 h-4 w-4 shrink-0 text-[var(--cricket-green)]" />
             <span className="text-[var(--text-secondary)]">Side-on view of batting stance</span>
           </li>
           <li className="flex items-start gap-2 text-sm">
-            <CheckCircleIcon className="mt-0.5 shrink-0 text-[var(--cricket-green)]" />
+            <CheckCircleIcon className="mt-0.5 h-4 w-4 shrink-0 text-[var(--cricket-green)]" />
             <span className="text-[var(--text-secondary)]">Clear view of foot movement</span>
           </li>
           <li className="flex items-start gap-2 text-sm">
-            <CheckCircleIcon className="mt-0.5 shrink-0 text-[var(--cricket-green)]" />
+            <CheckCircleIcon className="mt-0.5 h-4 w-4 shrink-0 text-[var(--cricket-green)]" />
             <span className="text-[var(--text-secondary)]">Captures full shot execution</span>
           </li>
         </ul>
