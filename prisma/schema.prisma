@@ -63,6 +63,16 @@ enum AgeGroup {
   SENIOR
 }
 
+enum NotificationType {
+  ANALYSIS_COMPLETE
+  NEW_MESSAGE
+  TEAM_INVITATION
+  ACHIEVEMENT_UNLOCKED
+  SESSION_REMINDER
+  CONSENT_REQUEST
+  SYSTEM_ALERT
+}
+
 model User {
   id           String    @id @default(uuid())
   email        String    @unique
@@ -98,7 +108,11 @@ model User {
   sessions           Session[]      @relation("PlayerSessions")
   coachSessions      Session[]     @relation("CoachSessions")
   annotationsAuthored Annotation[] @relation("AnnotationAuthor")
+<<<<<<< HEAD
   collections        Collection[]
+=======
+  notifications      Notification[]
+>>>>>>> feature/notifications-module
 }
 
 model Video {
@@ -365,4 +379,22 @@ model SavedClip {
   @@index([collectionId])
   @@index([videoId])
   @@index([savedAt])
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String           @db.Text
+  isRead    Boolean          @default(false)
+  actionUrl String?
+  metadata  Json?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([createdAt])
 }

@@ -122,9 +122,9 @@ export const analysisWorker = new Worker<AnalysisJobData>(
       where: { id: analysisId },
       data: {
         status: "SHOT_CLASSIFICATION",
-        shotType: detectedShotType,
+        shotType: detectedShotType as any,
         shotConfidence: detectedShotConfidence,
-        rawGeminiResponse: geminiRawResponse,
+        rawGeminiResponse: geminiRawResponse as any,
       },
     });
     await publishStage(analysisId, {
@@ -152,7 +152,7 @@ export const analysisWorker = new Worker<AnalysisJobData>(
         status: "COMPLETE",
         gradeOverall: grade.score,
         gradeLetter: grade.letter,
-        shotType: detectedShotType,
+        shotType: detectedShotType as any,
         shotConfidence: detectedShotConfidence,
         scoreBacklift: metricScores[0],
         scoreWeightTransfer: metricScores[1],

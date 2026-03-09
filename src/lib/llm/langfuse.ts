@@ -14,7 +14,7 @@ export async function tracedLlmCall<T>(name: string, fn: () => Promise<T>): Prom
     trace.update({ output: JSON.stringify(result) });
     return result;
   } catch (error) {
-    trace.update({ level: "ERROR", statusMessage: String(error) });
+    trace.update({ output: JSON.stringify({ error: String(error) }) });
     throw error;
   }
 }

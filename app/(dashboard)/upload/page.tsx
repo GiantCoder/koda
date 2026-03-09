@@ -71,14 +71,14 @@ export default function UploadPage() {
         const data = await res.json();
         const players = Array.isArray(data.players)
           ? data.players
-              .filter((player): player is { id: string; displayName: string } =>
+              .filter((player: any): player is { id: string; displayName: string } =>
                 Boolean(player && typeof player.id === "string" && typeof player.displayName === "string")
               )
           : [];
         if (cancelled) return;
         setAssignablePlayers(players);
         const preselectedAssignee = searchParams.get("assignee");
-        if (preselectedAssignee && players.some((player) => player.id === preselectedAssignee)) {
+        if (preselectedAssignee && players.some((player: { id: string; displayName: string }) => player.id === preselectedAssignee)) {
           setAssigneeUserId(preselectedAssignee);
           return;
         }
