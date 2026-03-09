@@ -18,10 +18,7 @@ import {
   MAX_FILE_SIZE_BYTES,
 } from "@/app/lib/video-validators";
 
-const MOCK_RECENT_UPLOADS: RecentUpload[] = [
-  { id: "vid_demo_1", filename: "cover_drive_practice.mp4", status: "analyzed", timestamp: "2 hours ago" },
-  { id: "vid_demo_2", filename: "straight_drive_session.mp4", status: "analyzed", timestamp: "Yesterday" },
-];
+const MOCK_RECENT_UPLOADS: RecentUpload[] = [];
 
 function CloudUploadIcon() {
   return (
