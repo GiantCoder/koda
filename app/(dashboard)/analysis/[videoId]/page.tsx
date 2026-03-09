@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 import { ShotGradeCard } from "@/app/components/analysis/ShotGradeCard";
@@ -10,7 +10,10 @@ import { CoachingTipsPanel, type CoachingTip } from "@/app/components/analysis/C
 import { TagStrip, type ShotTag } from "@/app/components/analysis/TagStrip";
 import { TechniqueRadarChart, type RadarDataPoint } from "@/app/components/analysis/TechniqueRadarChart";
 import { LoadingSpinner } from "@/app/components/common/LoadingSpinner";
+import { ToastContainer } from "@/app/components/ui/Toast";
 import { useMockAuth } from "@/app/hooks/useMockAuth";
+import { useToast } from "@/app/hooks/useToast";
+import { buildMockAuthHeaders } from "@/app/lib/mock-auth-headers";
 
 interface AnalysisResult {
   id: string;
@@ -122,11 +125,15 @@ function deriveRadarData(analysis: AnalysisResult): RadarDataPoint[] {
 
 export default function AnalysisResultsPage() {
   const params = useParams();
+  const router = useRouter();
   const videoId = typeof params.videoId === "string" ? params.videoId : null;
-  const { role } = useMockAuth();
+  const { user, role } = useMockAuth();
+  const { toasts, showToast, closeToast } = useToast();
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchAnalysis = useCallback(async () => {
     if (!videoId) return;
@@ -151,6 +158,29 @@ export default function AnalysisResultsPage() {
   useEffect(() => {
     void fetchAnalysis();
   }, [fetchAnalysis]);
+
+  const handleDelete = useCallback(async () => {
+    if (!analysis || !user) return;
+    setIsDeleting(true);
+    try {
+      const res = await fetch(`/api/analysis/${analysis.id}`, {
+        method: "DELETE",
+        headers: buildMockAuthHeaders(user),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error ?? "Failed to delete analysis");
+      }
+      showToast("Analysis deleted successfully", "success");
+      setIsDeleteModalOpen(false);
+      setTimeout(() => {
+        router.push("/dashboard");
+      }, 1000);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Failed to delete analysis", "error");
+      setIsDeleting(false);
+    }
+  }, [analysis, user, showToast, router]);
 
   if (!videoId) {
     return (
@@ -237,12 +267,23 @@ export default function AnalysisResultsPage() {
 
   return (
     <div className="mx-auto max-w-7xl">
-      <div className="mb-6 flex items-center gap-2 text-sm text-[var(--text-secondary)]">
-        <Link href="/dashboard" className="hover:text-[var(--primary)]">Home</Link>
-        <span>/</span>
-        <Link href="/progress" className="hover:text-[var(--primary)]">Analysis</Link>
-        <span>/</span>
-        <span className="text-[var(--text-primary)]">Shot Review</span>
+      <ToastContainer toasts={toasts} onClose={closeToast} />
+      
+      <div className="mb-6 flex items-center justify-between">
+        <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+          <Link href="/dashboard" className="hover:text-[var(--primary)]">Home</Link>
+          <span>/</span>
+          <Link href="/progress" className="hover:text-[var(--primary)]">Analysis</Link>
+          <span>/</span>
+          <span className="text-[var(--text-primary)]">Shot Review</span>
+        </div>
+        <Button
+          variant="secondary"
+          onClick={() => setIsDeleteModalOpen(true)}
+          className="text-[var(--danger)] hover:bg-[var(--danger)]/10"
+        >
+          Delete Analysis
+        </Button>
       </div>
 
       <div className="mb-8">
@@ -330,6 +371,35 @@ export default function AnalysisResultsPage() {
           <Button>Start Training Drill</Button>
         </Link>
       </div>
+
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-xl bg-[var(--surface)] p-6">
+            <h3 className="text-lg font-semibold text-[var(--text-primary)]">
+              Delete Analysis
+            </h3>
+            <p className="mt-3 text-sm text-[var(--text-secondary)]">
+              Are you sure you want to delete this shot analysis? This action cannot be undone.
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <Button
+                variant="secondary"
+                onClick={() => setIsDeleteModalOpen(false)}
+                disabled={isDeleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => void handleDelete()}
+                disabled={isDeleting}
+                className="bg-[var(--danger)] hover:bg-[var(--danger)]/90"
+              >
+                {isDeleting ? "Deleting..." : "Delete"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
