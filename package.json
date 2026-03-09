@@ -61,7 +61,7 @@
     "react-email": "^5.2.9",
     "react-hook-form": "^7.71.2",
     "react-redux": "^9.2.0",
-    "recharts": "^3.7.0",
+    "recharts": "^3.8.0",
     "redux-saga": "^1.4.2",
     "resend": "^6.9.3",
     "tus-js-client": "^4.3.1",
