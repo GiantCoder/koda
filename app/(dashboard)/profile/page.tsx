@@ -2,13 +2,36 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { z } from "zod";
+import PlayerCardDisplay from "@/app/components/player-card/PlayerCardDisplay";
 import { useMockAuth } from "@/app/hooks/useMockAuth";
 import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 import AvatarGalleryModal from "@/app/components/profile/AvatarGalleryModal";
 import { clearAuthToken, setProfileAvatarUrl } from "@/app/lib/auth";
+import { buildMockAuthHeaders } from "@/app/lib/mock-auth-headers";
 import { useProfileAvatar } from "@/app/hooks/useProfileAvatar";
+import type { PlayerCardDto } from "@/types/player-card";
+
+const playerCardSchema = z.object({
+  id: z.string().uuid().nullable(),
+  userId: z.string().uuid(),
+  displayName: z.string(),
+  tier: z.enum(["BRONZE", "SILVER", "GOLD", "ELITE"]),
+  role: z.enum(["BAT", "BWL", "ALL", "WKT"]),
+  sportIcon: z.enum(["BAT_ICON", "BALL_ICON", "GLOVES_ICON"]),
+  statTec: z.number().int(),
+  statPow: z.number().int(),
+  statTim: z.number().int(),
+  statCon: z.number().int(),
+  statPac: z.number().int(),
+  statFie: z.number().int(),
+  profilePhotoUrl: z.string().nullable(),
+  backgroundUrl: z.string().nullable(),
+  backgroundMode: z.enum(["DEFAULT", "UPLOAD", "AI"]),
+  overall: z.number().int(),
+});
 
 function CalendarIcon() {
   return (
@@ -54,12 +77,41 @@ export default function ProfilePage() {
   const { user } = useMockAuth();
   const selectedAvatarUrl = useProfileAvatar();
   const [isAvatarGalleryOpen, setIsAvatarGalleryOpen] = useState(false);
+  const [playerCard, setPlayerCard] = useState<PlayerCardDto | null>(null);
+  const [cardLoading, setCardLoading] = useState(true);
 
   const displayName = user
     ? `${user.firstName} ${user.lastName}`
     : "User";
   const role = user?.role ?? "coach";
   const joinedAt = user?.joinedAt ?? "—";
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchPlayerCard = async () => {
+      if (!user) return;
+      try {
+        const response = await fetch("/api/player-card", {
+          headers: buildMockAuthHeaders(user),
+        });
+        if (!response.ok) return;
+        const raw = (await response.json()) as unknown;
+        const parsed = playerCardSchema.parse(raw);
+        if (isMounted) {
+          setPlayerCard(parsed);
+        }
+      } catch {
+        // Non-blocking section in profile page.
+      } finally {
+        if (isMounted) setCardLoading(false);
+      }
+    };
+
+    void fetchPlayerCard();
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -143,7 +195,28 @@ export default function ProfilePage() {
           </Card>
         </div>
 
-        <div className="lg:col-span-2">
+        <div className="space-y-6 lg:col-span-2">
+          <Card>
+            <CardHeader>Player Card</CardHeader>
+            <CardContent className="flex justify-center">
+              {cardLoading ? (
+                <div className="h-10 w-10 animate-spin rounded-full border-2 border-[var(--primary)] border-t-transparent" />
+              ) : playerCard ? (
+                <PlayerCardDisplay
+                  card={playerCard}
+                  aiBgCss={null}
+                  compact
+                  interactive={false}
+                  showBlankSlate={playerCard.id === null && playerCard.overall === 50}
+                />
+              ) : (
+                <p className="text-sm text-[var(--text-secondary)]">
+                  Your player card will appear here after your first completed analysis.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
           <Card>
             <div className="mb-4 flex items-center justify-between">
               <CardHeader className="mb-0">Personal Details</CardHeader>

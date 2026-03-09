@@ -3,6 +3,7 @@ import createSagaMiddleware from "redux-saga";
 import analysisReducer from "./slices/analysisSlice";
 import authReducer from "./slices/authSlice";
 import messagingReducer from "./slices/messagingSlice";
+import playerCardReducer from "./slices/playerCardSlice";
 import uiReducer from "./slices/uiSlice";
 import videoReducer from "./slices/videoSlice";
 import { rootSaga } from "./sagas/rootSaga";
@@ -15,6 +16,7 @@ export const store = configureStore({
     video: videoReducer,
     analysis: analysisReducer,
     messaging: messagingReducer,
+    playerCard: playerCardReducer,
     ui: uiReducer,
   },
   middleware: (getDefaultMiddleware) =>

@@ -73,6 +73,32 @@ enum NotificationType {
   SYSTEM_ALERT
 }
 
+enum CardTier {
+  BRONZE
+  SILVER
+  GOLD
+  ELITE
+}
+
+enum CardRole {
+  BAT
+  BWL
+  ALL
+  WKT
+}
+
+enum SportIcon {
+  BAT_ICON
+  BALL_ICON
+  GLOVES_ICON
+}
+
+enum BgMode {
+  DEFAULT
+  UPLOAD
+  AI
+}
+
 model User {
   id           String    @id @default(uuid())
   email        String    @unique
@@ -108,11 +134,9 @@ model User {
   sessions           Session[]      @relation("PlayerSessions")
   coachSessions      Session[]     @relation("CoachSessions")
   annotationsAuthored Annotation[] @relation("AnnotationAuthor")
-<<<<<<< HEAD
   collections        Collection[]
-=======
   notifications      Notification[]
->>>>>>> feature/notifications-module
+  playerCard         PlayerCard?
 }
 
 model Video {
@@ -397,4 +421,26 @@ model Notification {
 
   @@index([userId, isRead])
   @@index([createdAt])
+}
+
+model PlayerCard {
+  id              String    @id @default(uuid())
+  userId          String    @unique
+  displayName     String
+  tier            CardTier  @default(BRONZE)
+  role            CardRole  @default(BAT)
+  sportIcon       SportIcon @default(BAT_ICON)
+  statTec         Int       @default(50)
+  statPow         Int       @default(50)
+  statTim         Int       @default(50)
+  statCon         Int       @default(50)
+  statPac         Int       @default(50)
+  statFie         Int       @default(50)
+  profilePhotoUrl String?
+  backgroundUrl   String?
+  backgroundMode  BgMode    @default(DEFAULT)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

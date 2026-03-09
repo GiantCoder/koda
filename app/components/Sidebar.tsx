@@ -95,6 +95,19 @@ function TargetIcon() {
   );
 }
 
+function IdCardIcon() {
+  return (
+    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M3 7a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7zm5 2h8m-8 4h4m-4 4h3m7-8a2 2 0 11-4 0 2 2 0 014 0zm1 8a3 3 0 00-6 0"
+      />
+    </svg>
+  );
+}
+
 const baseNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: HomeIcon },
   { href: "/explore", label: "Explore", icon: ExploreIcon },
@@ -104,6 +117,7 @@ const baseNavItems = [
   { href: "/upload", label: "Upload", icon: UploadIcon },
   { href: "/saved", label: "Saved", icon: BookmarkIcon },
   { href: "/shadow-batting", label: "Shadow Batting", icon: TargetIcon },
+  { href: "/player-card", label: "Player Card", icon: IdCardIcon },
   { href: "/progress", label: "Progress", icon: BarChartIcon },
   { href: "/profile", label: "Profile", icon: ProfileIcon },
 ];
