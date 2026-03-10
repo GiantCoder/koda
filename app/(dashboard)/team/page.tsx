@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useMemo, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMockAuth } from "@/app/hooks/useMockAuth";
 import { buildMockAuthHeaders } from "@/app/lib/mock-auth-headers";
 import { ECBSafeguardingBanner } from "@/app/components/coach/ECBSafeguardingBanner";
@@ -255,6 +256,31 @@ function getActivityDotClass(activity: string): string {
   }
 }
 
+function getPositionTag(position: string): string {
+  const value = position.toLowerCase();
+  if (value.includes("wicket")) return "🧤 WKT";
+  if (value.includes("bowl")) return "🔴 BOW";
+  if (value.includes("bat")) return "🏏 BAT";
+  if (value.includes("all")) return "🔁 AR";
+  return "🏃 PLN";
+}
+
+function getHandednessAbbreviation(battingStyle: string): string {
+  const style = battingStyle.toLowerCase();
+  if (style.includes("left")) return "LH";
+  if (style.includes("right")) return "RH";
+  return "RH";
+}
+
+function getBowlingAbbreviation(bowlingStyle: string): string {
+  const style = bowlingStyle.toLowerCase();
+  if (style.includes("left arm")) return "LA";
+  if (style.includes("medium")) return "MF";
+  if (style.includes("fast")) return "F";
+  if (style.includes("leg")) return "LS";
+  return "MF";
+}
+
 type PageState = "loading" | "ready" | "error" | "empty";
 
 interface RosterPlayer extends MockPlayer {
@@ -271,6 +297,19 @@ interface RosterPlayer extends MockPlayer {
   squadNames: string[];
 }
 
+interface SquadSummary {
+  id: string;
+  name: string;
+  clubName?: string | null;
+}
+
+interface PlayCricketTeam {
+  id: string;
+  name: string;
+  clubName: string;
+  squadHint?: string;
+}
+
 const AGE_GROUP_OPTIONS = [
   { value: "UNDER_10", label: "Under 10" },
   { value: "UNDER_12", label: "Under 12" },
@@ -282,12 +321,18 @@ const AGE_GROUP_OPTIONS = [
 
 export default function CoachRosterPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, role } = useMockAuth();
   const [pageState, setPageState] = useState<PageState>("loading");
   const [searchQuery, setSearchQuery] = useState("");
+  const [clubFilter, setClubFilter] = useState("all");
   const [squadFilter, setSquadFilter] = useState("all");
+  const [teamFilter, setTeamFilter] = useState("all");
+  const [teamSearchQuery, setTeamSearchQuery] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [teamPlayers, setTeamPlayers] = useState<RosterPlayer[]>([]);
+  const [squadSummaries, setSquadSummaries] = useState<SquadSummary[]>([]);
+  const [playCricketTeams, setPlayCricketTeams] = useState<PlayCricketTeam[]>([]);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -413,31 +458,114 @@ export default function CoachRosterPage() {
     }
   }, [role, router]);
 
+  React.useEffect(() => {
+    const initialClub = searchParams.get("club");
+    if (initialClub) {
+      setClubFilter(initialClub);
+    }
+  }, [searchParams]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    async function loadTeamReferences() {
+      if (!user) return;
+      try {
+        const [squadsResponse, teamsResponse] = await Promise.all([
+          fetch("/api/squads", { headers: buildMockAuthHeaders(user) }),
+          fetch("/api/play-cricket/teams"),
+        ]);
+        if (!squadsResponse.ok || !teamsResponse.ok) {
+          return;
+        }
+        const squadsData = await squadsResponse.json();
+        const teamsData = await teamsResponse.json();
+        if (cancelled) return;
+        setSquadSummaries(Array.isArray(squadsData.squads) ? squadsData.squads : []);
+        setPlayCricketTeams(Array.isArray(teamsData.teams) ? teamsData.teams : []);
+      } catch {
+        // Keep roster experience available even if supporting lists fail to load.
+      }
+    }
+    void loadTeamReferences();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
   const squadOptions = useMemo(() => {
-    const squads = Array.from(
-      new Set(teamPlayers.map((p) => p.squad).filter(Boolean))
-    ) as string[];
+    const squadNamesFromPlayers = teamPlayers.map((player) => player.squad).filter(Boolean) as string[];
+    const squadNamesFromApi = squadSummaries.map((squad) => squad.name);
+    const squads = Array.from(new Set([...squadNamesFromPlayers, ...squadNamesFromApi]));
     return [
       { value: "all", label: "All Players" },
       ...squads.map((s) => ({ value: s, label: s })),
     ];
-  }, [teamPlayers]);
+  }, [squadSummaries, teamPlayers]);
+
+  const clubOptions = useMemo(() => {
+    const clubsFromPlayers = teamPlayers.map((player) => player.clubOrSchool).filter(Boolean) as string[];
+    const clubsFromSquads = squadSummaries
+      .map((squad) => squad.clubName)
+      .filter((value): value is string => Boolean(value));
+    const clubs = Array.from(new Set([...clubsFromPlayers, ...clubsFromSquads]));
+    return [{ value: "all", label: "All Clubs" }, ...clubs.map((club) => ({ value: club, label: club }))];
+  }, [squadSummaries, teamPlayers]);
+
+  const filteredPlayCricketTeams = useMemo(() => {
+    const query = teamSearchQuery.trim().toLowerCase();
+    if (!query) return playCricketTeams;
+    return playCricketTeams.filter((team) =>
+      [team.name, team.clubName, team.squadHint ?? ""].some((value) => value.toLowerCase().includes(query))
+    );
+  }, [playCricketTeams, teamSearchQuery]);
+
+  const teamOptions = useMemo(
+    () => [{ value: "all", label: "All Teams" }, ...filteredPlayCricketTeams.map((team) => ({ value: team.id, label: team.name }))],
+    [filteredPlayCricketTeams]
+  );
 
   const filteredPlayers = useMemo(() => {
+    const squadClubMap = new Map(
+      squadSummaries
+        .filter((squad) => squad.clubName)
+        .map((squad) => [squad.name, squad.clubName as string])
+    );
     let list = teamPlayers;
+    if (clubFilter !== "all") {
+      list = list.filter((player) => {
+        const inferredClub = player.squad ? squadClubMap.get(player.squad) : undefined;
+        const playerClub = player.clubOrSchool || inferredClub || "";
+        return playerClub === clubFilter;
+      });
+    }
     if (squadFilter !== "all") {
-      list = list.filter((p) => p.squad === squadFilter);
+      list = list.filter((player) => player.squad === squadFilter);
+    }
+    if (teamFilter !== "all") {
+      const selectedTeam = playCricketTeams.find((team) => team.id === teamFilter);
+      if (selectedTeam) {
+        list = list.filter((player) => {
+          const clubMatch = !player.clubOrSchool || player.clubOrSchool === selectedTeam.clubName;
+          if (!selectedTeam.squadHint) return clubMatch;
+          return (
+            clubMatch &&
+            (player.squad === selectedTeam.squadHint ||
+              player.squadNames.some((name) => name.includes(selectedTeam.squadHint ?? "")))
+          );
+        });
+      }
     }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       list = list.filter(
-        (p) =>
-          p.name.toLowerCase().includes(q) ||
-          p.position.toLowerCase().includes(q)
+        (player) =>
+          player.name.toLowerCase().includes(q) ||
+          player.position.toLowerCase().includes(q) ||
+          player.primaryPosition.toLowerCase().includes(q)
       );
     }
     return list;
-  }, [searchQuery, squadFilter, teamPlayers]);
+  }, [clubFilter, playCricketTeams, searchQuery, squadFilter, squadSummaries, teamFilter, teamPlayers]);
 
   const rosterStats = useMemo(() => {
     const totalPlayers = teamPlayers.length;
@@ -659,40 +787,62 @@ export default function CoachRosterPage() {
       </div>
 
       {/* Search and filters */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-1 flex-col gap-4 sm:flex-row sm:items-center">
-          <div className="relative flex-1 sm:max-w-xs">
+      <div className="flex flex-col gap-4">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2">
               <SearchIcon />
             </span>
             <input
               type="search"
-              placeholder="Search players..."
+              placeholder="Filter by player..."
               value={searchQuery}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                setSearchQuery(e.target.value)
-              }
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
               className="w-full rounded-lg border border-[var(--surface-secondary)] bg-[var(--surface)] py-2 pl-10 pr-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:border-[var(--primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
-              aria-label="Search players"
+              aria-label="Filter by player"
             />
           </div>
-          <div className="w-full sm:w-48">
-            <Select
-              options={squadOptions}
-              value={squadFilter}
-              onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
-                setSquadFilter(e.target.value)
-              }
-              aria-label="Filter by squad"
+          <Select
+            options={clubOptions}
+            value={clubFilter}
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setClubFilter(e.target.value)}
+            aria-label="Filter by club"
+          />
+          <Select
+            options={squadOptions}
+            value={squadFilter}
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSquadFilter(e.target.value)}
+            aria-label="Filter by squad"
+          />
+          <div>
+            <Input
+              value={teamSearchQuery}
+              onChange={(event) => setTeamSearchQuery(event.target.value)}
+              placeholder="Search play-cricket teams..."
             />
           </div>
+          <Select
+            options={teamOptions}
+            value={teamFilter}
+            onChange={(event: React.ChangeEvent<HTMLSelectElement>) => setTeamFilter(event.target.value)}
+            aria-label="Filter by play-cricket team"
+          />
         </div>
-        {(role === "coach" || role === "admin") && (
-          <Button onClick={handleAddPlayer} className="shrink-0">
-            <PlusIcon />
-            <span className="ml-2">Add Player</span>
-          </Button>
-        )}
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Link href="/squads">
+            <Button variant="secondary">Add Squad</Button>
+          </Link>
+          <a href="https://play-cricket.com" target="_blank" rel="noreferrer">
+            <Button variant="secondary">Add Team</Button>
+          </a>
+          {(role === "coach" || role === "admin") && (
+            <Button onClick={handleAddPlayer} className="shrink-0">
+              <PlusIcon />
+              <span className="ml-2">Add Player</span>
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Key metrics */}
@@ -760,17 +910,25 @@ export default function CoachRosterPage() {
             <EmptyState
               title="No players found"
               description={
-                searchQuery || squadFilter !== "all"
+                searchQuery || squadFilter !== "all" || clubFilter !== "all" || teamFilter !== "all"
                   ? "Try adjusting your search or filter."
                   : "Add players to your roster to get started."
               }
               actionLabel={
-                !searchQuery && squadFilter === "all" && (role === "coach" || role === "admin")
+                !searchQuery &&
+                squadFilter === "all" &&
+                clubFilter === "all" &&
+                teamFilter === "all" &&
+                (role === "coach" || role === "admin")
                   ? "Add Player"
                   : undefined
               }
               onAction={
-                !searchQuery && squadFilter === "all" && (role === "coach" || role === "admin")
+                !searchQuery &&
+                squadFilter === "all" &&
+                clubFilter === "all" &&
+                teamFilter === "all" &&
+                (role === "coach" || role === "admin")
                   ? handleAddPlayer
                   : undefined
               }
@@ -780,7 +938,7 @@ export default function CoachRosterPage() {
 
           {pageState === "ready" && filteredPlayers.length > 0 && (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[640px]" aria-label="Player roster">
+              <table className="w-full min-w-[1020px]" aria-label="Player roster">
                 <thead>
                   <tr className="border-b border-[var(--surface-secondary)]">
                     <th className="pb-3 text-left text-sm font-semibold text-[var(--text-secondary)]">
@@ -791,6 +949,15 @@ export default function CoachRosterPage() {
                     </th>
                     <th className="pb-3 text-left text-sm font-semibold text-[var(--text-secondary)]">
                       Last Session
+                    </th>
+                    <th className="pb-3 text-left text-sm font-semibold text-[var(--text-secondary)]">
+                      Position
+                    </th>
+                    <th className="pb-3 text-left text-sm font-semibold text-[var(--text-secondary)]">
+                      Hand
+                    </th>
+                    <th className="pb-3 text-left text-sm font-semibold text-[var(--text-secondary)]">
+                      Bowl
                     </th>
                     <th className="pb-3 text-left text-sm font-semibold text-[var(--text-secondary)]">
                       Activity
@@ -835,6 +1002,15 @@ export default function CoachRosterPage() {
                       </td>
                       <td className="py-4 text-sm text-[var(--text-secondary)]">
                         {player.lastSession}
+                      </td>
+                      <td className="py-4 text-sm text-[var(--text-primary)]">
+                        {getPositionTag(player.primaryPosition || player.position)}
+                      </td>
+                      <td className="py-4 text-sm text-[var(--text-primary)]">
+                        {getHandednessAbbreviation(player.battingStyle)}
+                      </td>
+                      <td className="py-4 text-sm text-[var(--text-primary)]">
+                        {getBowlingAbbreviation(player.bowlingStyle)}
                       </td>
                       <td className="py-4">
                         <div className="flex items-center gap-2">

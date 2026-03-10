@@ -47,6 +47,32 @@ function TeamIcon() {
   );
 }
 
+function ClubIcon() {
+  return (
+    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-3"
+      />
+    </svg>
+  );
+}
+
+function SquadsIcon() {
+  return (
+    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M17 20h5V9H2v11h5m10 0v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5m10 0H7"
+      />
+    </svg>
+  );
+}
+
 function ProfileIcon() {
   return (
     <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -65,6 +91,8 @@ function BarChartIcon() {
 
 const baseNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: HomeIcon },
+  { href: "/clubs", label: "Clubs", icon: ClubIcon },
+  { href: "/squads", label: "Squads", icon: SquadsIcon },
   { href: "/team", label: "Team", icon: TeamIcon },
   { href: "/messages", label: "Messages", icon: MessageIcon },
   { href: "/upload", label: "Upload", icon: UploadIcon },
