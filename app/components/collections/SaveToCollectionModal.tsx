@@ -3,11 +3,14 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/app/components/ui/Button";
 import { Input } from "@/app/components/ui/Input";
+import { useMockAuth } from "@/app/hooks/useMockAuth";
+import { buildMockAuthHeaders } from "@/app/lib/mock-auth-headers";
 
 interface Collection {
   id: string;
   name: string;
   clipCount: number;
+  canEdit?: boolean;
 }
 
 interface SaveToCollectionModalProps {
@@ -23,6 +26,7 @@ export function SaveToCollectionModal({
   onClose,
   onSaved,
 }: SaveToCollectionModalProps) {
+  const { user } = useMockAuth();
   const [collections, setCollections] = useState<Collection[]>([]);
   const [loading, setLoading] = useState(false);
   const [showNewCollection, setShowNewCollection] = useState(false);
@@ -37,24 +41,40 @@ export function SaveToCollectionModal({
   }, [isOpen]);
 
   const fetchCollections = async () => {
+    if (!user) {
+      setError("Unauthorized");
+      return;
+    }
     try {
-      const response = await fetch("/api/collections");
+      const response = await fetch("/api/collections", {
+        headers: buildMockAuthHeaders(user),
+      });
       if (!response.ok) throw new Error("Failed to fetch collections");
       const data = await response.json();
-      setCollections(data.collections);
+      const editableCollections = Array.isArray(data.collections)
+        ? data.collections.filter((collection: Collection) => collection.canEdit !== false)
+        : [];
+      setCollections(editableCollections);
     } catch (err) {
       setError("Failed to load collections");
     }
   };
 
   const handleSaveToCollection = async (collectionId: string) => {
+    if (!user) {
+      setError("Unauthorized");
+      return;
+    }
     setLoading(true);
     setError(null);
 
     try {
       const response = await fetch(`/api/collections/${collectionId}/clips`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          ...buildMockAuthHeaders(user),
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({ videoId }),
       });
 
@@ -73,6 +93,10 @@ export function SaveToCollectionModal({
   };
 
   const handleCreateAndSave = async () => {
+    if (!user) {
+      setError("Unauthorized");
+      return;
+    }
     if (!newCollectionName.trim()) {
       setError("Collection name is required");
       return;
@@ -85,7 +109,10 @@ export function SaveToCollectionModal({
       // Create collection
       const createResponse = await fetch("/api/collections", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          ...buildMockAuthHeaders(user),
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
           name: newCollectionName,
           description: newCollectionDescription || undefined,

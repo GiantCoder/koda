@@ -25,3 +25,10 @@ export const addClipSchema = z.object({
 });
 
 export type AddClipInput = z.infer<typeof addClipSchema>;
+
+/** POST /api/collections/[id]/shares - Share collection with a user */
+export const shareCollectionSchema = z.object({
+  userId: z.string().uuid("Invalid user ID"),
+});
+
+export type ShareCollectionInput = z.infer<typeof shareCollectionSchema>;

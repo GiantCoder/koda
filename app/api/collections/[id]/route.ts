@@ -18,6 +18,23 @@ export async function GET(
   const collection = await prisma.collection.findUnique({
     where: { id },
     include: {
+      user: {
+        select: {
+          id: true,
+          displayName: true,
+        },
+      },
+      shares: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              displayName: true,
+              email: true,
+            },
+          },
+        },
+      },
       savedClips: {
         orderBy: { savedAt: "desc" },
         include: {
@@ -46,7 +63,13 @@ export async function GET(
     return NextResponse.json({ error: "Collection not found" }, { status: 404 });
   }
 
-  if (collection.userId !== user.id) {
+  const canAccessCollection =
+    user.role === "COACH" ||
+    user.role === "ADMIN" ||
+    collection.userId === user.id ||
+    collection.shares.some((share) => share.userId === user.id);
+
+  if (!canAccessCollection) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -56,6 +79,11 @@ export async function GET(
       name: collection.name,
       description: collection.description,
       isPublic: collection.isPublic,
+      ownerId: collection.user.id,
+      ownerName: collection.user.displayName,
+      canEdit: collection.userId === user.id,
+      shareCount: collection.shares.length,
+      isSharedWithMe: collection.userId !== user.id && collection.shares.some((share) => share.userId === user.id),
       createdAt: collection.createdAt.toISOString(),
       updatedAt: collection.updatedAt.toISOString(),
       clips: collection.savedClips.map((clip) => ({

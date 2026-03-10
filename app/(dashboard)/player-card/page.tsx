@@ -20,12 +20,18 @@ const uploadResponseSchema = z.object({
   url: z.string().url(),
 });
 
+const STORAGE_FULL_MESSAGE =
+  "Image uploads are temporarily unavailable because local storage is full. Please contact support or try again after cleanup.";
+
 export default function PlayerCardPage() {
   const dispatch = useAppDispatch();
   const [uiError, setUiError] = useState<string | null>(null);
   const { card, loading, saving, generatingBg, aiBgCss, error } = useAppSelector(
     (state) => state.playerCard
   );
+  const activeErrorMessage = error ?? uiError;
+  const isStorageFullError =
+    activeErrorMessage?.toLowerCase().includes("storage is full") ?? false;
 
   useEffect(() => {
     void dispatch(fetchPlayerCard());
@@ -67,6 +73,9 @@ export default function PlayerCardPage() {
 
     if (!response.ok) {
       const responseBody = (await response.json().catch(() => ({}))) as { error?: string };
+      if (response.status === 507) {
+        throw new Error(STORAGE_FULL_MESSAGE);
+      }
       throw new Error(responseBody.error ?? "Image upload failed");
     }
 
@@ -91,9 +100,15 @@ export default function PlayerCardPage() {
         </p>
       </div>
 
-      {error || uiError ? (
-        <div className="mb-4 rounded-lg border border-red-400/35 bg-red-400/10 p-3 text-sm text-red-300">
-          {error ?? uiError}
+      {activeErrorMessage ? (
+        <div
+          className={`mb-4 rounded-lg p-3 text-sm ${
+            isStorageFullError
+              ? "border border-amber-400/35 bg-amber-400/10 text-amber-300"
+              : "border border-red-400/35 bg-red-400/10 text-red-300"
+          }`}
+        >
+          {activeErrorMessage}
         </div>
       ) : null}
 

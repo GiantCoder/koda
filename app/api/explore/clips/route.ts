@@ -33,7 +33,16 @@ export async function GET(request: NextRequest) {
   const skip = parseInt(offset, 10);
 
   // Build where clause for public videos with completed analysis
-  const where: any = {
+  const where: {
+    isDeleted: boolean;
+    analysis: {
+      status: "COMPLETE";
+      shotType?: string;
+    };
+    filename?: {
+      contains: string;
+    };
+  } = {
     isDeleted: false,
     analysis: {
       status: "COMPLETE",
@@ -44,7 +53,6 @@ export async function GET(request: NextRequest) {
   if (search) {
     where.filename = {
       contains: search,
-      mode: "insensitive",
     };
   }
 
@@ -57,7 +65,13 @@ export async function GET(request: NextRequest) {
   }
 
   // Determine sort order
-  let orderBy: any = { uploadedAt: "desc" };
+  let orderBy:
+    | { uploadedAt: "desc" }
+    | {
+        analysis: {
+          gradeOverall: "desc";
+        };
+      } = { uploadedAt: "desc" };
   if (sort === "top_rated") {
     orderBy = { analysis: { gradeOverall: "desc" } };
   } else if (sort === "most_viewed") {

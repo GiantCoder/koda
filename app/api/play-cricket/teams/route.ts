@@ -49,3 +49,26 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({ team: createdTeam }, { status: 201 });
 }
+
+export async function DELETE(request: NextRequest) {
+  const authUser = await getAuthUser(request);
+  if (!authUser) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (authUser.role !== "COACH" && authUser.role !== "ADMIN") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const teamId = request.nextUrl.searchParams.get("id")?.trim();
+  if (!teamId) {
+    return NextResponse.json({ error: "Team id is required" }, { status: 400 });
+  }
+
+  const previousLength = teamStore.length;
+  teamStore = teamStore.filter((team) => team.id !== teamId);
+  if (teamStore.length === previousLength) {
+    return NextResponse.json({ error: "Team not found" }, { status: 404 });
+  }
+
+  return NextResponse.json({ success: true });
+}

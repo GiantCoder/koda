@@ -107,6 +107,7 @@ model User {
   displayName  String  @default("")
   firstName    String?
   lastName     String?
+  avatarUrl    String?
   role         Role      @default(PLAYER)
   dateOfBirth  DateTime?
   ageGroup     String?
@@ -131,10 +132,13 @@ model User {
   auditLogs          AuditLog[]
   squadMemberships   SquadMember[]
   coachSquads        Squad[]
+  coachClubs         Club[]
   sessions           Session[]      @relation("PlayerSessions")
   coachSessions      Session[]     @relation("CoachSessions")
   annotationsAuthored Annotation[] @relation("AnnotationAuthor")
   collections        Collection[]
+  collectionsSharedWithMe CollectionShare[] @relation("CollectionSharesRecipient")
+  collectionSharesSent    CollectionShare[] @relation("CollectionSharesSender")
   notifications      Notification[]
   playerCard         PlayerCard?
 }
@@ -336,6 +340,28 @@ model Squad {
   @@index([coachId])
 }
 
+model Club {
+  id            String   @id @default(uuid())
+  coachId       String
+  name          String
+  website       String
+  playCricketUrl String
+  playCricketId String
+  address       String
+  postcode      String
+  badgeFileName String?
+  bannerFileName String?
+  badgeImageUrl String?  @db.LongText
+  bannerImageUrl String? @db.LongText
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  coach User @relation(fields: [coachId], references: [id], onDelete: Cascade)
+
+  @@index([coachId])
+  @@unique([coachId, name])
+}
+
 model SquadMember {
   id       String   @id @default(uuid())
   squadId  String
@@ -384,9 +410,27 @@ model Collection {
 
   user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   savedClips SavedClip[]
+  shares     CollectionShare[]
 
   @@index([userId])
   @@index([createdAt])
+}
+
+model CollectionShare {
+  id             String   @id @default(uuid())
+  collectionId   String
+  userId         String
+  sharedByUserId String
+  createdAt      DateTime @default(now())
+
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  user       User       @relation("CollectionSharesRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  sharedBy   User       @relation("CollectionSharesSender", fields: [sharedByUserId], references: [id], onDelete: Cascade)
+
+  @@unique([collectionId, userId])
+  @@index([collectionId])
+  @@index([userId])
+  @@index([sharedByUserId])
 }
 
 model SavedClip {

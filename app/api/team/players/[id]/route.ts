@@ -95,6 +95,7 @@ export async function PUT(
   if (updates.displayName !== undefined) updateData.displayName = updates.displayName;
   if (updates.firstName !== undefined) updateData.firstName = updates.firstName;
   if (updates.lastName !== undefined) updateData.lastName = updates.lastName;
+  if (updates.avatarUrl !== undefined) updateData.avatarUrl = updates.avatarUrl;
   if (updates.dateOfBirth !== undefined) {
     updateData.dateOfBirth = updates.dateOfBirth ? new Date(updates.dateOfBirth) : null;
   }

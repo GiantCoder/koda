@@ -28,49 +28,6 @@ export interface PlayCricketTeamRecord {
   squadHint?: string;
 }
 
-export const MOCK_CLUBS: ClubRecord[] = [
-  {
-    id: "club-oakfield",
-    name: "Oakfield Cricket Club",
-    website: "https://oakfieldcc.example.com",
-    playCricketUrl: "https://example.play-cricket.com/OakfieldCC",
-    playCricketId: "oakfield-cc",
-    address: "12 Meadow Lane, Bristol",
-    postcode: "BS1 4AB",
-    badgeFileName: "oakfield-badge.svg",
-    bannerFileName: "oakfield-banner.png",
-    badgeImageUrl: "/koda.svg",
-    bannerImageUrl: "/koda.svg",
-    stats: {
-      seniors: 42,
-      juniors: 58,
-      playersCoached: 76,
-      averageRating: 4.5,
-      sessionsThisMonth: 24,
-    },
-  },
-  {
-    id: "club-riverside",
-    name: "Riverside Juniors",
-    website: "https://riversidejuniors.example.com",
-    playCricketUrl: "https://example.play-cricket.com/RiversideJuniors",
-    playCricketId: "riverside-juniors",
-    address: "1 Pavilion Drive, Reading",
-    postcode: "RG1 6XX",
-    badgeFileName: "riverside-badge.png",
-    bannerFileName: "riverside-banner.svg",
-    badgeImageUrl: "/koda.svg",
-    bannerImageUrl: "/koda.svg",
-    stats: {
-      seniors: 14,
-      juniors: 73,
-      playersCoached: 61,
-      averageRating: 4.3,
-      sessionsThisMonth: 19,
-    },
-  },
-];
-
 export const MOCK_PLAY_CRICKET_TEAMS: PlayCricketTeamRecord[] = [
   {
     id: "pct-oakfield-1xi",

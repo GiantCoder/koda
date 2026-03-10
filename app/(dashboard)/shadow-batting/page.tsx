@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 import { useMockAuth } from "@/app/hooks/useMockAuth";
@@ -24,20 +23,27 @@ const SHOT_TYPES = [
   { value: "SCOOP", label: "Scoop" },
 ];
 
-const DURATIONS = [15, 30, 45, 60];
+const DURATIONS = [5, 10, 15, 30, 45, 60];
+
+type AnalyzedClip = {
+  id: string;
+  serverVideoId?: string;
+  localUrl: string;
+  createdAt: number;
+  shotType: string;
+  duration: number;
+  prepTimer: number;
+  coachingFeedback?: string;
+  scores?: Record<string, number>;
+  grade?: string;
+  status: "processing" | "complete" | "failed";
+  errorMessage?: string;
+};
 
 function CameraIcon() {
   return (
     <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-    </svg>
-  );
-}
-
-function TargetIcon() {
-  return (
-    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
   );
 }
@@ -67,19 +73,20 @@ function CheckCircleIcon() {
 }
 
 export default function ShadowBattingPage() {
-  const router = useRouter();
   const { user } = useMockAuth();
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
+  const analyzedClipsRef = useRef<AnalyzedClip[]>([]);
 
   const [hasPermission, setHasPermission] = useState(false);
   const [permissionError, setPermissionError] = useState("");
   const [selectedShotType, setSelectedShotType] = useState("COVER_DRIVE");
   const [selectedDuration, setSelectedDuration] = useState(30);
+  const [prepTimerSeconds, setPrepTimerSeconds] = useState(3);
   const [isCountingDown, setIsCountingDown] = useState(false);
-  const [countdown, setCountdown] = useState(3);
+  const [countdown, setCountdown] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
@@ -90,6 +97,7 @@ export default function ShadowBattingPage() {
     scores: Record<string, number>;
     grade: string;
   } | null>(null);
+  const [analyzedClips, setAnalyzedClips] = useState<AnalyzedClip[]>([]);
 
   // Initialize webcam
   useEffect(() => {
@@ -138,6 +146,138 @@ export default function ShadowBattingPage() {
     };
   }, []);
 
+  useEffect(() => {
+    analyzedClipsRef.current = analyzedClips;
+  }, [analyzedClips]);
+
+  useEffect(() => {
+    return () => {
+      analyzedClipsRef.current.forEach((clip) => {
+        URL.revokeObjectURL(clip.localUrl);
+      });
+    };
+  }, []);
+
+  function stopRecording() {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  }
+
+  const uploadAndAnalyzeBlob = useCallback(
+    async (blob: Blob, localClipId: string) => {
+      setIsUploading(true);
+      setUploadError("");
+
+      try {
+        const formData = new FormData();
+        const filename = `shadow-batting-${selectedShotType}-${Date.now()}.webm`;
+        formData.append("file", blob, filename);
+        formData.append("shotType", selectedShotType);
+        formData.append("duration", String(selectedDuration));
+
+        const res = await fetch("/api/shadow-batting/upload", {
+          method: "POST",
+          headers: buildMockAuthHeaders(user),
+          body: formData,
+        });
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error ?? "Upload failed");
+        }
+
+        const data = await res.json();
+        const nextResult = {
+          coachingFeedback:
+            data.coachingFeedback ||
+            "Great job! Keep practicing your technique.",
+          scores: data.scores || {},
+          grade: data.grade || "B+",
+        };
+
+        setAnalysisResult(nextResult);
+        setAnalyzedClips((prev) => [
+          ...prev.map((clip) =>
+            clip.id === localClipId
+              ? {
+                  ...clip,
+                  serverVideoId: String(data.id ?? ""),
+                  coachingFeedback: nextResult.coachingFeedback,
+                  scores: nextResult.scores,
+                  grade: nextResult.grade,
+                  status: "complete",
+                  errorMessage: undefined,
+                }
+              : clip
+          ),
+        ]);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Upload failed";
+        setUploadError(message);
+        setAnalyzedClips((prev) =>
+          prev.map((clip) =>
+            clip.id === localClipId
+              ? {
+                  ...clip,
+                  status: "failed",
+                  errorMessage: message,
+                }
+              : clip
+          )
+        );
+      } finally {
+        setIsUploading(false);
+      }
+    },
+    [prepTimerSeconds, selectedDuration, selectedShotType, user]
+  );
+
+  const startRecording = useCallback(() => {
+    if (!streamRef.current) return;
+
+    try {
+      chunksRef.current = [];
+      const recorder = new MediaRecorder(streamRef.current, {
+        mimeType: "video/webm;codecs=vp8,opus",
+      });
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          chunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: "video/webm" });
+        setRecordedBlob(blob);
+        const localClipId = `local-${Date.now()}`;
+        const localUrl = URL.createObjectURL(blob);
+        setAnalyzedClips((prev) => [
+          {
+            id: localClipId,
+            localUrl,
+            createdAt: Date.now(),
+            shotType: selectedShotType,
+            duration: selectedDuration,
+            prepTimer: prepTimerSeconds,
+            status: "processing",
+          },
+          ...prev,
+        ]);
+        void uploadAndAnalyzeBlob(blob, localClipId);
+      };
+
+      recorder.start();
+      mediaRecorderRef.current = recorder;
+      setIsRecording(true);
+    } catch (err) {
+      console.error("Recording error:", err);
+      setUploadError("Failed to start recording. Please try again.");
+    }
+  }, [uploadAndAnalyzeBlob]);
+
   // Countdown timer
   useEffect(() => {
     if (!isCountingDown) return;
@@ -149,7 +289,7 @@ export default function ShadowBattingPage() {
       setIsCountingDown(false);
       startRecording();
     }
-  }, [isCountingDown, countdown]);
+  }, [countdown, isCountingDown, startRecording]);
 
   // Recording timer
   useEffect(() => {
@@ -170,88 +310,47 @@ export default function ShadowBattingPage() {
   }, [isRecording, selectedDuration]);
 
   const startCountdown = useCallback(() => {
-    setCountdown(3);
+    if (prepTimerSeconds <= 0) {
+      setElapsedTime(0);
+      setRecordedBlob(null);
+      setAnalysisResult(null);
+      setUploadError("");
+      startRecording();
+      return;
+    }
+
+    setCountdown(prepTimerSeconds);
     setIsCountingDown(true);
     setElapsedTime(0);
     setRecordedBlob(null);
     setAnalysisResult(null);
     setUploadError("");
-  }, []);
+  }, [prepTimerSeconds, startRecording]);
 
-  const startRecording = useCallback(() => {
-    if (!streamRef.current) return;
-
-    try {
-      chunksRef.current = [];
-      const recorder = new MediaRecorder(streamRef.current, {
-        mimeType: "video/webm;codecs=vp8,opus",
-      });
-
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          chunksRef.current.push(event.data);
-        }
-      };
-
-      recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: "video/webm" });
-        setRecordedBlob(blob);
-      };
-
-      recorder.start();
-      mediaRecorderRef.current = recorder;
-      setIsRecording(true);
-    } catch (err) {
-      console.error("Recording error:", err);
-      setUploadError("Failed to start recording. Please try again.");
-    }
-  }, []);
-
-  const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-    }
-  }, []);
-
-  const handleUploadAndAnalyze = useCallback(async () => {
+  const handleRetryAnalysis = useCallback(() => {
     if (!recordedBlob) return;
-
-    setIsUploading(true);
-    setUploadError("");
-
-    try {
-      const formData = new FormData();
-      const filename = `shadow-batting-${selectedShotType}-${Date.now()}.webm`;
-      formData.append("file", recordedBlob, filename);
-      formData.append("shotType", selectedShotType);
-      formData.append("duration", String(selectedDuration));
-
-      const res = await fetch("/api/shadow-batting/upload", {
-        method: "POST",
-        headers: buildMockAuthHeaders(user),
-        body: formData,
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? "Upload failed");
-      }
-
-      const data = await res.json();
-      
-      // Set analysis results
-      setAnalysisResult({
-        coachingFeedback: data.coachingFeedback || "Great job! Keep practicing your technique.",
-        scores: data.scores || {},
-        grade: data.grade || "B+",
-      });
-    } catch (err) {
-      setUploadError(err instanceof Error ? err.message : "Upload failed");
-    } finally {
-      setIsUploading(false);
-    }
-  }, [recordedBlob, selectedShotType, selectedDuration, user]);
+    const localClipId = `local-${Date.now()}`;
+    const localUrl = URL.createObjectURL(recordedBlob);
+    setAnalyzedClips((prev) => [
+      {
+        id: localClipId,
+        localUrl,
+        createdAt: Date.now(),
+        shotType: selectedShotType,
+        duration: selectedDuration,
+        prepTimer: prepTimerSeconds,
+        status: "processing",
+      },
+      ...prev,
+    ]);
+    void uploadAndAnalyzeBlob(recordedBlob, localClipId);
+  }, [
+    prepTimerSeconds,
+    recordedBlob,
+    selectedDuration,
+    selectedShotType,
+    uploadAndAnalyzeBlob,
+  ]);
 
   const handlePracticeAgain = useCallback(() => {
     setRecordedBlob(null);
@@ -259,12 +358,6 @@ export default function ShadowBattingPage() {
     setElapsedTime(0);
     setUploadError("");
   }, []);
-
-  const handleViewFullAnalysis = useCallback(() => {
-    // Navigate to the analysis page if we have a video ID
-    // For now, just reset to practice again
-    handlePracticeAgain();
-  }, [handlePracticeAgain]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -298,84 +391,6 @@ export default function ShadowBattingPage() {
               >
                 Retry
               </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  if (analysisResult) {
-    return (
-      <div className="mx-auto max-w-7xl">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-[var(--text-primary)]">Shadow Batting</h1>
-          <p className="mt-2 text-[var(--text-secondary)]">
-            Practice your batting technique with AI-powered feedback
-          </p>
-        </div>
-
-        <Card>
-          <CardContent className="py-12">
-            <div className="flex flex-col items-center text-center">
-              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[var(--success)]/10 text-[var(--success)]">
-                <CheckCircleIcon />
-              </div>
-              <h2 className="mt-4 text-2xl font-bold text-[var(--text-primary)]">
-                Analysis Complete!
-              </h2>
-              <div className="mt-2 text-4xl font-bold text-[var(--primary)]">
-                Grade: {analysisResult.grade}
-              </div>
-
-              <div className="mt-8 w-full max-w-2xl rounded-lg border border-[var(--surface-secondary)] bg-[var(--surface-secondary)]/30 p-6 text-left">
-                <h3 className="text-lg font-semibold text-[var(--text-primary)]">
-                  Coaching Feedback
-                </h3>
-                <p className="mt-2 text-[var(--text-secondary)]">
-                  {analysisResult.coachingFeedback}
-                </p>
-
-                {Object.keys(analysisResult.scores).length > 0 && (
-                  <div className="mt-6">
-                    <h4 className="text-sm font-semibold text-[var(--text-primary)]">
-                      Technique Scores
-                    </h4>
-                    <div className="mt-3 grid grid-cols-2 gap-3">
-                      {Object.entries(analysisResult.scores).map(([key, value]) => (
-                        <div
-                          key={key}
-                          className="flex items-center justify-between rounded-md border border-[var(--surface-secondary)] bg-[var(--surface)] px-3 py-2"
-                        >
-                          <span className="text-sm capitalize text-[var(--text-secondary)]">
-                            {key.replace(/([A-Z])/g, " $1").trim()}
-                          </span>
-                          <span className="text-sm font-semibold text-[var(--text-primary)]">
-                            {value}/100
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="mt-8 flex gap-3">
-                <Button
-                  onClick={handlePracticeAgain}
-                  variant="secondary"
-                  className="gap-2"
-                >
-                  <TargetIcon />
-                  Practice Again
-                </Button>
-                <Button
-                  onClick={handleViewFullAnalysis}
-                  className="gap-2 bg-[var(--primary)] hover:bg-[var(--primary-hover)]"
-                >
-                  View Full Analysis
-                </Button>
-              </div>
             </div>
           </CardContent>
         </Card>
@@ -447,7 +462,8 @@ export default function ShadowBattingPage() {
                   {!hasPermission && "Initializing camera..."}
                   {hasPermission && !isRecording && !recordedBlob && "Ready to record"}
                   {isRecording && "Recording in progress..."}
-                  {recordedBlob && !isUploading && "Ready to analyze"}
+                  {recordedBlob && !isUploading && !uploadError && "Analysis complete"}
+                  {recordedBlob && !isUploading && uploadError && "Analysis failed - retry available"}
                   {isUploading && "Analyzing your technique..."}
                 </div>
 
@@ -482,12 +498,14 @@ export default function ShadowBattingPage() {
                       >
                         Retake
                       </Button>
-                      <Button
-                        onClick={handleUploadAndAnalyze}
-                        className="gap-2 bg-[var(--primary)] hover:bg-[var(--primary-hover)]"
-                      >
-                        Analyze
-                      </Button>
+                      {uploadError && (
+                        <Button
+                          onClick={handleRetryAnalysis}
+                          className="gap-2 bg-[var(--primary)] hover:bg-[var(--primary-hover)]"
+                        >
+                          Retry Analysis
+                        </Button>
+                      )}
                     </>
                   )}
 
@@ -518,6 +536,28 @@ export default function ShadowBattingPage() {
                   </option>
                 ))}
               </select>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>Prep Timer</CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-[var(--text-secondary)]">Time before recording starts</span>
+                  <span className="font-semibold text-[var(--text-primary)]">{prepTimerSeconds}s</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={30}
+                  step={1}
+                  value={prepTimerSeconds}
+                  onChange={(e) => setPrepTimerSeconds(Number(e.target.value))}
+                  disabled={isRecording || isCountingDown || isUploading}
+                  className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-[var(--surface-secondary)]"
+                />
+              </div>
             </CardContent>
           </Card>
 
@@ -576,6 +616,80 @@ export default function ShadowBattingPage() {
           </Card>
         </div>
       </div>
+
+      {analysisResult && (
+        <Card className="mt-6">
+          <CardHeader>Latest Analysis</CardHeader>
+          <CardContent>
+            <div className="rounded-lg border border-[var(--surface-secondary)] bg-[var(--surface-secondary)]/30 p-6">
+              <div className="mb-3 text-2xl font-bold text-[var(--primary)]">
+                Grade: {analysisResult.grade}
+              </div>
+              <p className="text-[var(--text-secondary)]">{analysisResult.coachingFeedback}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {analyzedClips.length > 0 && (
+        <Card className="mt-6">
+          <CardHeader>Session Clips</CardHeader>
+          <CardContent>
+            <div className="-mx-1 flex gap-4 overflow-x-auto px-1 pb-2">
+              {analyzedClips.map((clip) => (
+                <article
+                  key={clip.id}
+                  className="w-[320px] min-w-[320px] rounded-lg border border-[var(--surface-secondary)] bg-[var(--surface)] p-3"
+                >
+                  <video
+                    src={clip.localUrl}
+                    controls
+                    className="aspect-video w-full rounded-md bg-black object-cover"
+                  />
+                  <div className="mt-3 flex items-center justify-between">
+                    <p className="text-sm font-semibold text-[var(--text-primary)]">
+                      {clip.shotType.replace(/_/g, " ")}
+                    </p>
+                    {clip.status === "complete" && clip.grade && (
+                      <span className="rounded-full bg-[var(--primary)]/10 px-2 py-1 text-xs font-semibold text-[var(--primary)]">
+                        Grade {clip.grade}
+                      </span>
+                    )}
+                    {clip.status === "processing" && (
+                      <span className="rounded-full bg-yellow-500/10 px-2 py-1 text-xs font-semibold text-yellow-700">
+                        Processing
+                      </span>
+                    )}
+                    {clip.status === "failed" && (
+                      <span className="rounded-full bg-red-500/10 px-2 py-1 text-xs font-semibold text-red-700">
+                        Failed
+                      </span>
+                    )}
+                  </div>
+                  {clip.status === "complete" && clip.coachingFeedback && (
+                    <p className="mt-2 line-clamp-3 text-sm text-[var(--text-secondary)]">
+                      {clip.coachingFeedback}
+                    </p>
+                  )}
+                  {clip.status === "processing" && (
+                    <p className="mt-2 text-sm text-[var(--text-secondary)]">
+                      Uploading and analyzing clip...
+                    </p>
+                  )}
+                  {clip.status === "failed" && (
+                    <p className="mt-2 text-sm text-red-700">
+                      {clip.errorMessage ?? "Analysis failed"}
+                    </p>
+                  )}
+                  <p className="mt-2 text-xs text-[var(--text-secondary)]">
+                    Prep {clip.prepTimer}s • Duration {clip.duration}s
+                  </p>
+                </article>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

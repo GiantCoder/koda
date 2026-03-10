@@ -34,12 +34,27 @@ export async function POST(request: NextRequest) {
   const objectKey = `player-cards/${authUser.id}/${randomUUID()}.${fileExt}`;
   const fileBuffer = Buffer.from(await file.arrayBuffer());
 
-  await uploadToStorage(objectKey, fileBuffer, file.type);
-  const signedUrl = await getSignedUrl(objectKey, SIGNED_URL_TTL_SECONDS);
+  try {
+    await uploadToStorage(objectKey, fileBuffer, file.type);
+    const signedUrl = await getSignedUrl(objectKey, SIGNED_URL_TTL_SECONDS);
 
-  return NextResponse.json({
-    url: signedUrl,
-    storagePath: objectKey,
-    expiresInSeconds: SIGNED_URL_TTL_SECONDS,
-  });
+    return NextResponse.json({
+      url: signedUrl,
+      storagePath: objectKey,
+      expiresInSeconds: SIGNED_URL_TTL_SECONDS,
+    });
+  } catch (error) {
+    const storageError = error as { Code?: string };
+    if (storageError.Code === "XMinioStorageFull") {
+      return NextResponse.json(
+        {
+          error:
+            "Image upload is temporarily unavailable because local object storage is full. Please free space in MinIO and try again.",
+        },
+        { status: 507 }
+      );
+    }
+
+    return NextResponse.json({ error: "Image upload failed." }, { status: 500 });
+  }
 }

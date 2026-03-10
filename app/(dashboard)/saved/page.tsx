@@ -2,10 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { useMockAuth } from "@/app/hooks/useMockAuth";
+import { buildMockAuthHeaders } from "@/app/lib/mock-auth-headers";
 import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 import { CollectionCard } from "@/app/components/collections/CollectionCard";
 import { SavedClipCard } from "@/app/components/collections/SavedClipCard";
+import { ShareCollectionModal } from "@/app/components/collections/ShareCollectionModal";
 import { LoadingSpinner } from "@/app/components/common/LoadingSpinner";
 import { EmptyState } from "@/app/components/common/EmptyState";
 
@@ -14,6 +16,11 @@ interface Collection {
   name: string;
   description?: string | null;
   clipCount: number;
+  shareCount: number;
+  ownerId: string;
+  ownerName: string;
+  canEdit: boolean;
+  isSharedWithMe: boolean;
   thumbnails: Array<{
     videoId: string;
     filename: string;
@@ -44,15 +51,25 @@ export default function SavedPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [shareTarget, setShareTarget] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (!user) return;
+    void fetchData();
+  }, [user]);
 
   const fetchData = async () => {
+    if (!user) {
+      setError("Unauthorized");
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
-      const response = await fetch("/api/collections");
+      const response = await fetch("/api/collections", {
+        headers: buildMockAuthHeaders(user),
+      });
       if (!response.ok) throw new Error("Failed to fetch collections");
       
       const data = await response.json();
@@ -63,7 +80,9 @@ export default function SavedPage() {
       for (const collection of data.collections) {
         if (collection.thumbnails && collection.thumbnails.length > 0) {
           // We'll need to fetch full clip details from each collection
-          const collectionResponse = await fetch(`/api/collections/${collection.id}`);
+          const collectionResponse = await fetch(`/api/collections/${collection.id}`, {
+            headers: buildMockAuthHeaders(user),
+          });
           if (collectionResponse.ok) {
             const collectionData = await collectionResponse.json();
             allClips.push(...collectionData.collection.clips);
@@ -191,7 +210,23 @@ export default function SavedPage() {
               }
             >
               {collections.map((collection) => (
-                <CollectionCard key={collection.id} {...collection} />
+                <div key={collection.id} className="space-y-2">
+                  <CollectionCard {...collection} />
+                  {collection.canEdit && (user?.role === "COACH" || user?.role === "ADMIN") ? (
+                    <Button
+                      variant="secondary"
+                      className="w-full"
+                      onClick={() =>
+                        setShareTarget({
+                          id: collection.id,
+                          name: collection.name,
+                        })
+                      }
+                    >
+                      Manage Sharing
+                    </Button>
+                  ) : null}
+                </div>
               ))}
             </div>
           ) : (
@@ -239,6 +274,16 @@ export default function SavedPage() {
           </CardContent>
         </Card>
       )}
+
+      <ShareCollectionModal
+        isOpen={Boolean(shareTarget)}
+        collectionId={shareTarget?.id ?? null}
+        collectionName={shareTarget?.name ?? null}
+        onClose={() => {
+          setShareTarget(null);
+          void fetchData();
+        }}
+      />
     </div>
   );
 }

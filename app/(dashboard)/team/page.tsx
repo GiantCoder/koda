@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useCallback } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMockAuth } from "@/app/hooks/useMockAuth";
 import { buildMockAuthHeaders } from "@/app/lib/mock-auth-headers";
 import { ECBSafeguardingBanner } from "@/app/components/coach/ECBSafeguardingBanner";
@@ -196,6 +196,40 @@ function PlusIcon() {
   );
 }
 
+function ListIcon() {
+  return (
+    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+    </svg>
+  );
+}
+
+function GridIcon() {
+  return (
+    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M4 4h6v6H4V4zm10 0h6v6h-6V4zM4 14h6v6H4v-6zm10 0h6v6h-6v-6z"
+      />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M19 7l-1 12a2 2 0 01-2 2H8a2 2 0 01-2-2L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3M4 7h16"
+      />
+    </svg>
+  );
+}
+
 function GroupIcon() {
   return (
     <svg
@@ -339,9 +373,12 @@ const AGE_GROUP_OPTIONS = [
 ];
 
 export default function CoachRosterPage() {
+  const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const isTeamManagementView = pathname === "/team";
   const { user, role } = useMockAuth();
+  const [teamDirectoryViewMode, setTeamDirectoryViewMode] = useState<"card" | "table">("card");
   const [pageState, setPageState] = useState<PageState>("loading");
   const [searchQuery, setSearchQuery] = useState("");
   const [clubFilter, setClubFilter] = useState("all");
@@ -361,6 +398,8 @@ export default function CoachRosterPage() {
   const [assignPlayerId, setAssignPlayerId] = useState("");
   const [assignSquadId, setAssignSquadId] = useState("");
   const [isAssigningPlayer, setIsAssigningPlayer] = useState(false);
+  const [deleteModalTeam, setDeleteModalTeam] = useState<PlayCricketTeam | null>(null);
+  const [deletingTeamId, setDeletingTeamId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [teamPlayers, setTeamPlayers] = useState<RosterPlayer[]>([]);
   const [squadSummaries, setSquadSummaries] = useState<SquadSummary[]>([]);
@@ -607,6 +646,13 @@ export default function CoachRosterPage() {
     [filteredPlayCricketTeams]
   );
 
+  const teamDirectoryStats = useMemo(() => {
+    const totalTeams = filteredPlayCricketTeams.length;
+    const totalClubs = new Set(filteredPlayCricketTeams.map((team) => team.clubName)).size;
+    const linkedSquads = filteredPlayCricketTeams.filter((team) => Boolean(team.squadHint)).length;
+    return { totalTeams, totalClubs, linkedSquads };
+  }, [filteredPlayCricketTeams]);
+
   const filteredAssignablePlayers = useMemo(() => {
     const query = assignPlayerSearch.trim().toLowerCase();
     if (!query) return teamPlayers;
@@ -802,6 +848,36 @@ export default function CoachRosterPage() {
       setIsAssigningPlayer(false);
     }
   }, [assignPlayerId, assignSquadId, refreshRoster, user]);
+
+  const requestDeleteTeam = useCallback((team: PlayCricketTeam) => {
+    setDeleteModalTeam(team);
+    setTeamFormError(null);
+  }, []);
+
+  const confirmDeleteTeam = useCallback(async () => {
+    if (!user || !deleteModalTeam) return;
+    setDeletingTeamId(deleteModalTeam.id);
+    setTeamFormError(null);
+    try {
+      const response = await fetch(`/api/play-cricket/teams?id=${encodeURIComponent(deleteModalTeam.id)}`, {
+        method: "DELETE",
+        headers: buildMockAuthHeaders(user),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error ?? "Failed to delete team");
+      }
+      setPlayCricketTeams((current) => current.filter((team) => team.id !== deleteModalTeam.id));
+      if (teamFilter === deleteModalTeam.id) {
+        setTeamFilter("all");
+      }
+      setDeleteModalTeam(null);
+    } catch (error) {
+      setTeamFormError(error instanceof Error ? error.message : "Failed to delete team");
+    } finally {
+      setDeletingTeamId(null);
+    }
+  }, [deleteModalTeam, teamFilter, user]);
 
   const openCardEditorForPlayer = useCallback(
     async (playerId: string) => {
@@ -1104,10 +1180,12 @@ export default function CoachRosterPage() {
 
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-[var(--text-primary)]">
-          Player Roster
+          {isTeamManagementView ? "Team Management" : "Player Roster"}
         </h1>
         <p className="mt-1 text-[var(--text-secondary)]">
-          Manage your assigned players and track their progress.
+          {isTeamManagementView
+            ? "Manage teams, squad links, and player assignment workflows."
+            : "Manage your assigned players and track their progress."}
         </p>
       </div>
 
@@ -1120,7 +1198,7 @@ export default function CoachRosterPage() {
             </span>
             <input
               type="search"
-              placeholder="Filter by player..."
+              placeholder={isTeamManagementView ? "Filter teams or players..." : "Filter by player..."}
               value={searchQuery}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
               className="w-full rounded-lg border border-[var(--surface-secondary)] bg-[var(--surface)] py-2 pl-10 pr-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:border-[var(--primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
@@ -1167,6 +1245,24 @@ export default function CoachRosterPage() {
           >
             Add Team
           </Button>
+          {isTeamManagementView && (
+            <>
+              <Button
+                variant={teamDirectoryViewMode === "card" ? "primary" : "secondary"}
+                onClick={() => setTeamDirectoryViewMode("card")}
+              >
+                <GridIcon />
+                <span className="ml-2">Cards</span>
+              </Button>
+              <Button
+                variant={teamDirectoryViewMode === "table" ? "primary" : "secondary"}
+                onClick={() => setTeamDirectoryViewMode("table")}
+              >
+                <ListIcon />
+                <span className="ml-2">Table</span>
+              </Button>
+            </>
+          )}
           <Link href="/players">
             <Button variant="secondary">Players Module</Button>
           </Link>
@@ -1225,6 +1321,97 @@ export default function CoachRosterPage() {
           </CardContent>
         </Card>
       </div>
+
+      {isTeamManagementView && (
+        <>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <StatCard label="Total Teams" value={teamDirectoryStats.totalTeams} icon={<UsersIcon />} />
+            <StatCard label="Clubs Covered" value={teamDirectoryStats.totalClubs} icon={<GroupIcon />} />
+            <StatCard label="Squad Linked Teams" value={teamDirectoryStats.linkedSquads} icon={<StarIcon />} />
+          </div>
+
+          <Card>
+            <CardHeader>Team Directory</CardHeader>
+            <CardContent>
+              {filteredPlayCricketTeams.length === 0 ? (
+                <EmptyState
+                  title="No teams found"
+                  description="Add a team or adjust your filters."
+                  icon={<GroupIcon />}
+                />
+              ) : teamDirectoryViewMode === "card" ? (
+                <div className="grid gap-4 md:grid-cols-2">
+                  {filteredPlayCricketTeams.map((team) => (
+                    <div
+                      key={team.id}
+                      className="rounded-xl border border-[var(--surface-secondary)] bg-[var(--surface)] p-4"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <h3 className="text-lg font-semibold text-[var(--text-primary)]">{team.name}</h3>
+                          <p className="text-sm text-[var(--text-secondary)]">{team.clubName}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {team.squadHint && (
+                            <span className="rounded-full bg-[var(--surface-secondary)] px-2 py-1 text-xs text-[var(--text-secondary)]">
+                              {team.squadHint}
+                            </span>
+                          )}
+                          {(role === "coach" || role === "admin") && (
+                            <button
+                              type="button"
+                              onClick={() => requestDeleteTeam(team)}
+                              disabled={deletingTeamId === team.id}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--danger)]/40 text-[var(--danger)] transition-all duration-200 hover:scale-105 hover:bg-[var(--danger)]/10 disabled:cursor-not-allowed disabled:opacity-50"
+                              aria-label={`Delete ${team.name}`}
+                            >
+                              <TrashIcon />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[760px]">
+                    <thead>
+                      <tr className="border-b border-[var(--surface-secondary)]">
+                        <th className="py-2 text-left text-sm font-semibold text-[var(--text-secondary)]">Team</th>
+                        <th className="py-2 text-left text-sm font-semibold text-[var(--text-secondary)]">Club</th>
+                        <th className="py-2 text-left text-sm font-semibold text-[var(--text-secondary)]">Squad Link</th>
+                        <th className="py-2 text-right text-sm font-semibold text-[var(--text-secondary)]">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredPlayCricketTeams.map((team) => (
+                        <tr key={team.id} className="border-b border-[var(--surface-secondary)] last:border-0">
+                          <td className="py-3 text-sm text-[var(--text-primary)]">{team.name}</td>
+                          <td className="py-3 text-sm text-[var(--text-secondary)]">{team.clubName}</td>
+                          <td className="py-3 text-sm text-[var(--text-secondary)]">{team.squadHint ?? "-"}</td>
+                          <td className="py-3 text-right">
+                            {(role === "coach" || role === "admin") && (
+                              <Button
+                                variant="secondary"
+                                className="border border-[var(--danger)]/40 text-[var(--danger)] hover:bg-[var(--danger)]/10"
+                                onClick={() => requestDeleteTeam(team)}
+                                disabled={deletingTeamId === team.id}
+                              >
+                                {deletingTeamId === team.id ? "Deleting..." : "Delete"}
+                              </Button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
 
       {/* Key metrics */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -1815,6 +2002,36 @@ export default function CoachRosterPage() {
               </Button>
               <Button onClick={() => void handleCreateTeam()} disabled={isCreatingTeam}>
                 {isCreatingTeam ? "Creating..." : "Create Team"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteModalTeam && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-xl bg-[var(--surface)] p-5">
+            <h3 className="text-lg font-semibold text-[var(--text-primary)]">Delete Team</h3>
+            <p className="mt-2 text-sm text-[var(--text-secondary)]">
+              Are you sure you want to delete <span className="font-semibold">{deleteModalTeam.name}</span>? This
+              action cannot be undone.
+            </p>
+            {teamFormError && <p className="mt-3 text-sm text-[var(--danger)]">{teamFormError}</p>}
+            <div className="mt-5 flex justify-end gap-2">
+              <Button
+                variant="secondary"
+                onClick={() => setDeleteModalTeam(null)}
+                disabled={deletingTeamId === deleteModalTeam.id}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="secondary"
+                className="border border-[var(--danger)]/40 text-[var(--danger)] hover:bg-[var(--danger)]/10"
+                onClick={() => void confirmDeleteTeam()}
+                disabled={deletingTeamId === deleteModalTeam.id}
+              >
+                {deletingTeamId === deleteModalTeam.id ? "Deleting..." : "Delete Team"}
               </Button>
             </div>
           </div>

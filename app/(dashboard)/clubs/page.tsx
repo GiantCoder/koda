@@ -137,12 +137,19 @@ export default function ClubsPage() {
   const [deleteModalClub, setDeleteModalClub] = useState<ClubRecord | null>(null);
 
   React.useEffect(() => {
+    if (!user) {
+      setIsLoading(false);
+      setClubs([]);
+      return;
+    }
     let cancelled = false;
     async function loadClubs() {
       setIsLoading(true);
       setErrorMessage(null);
       try {
-        const response = await fetch("/api/clubs");
+        const response = await fetch("/api/clubs", {
+          headers: buildMockAuthHeaders(user),
+        });
         if (!response.ok) {
           throw new Error("Failed to load clubs");
         }
@@ -163,7 +170,7 @@ export default function ClubsPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [user]);
 
   React.useEffect(() => {
     if (!user) {
@@ -492,14 +499,6 @@ export default function ClubsPage() {
                         View Coached Players
                       </Button>
                     </Link>
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-2 text-xs text-[var(--text-secondary)]">
-                    <span className="rounded-full bg-[var(--surface-secondary)] px-2 py-1">
-                      Badge: {club.badgeFileName ?? "Not uploaded"}
-                    </span>
-                    <span className="rounded-full bg-[var(--surface-secondary)] px-2 py-1">
-                      Banner: {club.bannerFileName ?? "Not uploaded"}
-                    </span>
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2 text-sm">
                     <a
