@@ -65,3 +65,34 @@ export async function PUT(
 
   return NextResponse.json(updated);
 }
+
+/** DELETE /api/squads/:id - Delete squad */
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const authUser = await getAuthUser(request);
+  const coachCheck = requireCoach(authUser);
+  if ("error" in coachCheck) return coachCheck.error;
+  const { user } = coachCheck;
+
+  const { id } = await params;
+
+  const existing = await prisma.squad.findUnique({
+    where: { id },
+  });
+
+  if (!existing) {
+    return NextResponse.json({ error: "Squad not found" }, { status: 404 });
+  }
+
+  if (existing.coachId !== user.id && user.role !== "ADMIN") {
+    return NextResponse.json({ error: "Forbidden: Not your squad" }, { status: 403 });
+  }
+
+  await prisma.squad.delete({
+    where: { id },
+  });
+
+  return NextResponse.json({ success: true });
+}

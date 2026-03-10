@@ -14,6 +14,12 @@ function requireCoach(user: { id: string; role: string } | null):
   return { user };
 }
 
+function derivePlayerRating(userId: string): number {
+  const seed = userId.split("").reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  const normalized = 3 + (seed % 21) / 10;
+  return Number(normalized.toFixed(1));
+}
+
 /** GET /api/squads - List coach's squads */
 export async function GET(request: NextRequest) {
   const authUser = await getAuthUser(request);
@@ -31,6 +37,7 @@ export async function GET(request: NextRequest) {
               id: true,
               displayName: true,
               email: true,
+              avatarUrl: true,
               dateOfBirth: true,
               ageGroup: true,
               role: true,
@@ -56,6 +63,8 @@ export async function GET(request: NextRequest) {
         id: m.user.id,
         displayName: m.user.displayName,
         email: m.user.email,
+        avatarUrl: m.user.avatarUrl,
+        rating: derivePlayerRating(m.user.id),
         ageGroup: m.user.ageGroup,
         role: m.user.role,
         joinedAt: m.joinedAt,

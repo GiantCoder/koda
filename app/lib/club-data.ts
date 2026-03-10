@@ -16,6 +16,8 @@ export interface ClubRecord {
   postcode: string;
   badgeFileName?: string;
   bannerFileName?: string;
+  badgeImageUrl?: string;
+  bannerImageUrl?: string;
   stats: ClubStats;
 }
 
@@ -37,6 +39,8 @@ export const MOCK_CLUBS: ClubRecord[] = [
     postcode: "BS1 4AB",
     badgeFileName: "oakfield-badge.svg",
     bannerFileName: "oakfield-banner.png",
+    badgeImageUrl: "/koda.svg",
+    bannerImageUrl: "/koda.svg",
     stats: {
       seniors: 42,
       juniors: 58,
@@ -55,6 +59,8 @@ export const MOCK_CLUBS: ClubRecord[] = [
     postcode: "RG1 6XX",
     badgeFileName: "riverside-badge.png",
     bannerFileName: "riverside-banner.svg",
+    badgeImageUrl: "/koda.svg",
+    bannerImageUrl: "/koda.svg",
     stats: {
       seniors: 14,
       juniors: 73,

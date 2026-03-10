@@ -94,6 +94,8 @@ interface ClubFormState {
   postcode: string;
   badgeFileName: string;
   bannerFileName: string;
+  badgeImageUrl: string;
+  bannerImageUrl: string;
 }
 
 const INITIAL_FORM: ClubFormState = {
@@ -105,6 +107,8 @@ const INITIAL_FORM: ClubFormState = {
   postcode: "",
   badgeFileName: "",
   bannerFileName: "",
+  badgeImageUrl: "",
+  bannerImageUrl: "",
 };
 
 function validateImageFile(file: File): string | null {
@@ -254,6 +258,18 @@ export default function ClubsPage() {
     return grouped;
   }, [clubPlayers, clubs]);
 
+  function getClubBadgeSrc(club: ClubRecord): string | null {
+    if (club.badgeImageUrl) return club.badgeImageUrl;
+    if (club.badgeFileName) return `/avatars/${club.badgeFileName}`;
+    return null;
+  }
+
+  function getClubBannerSrc(club: ClubRecord): string | null {
+    if (club.bannerImageUrl) return club.bannerImageUrl;
+    if (club.bannerFileName) return `/avatars/${club.bannerFileName}`;
+    return null;
+  }
+
   function setFormValue(key: keyof ClubFormState, value: string) {
     setFormState((current) => ({ ...current, [key]: value }));
   }
@@ -265,8 +281,21 @@ export default function ClubsPage() {
       setFormError(validationError);
       return;
     }
-    setFormError(null);
-    setFormValue(kind, file.name);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === "string" ? reader.result : "";
+      setFormError(null);
+      setFormValue(kind, file.name);
+      if (kind === "badgeFileName") {
+        setFormValue("badgeImageUrl", result);
+      } else {
+        setFormValue("bannerImageUrl", result);
+      }
+    };
+    reader.onerror = () => {
+      setFormError("Unable to read selected file.");
+    };
+    reader.readAsDataURL(file);
   }
 
   async function submitClub() {
@@ -293,6 +322,8 @@ export default function ClubsPage() {
           postcode: formState.postcode.trim(),
           badgeFileName: formState.badgeFileName || undefined,
           bannerFileName: formState.bannerFileName || undefined,
+          badgeImageUrl: formState.badgeImageUrl || undefined,
+          bannerImageUrl: formState.bannerImageUrl || undefined,
         }),
       });
       if (!response.ok) {
@@ -319,7 +350,6 @@ export default function ClubsPage() {
 
   async function confirmDeleteClub() {
     if (!user || !deleteModalClub) return;
-    if (!user) return;
     const clubId = deleteModalClub.id;
 
     setDeletingClubId(clubId);
@@ -419,14 +449,26 @@ export default function ClubsPage() {
               {filteredClubs.map((club) => (
                 <div
                   key={club.id}
-                  className="rounded-xl border border-[var(--surface-secondary)] bg-[var(--surface)] p-4"
+                  className="relative overflow-hidden rounded-xl border border-[var(--surface-secondary)] bg-[var(--surface)] p-4"
                 >
+                  {getClubBannerSrc(club) && (
+                    <>
+                      <img
+                        src={getClubBannerSrc(club) ?? ""}
+                        alt=""
+                        aria-hidden
+                        className="absolute inset-0 h-full w-full object-cover opacity-20"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-[var(--surface)]" />
+                    </>
+                  )}
+                  <div className="relative">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="flex items-center gap-3">
                         <Avatar
                           name={club.name}
-                          src={club.badgeFileName ? `/avatars/${club.badgeFileName}` : null}
+                          src={getClubBadgeSrc(club)}
                           size="md"
                         />
                         <h3 className="text-lg font-semibold text-[var(--text-primary)]">{club.name}</h3>
@@ -497,6 +539,7 @@ export default function ClubsPage() {
                       )}
                     </div>
                   </div>
+                  </div>
                 </div>
               ))}
             </div>
@@ -510,6 +553,7 @@ export default function ClubsPage() {
                     <th className="py-2 text-left text-sm font-semibold text-[var(--text-secondary)]">Club</th>
                     <th className="py-2 text-left text-sm font-semibold text-[var(--text-secondary)]">Location</th>
                     <th className="py-2 text-left text-sm font-semibold text-[var(--text-secondary)]">Play-Cricket</th>
+                    <th className="py-2 text-left text-sm font-semibold text-[var(--text-secondary)]">Coached Players</th>
                     <th className="py-2 text-left text-sm font-semibold text-[var(--text-secondary)]">Uploads</th>
                     <th className="py-2 text-right text-sm font-semibold text-[var(--text-secondary)]">Action</th>
                   </tr>
@@ -521,7 +565,7 @@ export default function ClubsPage() {
                         <div className="flex items-center gap-2">
                           <Avatar
                             name={club.name}
-                            src={club.badgeFileName ? `/avatars/${club.badgeFileName}` : null}
+                            src={getClubBadgeSrc(club)}
                             size="sm"
                           />
                           <span>{club.name}</span>
@@ -531,6 +575,22 @@ export default function ClubsPage() {
                         {club.address}, {club.postcode}
                       </td>
                       <td className="py-3 text-sm text-[var(--text-secondary)]">{club.playCricketId}</td>
+                      <td className="py-3">
+                        <div className="flex items-center">
+                          {(playersByClub.get(club.id) ?? []).slice(0, 5).map((player, index) => (
+                            <Avatar
+                              key={player.id}
+                              name={player.displayName}
+                              src={player.avatarUrl}
+                              size="sm"
+                              className={index === 0 ? "" : "-ml-2 border-2 border-[var(--surface)]"}
+                            />
+                          ))}
+                          {(playersByClub.get(club.id) ?? []).length === 0 && (
+                            <span className="text-sm text-[var(--text-secondary)]">-</span>
+                          )}
+                        </div>
+                      </td>
                       <td className="py-3 text-sm text-[var(--text-secondary)]">
                         {club.badgeFileName ?? "No badge"} / {club.bannerFileName ?? "No banner"}
                       </td>

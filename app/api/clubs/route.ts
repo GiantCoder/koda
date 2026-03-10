@@ -12,6 +12,8 @@ const createClubSchema = z.object({
   postcode: z.string().min(1).max(30),
   badgeFileName: z.string().max(200).optional(),
   bannerFileName: z.string().max(200).optional(),
+  badgeImageUrl: z.string().max(3_000_000).optional(),
+  bannerImageUrl: z.string().max(3_000_000).optional(),
 });
 
 let clubStore: ClubRecord[] = [...MOCK_CLUBS];
