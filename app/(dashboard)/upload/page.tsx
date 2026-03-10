@@ -18,7 +18,54 @@ import {
   MAX_FILE_SIZE_BYTES,
 } from "@/app/lib/video-validators";
 
-const MOCK_RECENT_UPLOADS: RecentUpload[] = [];
+interface RecentVideoApiItem {
+  id: string;
+  filename: string;
+  uploadedAt: string;
+  processingState: "analyzed" | "processing" | "failed";
+  analysis: {
+    status: string;
+  } | null;
+}
+
+const STAGE_LABELS: Record<string, string> = {
+  QUEUED: "Queued",
+  EXTRACTING_FRAMES: "Extracting frames",
+  POSE_ANALYSIS: "Pose analysis",
+  SHOT_CLASSIFICATION: "Shot classification",
+  GENERATING_FEEDBACK: "Generating feedback",
+  COMPLETE: "Complete",
+  FAILED: "Failed",
+};
+
+function toRelativeTimestamp(value: string): string {
+  const parsedDate = new Date(value);
+  if (Number.isNaN(parsedDate.getTime())) {
+    return "Just now";
+  }
+
+  const diffMs = Date.now() - parsedDate.getTime();
+  const diffMinutes = Math.floor(diffMs / 60000);
+  if (diffMinutes < 1) return "Just now";
+  if (diffMinutes < 60) return `${diffMinutes}m ago`;
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return parsedDate.toLocaleDateString("en-GB");
+}
+
+function mapVideoToRecentUpload(video: RecentVideoApiItem): RecentUpload {
+  return {
+    id: video.id,
+    filename: video.filename,
+    status: video.processingState,
+    timestamp: toRelativeTimestamp(video.uploadedAt),
+    processingLabel: video.analysis?.status ? STAGE_LABELS[video.analysis.status] : "Queued",
+  };
+}
 
 function CloudUploadIcon() {
   return (
@@ -56,6 +103,9 @@ export default function UploadPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [assignablePlayers, setAssignablePlayers] = useState<Array<{ id: string; displayName: string }>>([]);
   const [assigneeUserId, setAssigneeUserId] = useState("");
+  const [recentUploads, setRecentUploads] = useState<RecentUpload[]>([]);
+  const [isRecentUploadsLoading, setIsRecentUploadsLoading] = useState(true);
+  const [recentUploadsError, setRecentUploadsError] = useState<string | null>(null);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -94,6 +144,51 @@ export default function UploadPage() {
       cancelled = true;
     };
   }, [role, user, searchParams]);
+
+  const loadRecentUploads = useCallback(async () => {
+    if (!user) {
+      setRecentUploads([]);
+      setIsRecentUploadsLoading(false);
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/videos?limit=8", {
+        headers: buildMockAuthHeaders(user),
+      });
+      if (!res.ok) {
+        throw new Error(`Failed to load recent uploads (${res.status})`);
+      }
+      const data = (await res.json()) as { videos?: RecentVideoApiItem[] };
+      const uploads = Array.isArray(data.videos)
+        ? data.videos.map(mapVideoToRecentUpload)
+        : [];
+      setRecentUploads(uploads);
+      setRecentUploadsError(null);
+    } catch (error) {
+      setRecentUploadsError(error instanceof Error ? error.message : "Failed to load recent uploads");
+    } finally {
+      setIsRecentUploadsLoading(false);
+    }
+  }, [user]);
+
+  React.useEffect(() => {
+    void loadRecentUploads();
+  }, [loadRecentUploads]);
+
+  React.useEffect(() => {
+    if (recentUploads.length === 0 || !recentUploads.some((upload) => upload.status === "processing")) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      void loadRecentUploads();
+    }, 3000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [recentUploads, loadRecentUploads]);
 
   const handleValidation = useCallback(
     (f: File) => {
@@ -184,6 +279,19 @@ export default function UploadPage() {
       }
 
       const data = await res.json();
+      const optimisticRecentUpload: RecentUpload = {
+        id: data.id,
+        filename: file.name,
+        status: "processing",
+        timestamp: "Just now",
+        processingLabel: "Queued",
+      };
+      setRecentUploads((currentUploads) => [optimisticRecentUpload, ...currentUploads.filter((upload) => upload.id !== data.id)]);
+      setFile(null);
+      setIsUploading(false);
+      setUploadProgress(0);
+      void loadRecentUploads();
+
       router.push(`/analysis/${data.id}/processing`);
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "Upload failed");
@@ -350,7 +458,14 @@ export default function UploadPage() {
 
         <div className="space-y-6">
           <BestCameraAngleCard />
-          <RecentUploadsList uploads={MOCK_RECENT_UPLOADS} />
+          <RecentUploadsList
+            uploads={recentUploads}
+            emptyMessage={
+              isRecentUploadsLoading
+                ? "Loading recent uploads..."
+                : recentUploadsError ?? "No recent uploads"
+            }
+          />
         </div>
       </div>
     </div>

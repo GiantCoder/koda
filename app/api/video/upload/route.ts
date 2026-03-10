@@ -131,24 +131,40 @@ export async function POST(request: NextRequest) {
     const fileBuffer = Buffer.from(arrayBuffer);
     await uploadToStorage(storagePath, fileBuffer, file.type || "video/mp4");
 
-    const video = await prisma.video.create({
-      data: {
-        userId: assignedUserId,
-        filename: title?.trim() || file.name,
-        originalFormat: file.name.split(".").pop() ?? "mp4",
-        storagePath,
-        fileSizeBytes: BigInt(file.size),
-      },
-      select: {
-        id: true,
-        filename: true,
-        fileSizeBytes: true,
-      },
+    const [video, analysis] = await prisma.$transaction(async (tx) => {
+      const createdVideo = await tx.video.create({
+        data: {
+          userId: assignedUserId,
+          filename: title?.trim() || file.name,
+          originalFormat: file.name.split(".").pop() ?? "mp4",
+          storagePath,
+          fileSizeBytes: BigInt(file.size),
+        },
+        select: {
+          id: true,
+          filename: true,
+          fileSizeBytes: true,
+        },
+      });
+
+      const createdAnalysis = await tx.analysis.create({
+        data: {
+          videoId: createdVideo.id,
+          status: "QUEUED",
+        },
+        select: {
+          id: true,
+          status: true,
+        },
+      });
+
+      return [createdVideo, createdAnalysis] as const;
     });
 
     await videoQueue.add("video.process", {
       videoId: video.id,
       userId: assignedUserId,
+      analysisId: analysis.id,
       description: description?.trim() || null,
     });
 
@@ -159,6 +175,8 @@ export async function POST(request: NextRequest) {
       filename: file.name,
       size: Number(video.fileSizeBytes),
       assignedUserId,
+      analysisId: analysis.id,
+      status: analysis.status,
     });
   } catch {
     return NextResponse.json(
