@@ -1,10 +1,13 @@
 "use client";
 
 import React, { useState, useMemo, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMockAuth } from "@/app/hooks/useMockAuth";
 import { buildMockAuthHeaders } from "@/app/lib/mock-auth-headers";
 import { ECBSafeguardingBanner } from "@/app/components/coach/ECBSafeguardingBanner";
+import PlayerCardDisplay from "@/app/components/player-card/PlayerCardDisplay";
+import PlayerCardEditor from "@/app/components/player-card/PlayerCardEditor";
 import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
 import { StatCard } from "@/app/components/dashboard/StatCard";
 import { Button } from "@/app/components/ui/Button";
@@ -12,7 +15,9 @@ import { Select } from "@/app/components/ui/Select";
 import { Input } from "@/app/components/ui/Input";
 import { EmptyState } from "@/app/components/common/EmptyState";
 import { LoadingSpinner } from "@/app/components/common/LoadingSpinner";
+import { AvatarGalleryModal } from "@/app/components/avatar/AvatarGalleryModal";
 import { type MockPlayer, type PlayerStatus } from "@/app/lib/mock-roster";
+import type { PlayerCardDto, UpdatePlayerCardInput } from "@/types/player-card";
 
 function SearchIcon() {
   return (
@@ -191,6 +196,40 @@ function PlusIcon() {
   );
 }
 
+function ListIcon() {
+  return (
+    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+    </svg>
+  );
+}
+
+function GridIcon() {
+  return (
+    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M4 4h6v6H4V4zm10 0h6v6h-6V4zM4 14h6v6H4v-6zm10 0h6v6h-6v-6z"
+      />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M19 7l-1 12a2 2 0 01-2 2H8a2 2 0 01-2-2L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3M4 7h16"
+      />
+    </svg>
+  );
+}
+
 function GroupIcon() {
   return (
     <svg
@@ -255,12 +294,38 @@ function getActivityDotClass(activity: string): string {
   }
 }
 
+function getPositionTag(position: string): string {
+  const value = position.toLowerCase();
+  if (value.includes("wicket")) return "🧤 WKT";
+  if (value.includes("bowl")) return "🔴 BOW";
+  if (value.includes("bat")) return "🏏 BAT";
+  if (value.includes("all")) return "🔁 AR";
+  return "🏃 PLN";
+}
+
+function getHandednessAbbreviation(battingStyle: string): string {
+  const style = battingStyle.toLowerCase();
+  if (style.includes("left")) return "LH";
+  if (style.includes("right")) return "RH";
+  return "RH";
+}
+
+function getBowlingAbbreviation(bowlingStyle: string): string {
+  const style = bowlingStyle.toLowerCase();
+  if (style.includes("left arm")) return "LA";
+  if (style.includes("medium")) return "MF";
+  if (style.includes("fast")) return "F";
+  if (style.includes("leg")) return "LS";
+  return "MF";
+}
+
 type PageState = "loading" | "ready" | "error" | "empty";
 
 interface RosterPlayer extends MockPlayer {
   email: string;
   firstName: string;
   lastName: string;
+  avatarUrl: string;
   dateOfBirth: string;
   ageGroup: string;
   primaryPosition: string;
@@ -270,6 +335,33 @@ interface RosterPlayer extends MockPlayer {
   profileVisibility: string;
   squadNames: string[];
 }
+
+interface TeamPlayerCardEntry {
+  playerId: string;
+  playerName: string;
+  card: PlayerCardDto;
+}
+
+interface SquadSummary {
+  id: string;
+  name: string;
+  clubName?: string | null;
+}
+
+interface PlayCricketTeam {
+  id: string;
+  name: string;
+  clubName: string;
+  squadHint?: string;
+}
+
+interface TeamFormState {
+  name: string;
+  clubName: string;
+  squadHint: string;
+}
+const STORAGE_FULL_MESSAGE =
+  "Image uploads are temporarily unavailable because local storage is full. Please contact support or try again after cleanup.";
 
 const AGE_GROUP_OPTIONS = [
   { value: "UNDER_10", label: "Under 10" },
@@ -281,13 +373,37 @@ const AGE_GROUP_OPTIONS = [
 ];
 
 export default function CoachRosterPage() {
+  const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isTeamManagementView = pathname === "/team";
   const { user, role } = useMockAuth();
+  const [teamDirectoryViewMode, setTeamDirectoryViewMode] = useState<"card" | "table">("card");
   const [pageState, setPageState] = useState<PageState>("loading");
   const [searchQuery, setSearchQuery] = useState("");
+  const [clubFilter, setClubFilter] = useState("all");
   const [squadFilter, setSquadFilter] = useState("all");
+  const [teamFilter, setTeamFilter] = useState("all");
+  const [teamSearchQuery, setTeamSearchQuery] = useState("");
+  const [isCreateTeamModalOpen, setIsCreateTeamModalOpen] = useState(false);
+  const [isCreatingTeam, setIsCreatingTeam] = useState(false);
+  const [teamFormError, setTeamFormError] = useState<string | null>(null);
+  const [teamFormState, setTeamFormState] = useState<TeamFormState>({
+    name: "",
+    clubName: "",
+    squadHint: "",
+  });
+  const [assignPlayerSearch, setAssignPlayerSearch] = useState("");
+  const [assignSquadSearch, setAssignSquadSearch] = useState("");
+  const [assignPlayerId, setAssignPlayerId] = useState("");
+  const [assignSquadId, setAssignSquadId] = useState("");
+  const [isAssigningPlayer, setIsAssigningPlayer] = useState(false);
+  const [deleteModalTeam, setDeleteModalTeam] = useState<PlayCricketTeam | null>(null);
+  const [deletingTeamId, setDeletingTeamId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [teamPlayers, setTeamPlayers] = useState<RosterPlayer[]>([]);
+  const [squadSummaries, setSquadSummaries] = useState<SquadSummary[]>([]);
+  const [playCricketTeams, setPlayCricketTeams] = useState<PlayCricketTeam[]>([]);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -310,6 +426,7 @@ export default function CoachRosterPage() {
     displayName: "",
     firstName: "",
     lastName: "",
+    avatarUrl: "",
     dateOfBirth: "",
     ageGroup: "",
     primaryPosition: "",
@@ -318,6 +435,20 @@ export default function CoachRosterPage() {
     clubOrSchool: "",
     profileVisibility: "",
   });
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [isAvatarGalleryOpen, setIsAvatarGalleryOpen] = useState(false);
+  const [playerCardEntries, setPlayerCardEntries] = useState<TeamPlayerCardEntry[]>([]);
+  const [cardsLoading, setCardsLoading] = useState(false);
+  const [cardsError, setCardsError] = useState<string | null>(null);
+  const [isCardModalOpen, setIsCardModalOpen] = useState(false);
+  const [selectedCardPlayerId, setSelectedCardPlayerId] = useState("");
+  const [editingCard, setEditingCard] = useState<PlayerCardDto | null>(null);
+  const [cardAiBgCss, setCardAiBgCss] = useState<string | null>(null);
+  const [cardSaving, setCardSaving] = useState(false);
+  const [cardGeneratingBg, setCardGeneratingBg] = useState(false);
+  const [cardModalError, setCardModalError] = useState<string | null>(null);
+  const isCardStorageFullError =
+    cardModalError?.toLowerCase().includes("storage is full") ?? false;
 
   const mapApiPlayers = useCallback((rawPlayers: unknown[]): RosterPlayer[] => {
     return rawPlayers
@@ -330,6 +461,7 @@ export default function CoachRosterPage() {
           email?: string;
           firstName?: string | null;
           lastName?: string | null;
+          avatarUrl?: string | null;
           dateOfBirth?: string | null;
           ageGroup?: string | null;
           primaryPosition?: string | null;
@@ -362,6 +494,7 @@ export default function CoachRosterPage() {
           email: player.email ?? "",
           firstName: player.firstName ?? "",
           lastName: player.lastName ?? "",
+          avatarUrl: player.avatarUrl ?? "",
           dateOfBirth: player.dateOfBirth ? String(player.dateOfBirth).slice(0, 10) : "",
           ageGroup: player.ageGroup ?? "",
           primaryPosition: player.primaryPosition ?? "",
@@ -372,6 +505,39 @@ export default function CoachRosterPage() {
         } satisfies RosterPlayer;
       });
   }, []);
+
+  const loadTeamPlayerCards = useCallback(async (players: RosterPlayer[]) => {
+    if (!user || players.length === 0) {
+      setPlayerCardEntries([]);
+      return;
+    }
+
+    setCardsLoading(true);
+    setCardsError(null);
+    try {
+      const cards = await Promise.all(
+        players.map(async (player) => {
+          const response = await fetch(`/api/team/players/${player.id}/player-card`, {
+            headers: buildMockAuthHeaders(user),
+          });
+          if (!response.ok) {
+            throw new Error("Failed to load team player cards");
+          }
+          const card = (await response.json()) as PlayerCardDto;
+          return {
+            playerId: player.id,
+            playerName: player.name,
+            card,
+          } satisfies TeamPlayerCardEntry;
+        })
+      );
+      setPlayerCardEntries(cards);
+    } catch (error) {
+      setCardsError(error instanceof Error ? error.message : "Failed to load player cards");
+    } finally {
+      setCardsLoading(false);
+    }
+  }, [user]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -393,6 +559,7 @@ export default function CoachRosterPage() {
         const players = Array.isArray(data.players) ? mapApiPlayers(data.players) : [];
         if (cancelled) return;
         setTeamPlayers(players);
+        void loadTeamPlayerCards(players);
         setPageState(players.length > 0 ? "ready" : "empty");
       } catch (error) {
         if (cancelled) return;
@@ -404,7 +571,7 @@ export default function CoachRosterPage() {
     return () => {
       cancelled = true;
     };
-  }, [mapApiPlayers, role, user]);
+  }, [loadTeamPlayerCards, mapApiPlayers, role, user]);
 
   // Redirect non-coaches
   React.useEffect(() => {
@@ -413,31 +580,139 @@ export default function CoachRosterPage() {
     }
   }, [role, router]);
 
+  React.useEffect(() => {
+    const initialClub = searchParams.get("club");
+    if (initialClub) {
+      setClubFilter(initialClub);
+    }
+  }, [searchParams]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    async function loadTeamReferences() {
+      if (!user) return;
+      try {
+        const [squadsResponse, teamsResponse] = await Promise.all([
+          fetch("/api/squads", { headers: buildMockAuthHeaders(user) }),
+          fetch("/api/play-cricket/teams"),
+        ]);
+        if (!squadsResponse.ok || !teamsResponse.ok) {
+          return;
+        }
+        const squadsData = await squadsResponse.json();
+        const teamsData = await teamsResponse.json();
+        if (cancelled) return;
+        setSquadSummaries(Array.isArray(squadsData.squads) ? squadsData.squads : []);
+        setPlayCricketTeams(Array.isArray(teamsData.teams) ? teamsData.teams : []);
+      } catch {
+        // Keep roster experience available even if supporting lists fail to load.
+      }
+    }
+    void loadTeamReferences();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
   const squadOptions = useMemo(() => {
-    const squads = Array.from(
-      new Set(teamPlayers.map((p) => p.squad).filter(Boolean))
-    ) as string[];
+    const squadNamesFromPlayers = teamPlayers.map((player) => player.squad).filter(Boolean) as string[];
+    const squadNamesFromApi = squadSummaries.map((squad) => squad.name);
+    const squads = Array.from(new Set([...squadNamesFromPlayers, ...squadNamesFromApi]));
     return [
       { value: "all", label: "All Players" },
       ...squads.map((s) => ({ value: s, label: s })),
     ];
-  }, [teamPlayers]);
+  }, [squadSummaries, teamPlayers]);
+
+  const clubOptions = useMemo(() => {
+    const clubsFromPlayers = teamPlayers.map((player) => player.clubOrSchool).filter(Boolean) as string[];
+    const clubsFromSquads = squadSummaries
+      .map((squad) => squad.clubName)
+      .filter((value): value is string => Boolean(value));
+    const clubs = Array.from(new Set([...clubsFromPlayers, ...clubsFromSquads]));
+    return [{ value: "all", label: "All Clubs" }, ...clubs.map((club) => ({ value: club, label: club }))];
+  }, [squadSummaries, teamPlayers]);
+
+  const filteredPlayCricketTeams = useMemo(() => {
+    const query = teamSearchQuery.trim().toLowerCase();
+    if (!query) return playCricketTeams;
+    return playCricketTeams.filter((team) =>
+      [team.name, team.clubName, team.squadHint ?? ""].some((value) => value.toLowerCase().includes(query))
+    );
+  }, [playCricketTeams, teamSearchQuery]);
+
+  const teamOptions = useMemo(
+    () => [{ value: "all", label: "All Teams" }, ...filteredPlayCricketTeams.map((team) => ({ value: team.id, label: team.name }))],
+    [filteredPlayCricketTeams]
+  );
+
+  const teamDirectoryStats = useMemo(() => {
+    const totalTeams = filteredPlayCricketTeams.length;
+    const totalClubs = new Set(filteredPlayCricketTeams.map((team) => team.clubName)).size;
+    const linkedSquads = filteredPlayCricketTeams.filter((team) => Boolean(team.squadHint)).length;
+    return { totalTeams, totalClubs, linkedSquads };
+  }, [filteredPlayCricketTeams]);
+
+  const filteredAssignablePlayers = useMemo(() => {
+    const query = assignPlayerSearch.trim().toLowerCase();
+    if (!query) return teamPlayers;
+    return teamPlayers.filter((player) =>
+      [player.name, player.primaryPosition, player.clubOrSchool].some((value) =>
+        value.toLowerCase().includes(query)
+      )
+    );
+  }, [assignPlayerSearch, teamPlayers]);
+
+  const filteredAssignableSquads = useMemo(() => {
+    const query = assignSquadSearch.trim().toLowerCase();
+    if (!query) return squadSummaries;
+    return squadSummaries.filter((squad) =>
+      [squad.name, squad.clubName ?? ""].some((value) => value.toLowerCase().includes(query))
+    );
+  }, [assignSquadSearch, squadSummaries]);
 
   const filteredPlayers = useMemo(() => {
+    const squadClubMap = new Map(
+      squadSummaries
+        .filter((squad) => squad.clubName)
+        .map((squad) => [squad.name, squad.clubName as string])
+    );
     let list = teamPlayers;
+    if (clubFilter !== "all") {
+      list = list.filter((player) => {
+        const inferredClub = player.squad ? squadClubMap.get(player.squad) : undefined;
+        const playerClub = player.clubOrSchool || inferredClub || "";
+        return playerClub === clubFilter;
+      });
+    }
     if (squadFilter !== "all") {
-      list = list.filter((p) => p.squad === squadFilter);
+      list = list.filter((player) => player.squad === squadFilter);
+    }
+    if (teamFilter !== "all") {
+      const selectedTeam = playCricketTeams.find((team) => team.id === teamFilter);
+      if (selectedTeam) {
+        list = list.filter((player) => {
+          const clubMatch = !player.clubOrSchool || player.clubOrSchool === selectedTeam.clubName;
+          if (!selectedTeam.squadHint) return clubMatch;
+          return (
+            clubMatch &&
+            (player.squad === selectedTeam.squadHint ||
+              player.squadNames.some((name) => name.includes(selectedTeam.squadHint ?? "")))
+          );
+        });
+      }
     }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       list = list.filter(
-        (p) =>
-          p.name.toLowerCase().includes(q) ||
-          p.position.toLowerCase().includes(q)
+        (player) =>
+          player.name.toLowerCase().includes(q) ||
+          player.position.toLowerCase().includes(q) ||
+          player.primaryPosition.toLowerCase().includes(q)
       );
     }
     return list;
-  }, [searchQuery, squadFilter, teamPlayers]);
+  }, [clubFilter, playCricketTeams, searchQuery, squadFilter, squadSummaries, teamFilter, teamPlayers]);
 
   const rosterStats = useMemo(() => {
     const totalPlayers = teamPlayers.length;
@@ -447,6 +722,30 @@ export default function CoachRosterPage() {
     const avgGrade = gradedPlayers.length > 0 ? "B" : "N/A";
     return { totalPlayers, activeSessions, pendingReviews, avgGrade };
   }, [teamPlayers]);
+
+  const selectedCardPlayer = useMemo(
+    () => teamPlayers.find((player) => player.id === selectedCardPlayerId) ?? null,
+    [selectedCardPlayerId, teamPlayers]
+  );
+
+  const editingCardInput = useMemo((): UpdatePlayerCardInput | null => {
+    if (!editingCard) return null;
+    return {
+      displayName: editingCard.displayName,
+      tier: editingCard.tier,
+      role: editingCard.role,
+      sportIcon: editingCard.sportIcon,
+      statTec: editingCard.statTec,
+      statPow: editingCard.statPow,
+      statTim: editingCard.statTim,
+      statCon: editingCard.statCon,
+      statPac: editingCard.statPac,
+      statFie: editingCard.statFie,
+      profilePhotoUrl: editingCard.profilePhotoUrl,
+      backgroundUrl: editingCard.backgroundUrl,
+      backgroundMode: editingCard.backgroundMode,
+    };
+  }, [editingCard]);
 
   const refreshRoster = useCallback(async () => {
     if (!user) return;
@@ -460,8 +759,9 @@ export default function CoachRosterPage() {
     const data = await response.json();
     const players = Array.isArray(data.players) ? mapApiPlayers(data.players) : [];
     setTeamPlayers(players);
+    await loadTeamPlayerCards(players);
     setPageState(players.length > 0 ? "ready" : "empty");
-  }, [mapApiPlayers, user]);
+  }, [loadTeamPlayerCards, mapApiPlayers, user]);
 
   const handleViewVideo = useCallback((player: MockPlayer) => {
     router.push(`/upload?assignee=${player.id}`);
@@ -481,6 +781,129 @@ export default function CoachRosterPage() {
     setIsAddModalOpen(true);
   }, []);
 
+  const handleCreateTeam = useCallback(async () => {
+    if (!user) return;
+    if (!teamFormState.name.trim() || !teamFormState.clubName.trim()) {
+      setTeamFormError("Team name and club are required.");
+      return;
+    }
+
+    setIsCreatingTeam(true);
+    setTeamFormError(null);
+    try {
+      const response = await fetch("/api/play-cricket/teams", {
+        method: "POST",
+        headers: {
+          ...buildMockAuthHeaders(user),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: teamFormState.name.trim(),
+          clubName: teamFormState.clubName.trim(),
+          squadHint: teamFormState.squadHint.trim() || undefined,
+        }),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error ?? "Failed to create team");
+      }
+      const data = await response.json();
+      const created = data.team as PlayCricketTeam | undefined;
+      if (created) {
+        setPlayCricketTeams((current) => [created, ...current]);
+        setTeamFilter(created.id);
+      }
+      setTeamFormState({ name: "", clubName: "", squadHint: "" });
+      setIsCreateTeamModalOpen(false);
+    } catch (error) {
+      setTeamFormError(error instanceof Error ? error.message : "Failed to create team");
+    } finally {
+      setIsCreatingTeam(false);
+    }
+  }, [teamFormState, user]);
+
+  const handleAssignExistingPlayer = useCallback(async () => {
+    if (!user || !assignPlayerId || !assignSquadId) return;
+    setIsAssigningPlayer(true);
+    setModalError(null);
+    try {
+      const response = await fetch(`/api/squads/${assignSquadId}/members`, {
+        method: "POST",
+        headers: {
+          ...buildMockAuthHeaders(user),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ userId: assignPlayerId }),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error ?? "Failed to assign player");
+      }
+      setAssignPlayerId("");
+      setAssignSquadId("");
+      await refreshRoster();
+    } catch (error) {
+      setModalError(error instanceof Error ? error.message : "Failed to assign player");
+    } finally {
+      setIsAssigningPlayer(false);
+    }
+  }, [assignPlayerId, assignSquadId, refreshRoster, user]);
+
+  const requestDeleteTeam = useCallback((team: PlayCricketTeam) => {
+    setDeleteModalTeam(team);
+    setTeamFormError(null);
+  }, []);
+
+  const confirmDeleteTeam = useCallback(async () => {
+    if (!user || !deleteModalTeam) return;
+    setDeletingTeamId(deleteModalTeam.id);
+    setTeamFormError(null);
+    try {
+      const response = await fetch(`/api/play-cricket/teams?id=${encodeURIComponent(deleteModalTeam.id)}`, {
+        method: "DELETE",
+        headers: buildMockAuthHeaders(user),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error ?? "Failed to delete team");
+      }
+      setPlayCricketTeams((current) => current.filter((team) => team.id !== deleteModalTeam.id));
+      if (teamFilter === deleteModalTeam.id) {
+        setTeamFilter("all");
+      }
+      setDeleteModalTeam(null);
+    } catch (error) {
+      setTeamFormError(error instanceof Error ? error.message : "Failed to delete team");
+    } finally {
+      setDeletingTeamId(null);
+    }
+  }, [deleteModalTeam, teamFilter, user]);
+
+  const openCardEditorForPlayer = useCallback(
+    async (playerId: string) => {
+      if (!user) return;
+      setSelectedCardPlayerId(playerId);
+      setCardModalError(null);
+      setCardAiBgCss(null);
+      setCardSaving(false);
+      setCardGeneratingBg(false);
+      setIsCardModalOpen(true);
+      setEditingCard(null);
+
+      const response = await fetch(`/api/team/players/${playerId}/player-card`, {
+        headers: buildMockAuthHeaders(user),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        setCardModalError((body as { error?: string }).error ?? "Failed to load player card.");
+        return;
+      }
+      const card = (await response.json()) as PlayerCardDto;
+      setEditingCard(card);
+    },
+    [user]
+  );
+
   const handleEdit = useCallback((player: MockPlayer) => {
     const rosterPlayer = teamPlayers.find((candidate) => candidate.id === player.id);
     if (!rosterPlayer) return;
@@ -489,6 +912,7 @@ export default function CoachRosterPage() {
       displayName: rosterPlayer.name,
       firstName: rosterPlayer.firstName,
       lastName: rosterPlayer.lastName,
+      avatarUrl: rosterPlayer.avatarUrl || "",
       dateOfBirth: rosterPlayer.dateOfBirth,
       ageGroup: rosterPlayer.ageGroup,
       primaryPosition: rosterPlayer.primaryPosition,
@@ -601,6 +1025,7 @@ export default function CoachRosterPage() {
         displayName: editPlayerForm.displayName.trim(),
         firstName: editPlayerForm.firstName.trim() || null,
         lastName: editPlayerForm.lastName.trim() || null,
+        avatarUrl: editPlayerForm.avatarUrl || null,
         dateOfBirth: editPlayerForm.dateOfBirth || null,
         ageGroup: editPlayerForm.ageGroup || null,
         primaryPosition: editPlayerForm.primaryPosition.trim() || null,
@@ -620,6 +1045,11 @@ export default function CoachRosterPage() {
     setIsModalSubmitting(false);
     setIsEditModalOpen(false);
   }, [editPlayerForm, refreshRoster, selectedPlayer, user]);
+
+  const handleAvatarSelect = useCallback((avatarUrl: string) => {
+    setEditPlayerForm((current) => ({ ...current, avatarUrl }));
+    setIsAvatarGalleryOpen(false);
+  }, []);
 
   const submitRemovePlayer = useCallback(async () => {
     if (!user || !selectedPlayer) return;
@@ -641,6 +1071,105 @@ export default function CoachRosterPage() {
     setSelectedPlayer(null);
   }, [refreshRoster, selectedPlayer, user]);
 
+  const uploadCardImage = useCallback(
+    async (file: File): Promise<string> => {
+      if (!user) throw new Error("Unauthorized");
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await fetch("/api/player-card/upload-image", {
+        method: "POST",
+        headers: buildMockAuthHeaders(user),
+        body: formData,
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        if (response.status === 507) {
+          throw new Error(STORAGE_FULL_MESSAGE);
+        }
+        throw new Error((body as { error?: string }).error ?? "Image upload failed");
+      }
+      const payload = (await response.json()) as { url?: string };
+      if (!payload.url) {
+        throw new Error("Image upload failed");
+      }
+      return payload.url;
+    },
+    [user]
+  );
+
+  const saveCoachEditedCard = useCallback(async () => {
+    if (!user || !selectedCardPlayerId || !editingCardInput) return;
+    setCardSaving(true);
+    setCardModalError(null);
+    try {
+      const response = await fetch(`/api/team/players/${selectedCardPlayerId}/player-card`, {
+        method: "PUT",
+        headers: {
+          ...buildMockAuthHeaders(user),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(editingCardInput),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error((body as { error?: string }).error ?? "Failed to save player card");
+      }
+      const saved = (await response.json()) as PlayerCardDto;
+      setEditingCard(saved);
+      setPlayerCardEntries((current) =>
+        current.map((entry) =>
+          entry.playerId === selectedCardPlayerId ? { ...entry, card: saved } : entry
+        )
+      );
+    } catch (error) {
+      setCardModalError(error instanceof Error ? error.message : "Failed to save player card");
+    } finally {
+      setCardSaving(false);
+    }
+  }, [editingCardInput, selectedCardPlayerId, user]);
+
+  const generateCoachCardBackground = useCallback(async () => {
+    if (!user || !editingCard) return;
+    setCardGeneratingBg(true);
+    setCardModalError(null);
+    try {
+      const response = await fetch("/api/player-card/generate-background", {
+        method: "POST",
+        headers: {
+          ...buildMockAuthHeaders(user),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          tier: editingCard.tier,
+          role: editingCard.role,
+          sportIcon: editingCard.sportIcon,
+        }),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error((body as { error?: string }).error ?? "Generation failed");
+      }
+      const payload = (await response.json()) as { css?: string };
+      if (!payload.css) {
+        throw new Error("Generation failed");
+      }
+      setCardAiBgCss(payload.css);
+      setEditingCard((current) =>
+        current
+          ? {
+              ...current,
+              backgroundMode: "AI",
+              backgroundUrl: null,
+            }
+          : current
+      );
+    } catch (error) {
+      setCardModalError(error instanceof Error ? error.message : "Generation failed");
+    } finally {
+      setCardGeneratingBg(false);
+    }
+  }, [editingCard, user]);
+
   if (role !== "coach" && role !== "parent" && role !== "admin") {
     return null;
   }
@@ -651,49 +1180,238 @@ export default function CoachRosterPage() {
 
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-[var(--text-primary)]">
-          Player Roster
+          {isTeamManagementView ? "Team Management" : "Player Roster"}
         </h1>
         <p className="mt-1 text-[var(--text-secondary)]">
-          Manage your assigned players and track their progress.
+          {isTeamManagementView
+            ? "Manage teams, squad links, and player assignment workflows."
+            : "Manage your assigned players and track their progress."}
         </p>
       </div>
 
       {/* Search and filters */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-1 flex-col gap-4 sm:flex-row sm:items-center">
-          <div className="relative flex-1 sm:max-w-xs">
+      <div className="flex flex-col gap-4">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2">
               <SearchIcon />
             </span>
             <input
               type="search"
-              placeholder="Search players..."
+              placeholder={isTeamManagementView ? "Filter teams or players..." : "Filter by player..."}
               value={searchQuery}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                setSearchQuery(e.target.value)
-              }
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
               className="w-full rounded-lg border border-[var(--surface-secondary)] bg-[var(--surface)] py-2 pl-10 pr-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:border-[var(--primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
-              aria-label="Search players"
+              aria-label="Filter by player"
             />
           </div>
-          <div className="w-full sm:w-48">
-            <Select
-              options={squadOptions}
-              value={squadFilter}
-              onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
-                setSquadFilter(e.target.value)
-              }
-              aria-label="Filter by squad"
+          <Select
+            options={clubOptions}
+            value={clubFilter}
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setClubFilter(e.target.value)}
+            aria-label="Filter by club"
+          />
+          <Select
+            options={squadOptions}
+            value={squadFilter}
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSquadFilter(e.target.value)}
+            aria-label="Filter by squad"
+          />
+          <div>
+            <Input
+              value={teamSearchQuery}
+              onChange={(event) => setTeamSearchQuery(event.target.value)}
+              placeholder="Search play-cricket teams..."
             />
           </div>
+          <Select
+            options={teamOptions}
+            value={teamFilter}
+            onChange={(event: React.ChangeEvent<HTMLSelectElement>) => setTeamFilter(event.target.value)}
+            aria-label="Filter by play-cricket team"
+          />
         </div>
-        {(role === "coach" || role === "admin") && (
-          <Button onClick={handleAddPlayer} className="shrink-0">
-            <PlusIcon />
-            <span className="ml-2">Add Player</span>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Link href="/squads">
+            <Button variant="secondary">Add Squad</Button>
+          </Link>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setIsCreateTeamModalOpen(true);
+              setTeamFormError(null);
+            }}
+          >
+            Add Team
           </Button>
-        )}
+          {isTeamManagementView && (
+            <>
+              <Button
+                variant={teamDirectoryViewMode === "card" ? "primary" : "secondary"}
+                onClick={() => setTeamDirectoryViewMode("card")}
+              >
+                <GridIcon />
+                <span className="ml-2">Cards</span>
+              </Button>
+              <Button
+                variant={teamDirectoryViewMode === "table" ? "primary" : "secondary"}
+                onClick={() => setTeamDirectoryViewMode("table")}
+              >
+                <ListIcon />
+                <span className="ml-2">Table</span>
+              </Button>
+            </>
+          )}
+          <Link href="/players">
+            <Button variant="secondary">Players Module</Button>
+          </Link>
+          {(role === "coach" || role === "admin") && (
+            <Button onClick={handleAddPlayer} className="shrink-0">
+              <PlusIcon />
+              <span className="ml-2">Add Player</span>
+            </Button>
+          )}
+        </div>
+        <Card>
+          <CardHeader>Assign Existing Player</CardHeader>
+          <CardContent>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+              <Input
+                placeholder="Search player..."
+                value={assignPlayerSearch}
+                onChange={(event) => setAssignPlayerSearch(event.target.value)}
+              />
+              <select
+                value={assignPlayerId}
+                onChange={(event) => setAssignPlayerId(event.target.value)}
+                className="rounded-md border border-[var(--surface-secondary)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
+              >
+                <option value="">Select player...</option>
+                {filteredAssignablePlayers.map((player) => (
+                  <option key={player.id} value={player.id}>
+                    {player.name}
+                  </option>
+                ))}
+              </select>
+              <Input
+                placeholder="Search squad..."
+                value={assignSquadSearch}
+                onChange={(event) => setAssignSquadSearch(event.target.value)}
+              />
+              <select
+                value={assignSquadId}
+                onChange={(event) => setAssignSquadId(event.target.value)}
+                className="rounded-md border border-[var(--surface-secondary)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
+              >
+                <option value="">Select squad...</option>
+                {filteredAssignableSquads.map((squad) => (
+                  <option key={squad.id} value={squad.id}>
+                    {squad.name}
+                  </option>
+                ))}
+              </select>
+              <Button
+                onClick={() => void handleAssignExistingPlayer()}
+                disabled={!assignPlayerId || !assignSquadId || isAssigningPlayer}
+              >
+                {isAssigningPlayer ? "Assigning..." : "Assign Player"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
+
+      {isTeamManagementView && (
+        <>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <StatCard label="Total Teams" value={teamDirectoryStats.totalTeams} icon={<UsersIcon />} />
+            <StatCard label="Clubs Covered" value={teamDirectoryStats.totalClubs} icon={<GroupIcon />} />
+            <StatCard label="Squad Linked Teams" value={teamDirectoryStats.linkedSquads} icon={<StarIcon />} />
+          </div>
+
+          <Card>
+            <CardHeader>Team Directory</CardHeader>
+            <CardContent>
+              {filteredPlayCricketTeams.length === 0 ? (
+                <EmptyState
+                  title="No teams found"
+                  description="Add a team or adjust your filters."
+                  icon={<GroupIcon />}
+                />
+              ) : teamDirectoryViewMode === "card" ? (
+                <div className="grid gap-4 md:grid-cols-2">
+                  {filteredPlayCricketTeams.map((team) => (
+                    <div
+                      key={team.id}
+                      className="rounded-xl border border-[var(--surface-secondary)] bg-[var(--surface)] p-4"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <h3 className="text-lg font-semibold text-[var(--text-primary)]">{team.name}</h3>
+                          <p className="text-sm text-[var(--text-secondary)]">{team.clubName}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {team.squadHint && (
+                            <span className="rounded-full bg-[var(--surface-secondary)] px-2 py-1 text-xs text-[var(--text-secondary)]">
+                              {team.squadHint}
+                            </span>
+                          )}
+                          {(role === "coach" || role === "admin") && (
+                            <button
+                              type="button"
+                              onClick={() => requestDeleteTeam(team)}
+                              disabled={deletingTeamId === team.id}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--danger)]/40 text-[var(--danger)] transition-all duration-200 hover:scale-105 hover:bg-[var(--danger)]/10 disabled:cursor-not-allowed disabled:opacity-50"
+                              aria-label={`Delete ${team.name}`}
+                            >
+                              <TrashIcon />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[760px]">
+                    <thead>
+                      <tr className="border-b border-[var(--surface-secondary)]">
+                        <th className="py-2 text-left text-sm font-semibold text-[var(--text-secondary)]">Team</th>
+                        <th className="py-2 text-left text-sm font-semibold text-[var(--text-secondary)]">Club</th>
+                        <th className="py-2 text-left text-sm font-semibold text-[var(--text-secondary)]">Squad Link</th>
+                        <th className="py-2 text-right text-sm font-semibold text-[var(--text-secondary)]">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredPlayCricketTeams.map((team) => (
+                        <tr key={team.id} className="border-b border-[var(--surface-secondary)] last:border-0">
+                          <td className="py-3 text-sm text-[var(--text-primary)]">{team.name}</td>
+                          <td className="py-3 text-sm text-[var(--text-secondary)]">{team.clubName}</td>
+                          <td className="py-3 text-sm text-[var(--text-secondary)]">{team.squadHint ?? "-"}</td>
+                          <td className="py-3 text-right">
+                            {(role === "coach" || role === "admin") && (
+                              <Button
+                                variant="secondary"
+                                className="border border-[var(--danger)]/40 text-[var(--danger)] hover:bg-[var(--danger)]/10"
+                                onClick={() => requestDeleteTeam(team)}
+                                disabled={deletingTeamId === team.id}
+                              >
+                                {deletingTeamId === team.id ? "Deleting..." : "Delete"}
+                              </Button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
 
       {/* Key metrics */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -718,6 +1436,50 @@ export default function CoachRosterPage() {
           icon={<ClockIcon />}
         />
       </div>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <span>Team Player Cards</span>
+        </CardHeader>
+        <CardContent>
+          {cardsLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <LoadingSpinner size="lg" />
+            </div>
+          ) : cardsError ? (
+            <p className="text-sm text-[var(--danger)]">{cardsError}</p>
+          ) : playerCardEntries.length === 0 ? (
+            <p className="text-sm text-[var(--text-secondary)]">
+              No player cards available yet.
+            </p>
+          ) : (
+            <div className="flex gap-4 overflow-x-auto pb-2">
+              {playerCardEntries.map((entry) => (
+                <div key={entry.playerId} className="shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => void openCardEditorForPlayer(entry.playerId)}
+                    className="mb-2 text-left text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--primary)]"
+                  >
+                    {entry.playerName}
+                  </button>
+                  <PlayerCardDisplay card={entry.card} aiBgCss={null} compact interactive={false} />
+                </div>
+              ))}
+
+              {(role === "coach" || role === "admin") && (
+                <button
+                  type="button"
+                  onClick={() => setIsCardModalOpen(true)}
+                  className="mt-6 flex h-[360px] w-[250px] shrink-0 items-center justify-center rounded-2xl border border-dashed border-[var(--surface-secondary)] bg-[var(--surface-secondary)]/20 text-sm font-semibold text-[var(--text-secondary)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
+                >
+                  + Add / Edit Player Card
+                </button>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Player roster table */}
       <Card>
@@ -760,17 +1522,25 @@ export default function CoachRosterPage() {
             <EmptyState
               title="No players found"
               description={
-                searchQuery || squadFilter !== "all"
+                searchQuery || squadFilter !== "all" || clubFilter !== "all" || teamFilter !== "all"
                   ? "Try adjusting your search or filter."
                   : "Add players to your roster to get started."
               }
               actionLabel={
-                !searchQuery && squadFilter === "all" && (role === "coach" || role === "admin")
+                !searchQuery &&
+                squadFilter === "all" &&
+                clubFilter === "all" &&
+                teamFilter === "all" &&
+                (role === "coach" || role === "admin")
                   ? "Add Player"
                   : undefined
               }
               onAction={
-                !searchQuery && squadFilter === "all" && (role === "coach" || role === "admin")
+                !searchQuery &&
+                squadFilter === "all" &&
+                clubFilter === "all" &&
+                teamFilter === "all" &&
+                (role === "coach" || role === "admin")
                   ? handleAddPlayer
                   : undefined
               }
@@ -780,7 +1550,7 @@ export default function CoachRosterPage() {
 
           {pageState === "ready" && filteredPlayers.length > 0 && (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[640px]" aria-label="Player roster">
+              <table className="w-full min-w-[1020px]" aria-label="Player roster">
                 <thead>
                   <tr className="border-b border-[var(--surface-secondary)]">
                     <th className="pb-3 text-left text-sm font-semibold text-[var(--text-secondary)]">
@@ -791,6 +1561,15 @@ export default function CoachRosterPage() {
                     </th>
                     <th className="pb-3 text-left text-sm font-semibold text-[var(--text-secondary)]">
                       Last Session
+                    </th>
+                    <th className="pb-3 text-left text-sm font-semibold text-[var(--text-secondary)]">
+                      Position
+                    </th>
+                    <th className="pb-3 text-left text-sm font-semibold text-[var(--text-secondary)]">
+                      Hand
+                    </th>
+                    <th className="pb-3 text-left text-sm font-semibold text-[var(--text-secondary)]">
+                      Bowl
                     </th>
                     <th className="pb-3 text-left text-sm font-semibold text-[var(--text-secondary)]">
                       Activity
@@ -835,6 +1614,15 @@ export default function CoachRosterPage() {
                       </td>
                       <td className="py-4 text-sm text-[var(--text-secondary)]">
                         {player.lastSession}
+                      </td>
+                      <td className="py-4 text-sm text-[var(--text-primary)]">
+                        {getPositionTag(player.primaryPosition || player.position)}
+                      </td>
+                      <td className="py-4 text-sm text-[var(--text-primary)]">
+                        {getHandednessAbbreviation(player.battingStyle)}
+                      </td>
+                      <td className="py-4 text-sm text-[var(--text-primary)]">
+                        {getBowlingAbbreviation(player.bowlingStyle)}
                       </td>
                       <td className="py-4">
                         <div className="flex items-center gap-2">
@@ -915,6 +1703,145 @@ export default function CoachRosterPage() {
           )}
         </CardContent>
       </Card>
+
+      {isCardModalOpen && (role === "coach" || role === "admin") && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="max-h-[95vh] w-full max-w-6xl overflow-y-auto rounded-xl bg-[var(--surface)] p-5">
+            <div className="mb-3 flex items-start justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-[var(--text-primary)]">Edit Player Card</h3>
+                <p className="text-sm text-[var(--text-secondary)]">
+                  Update a player's card. The player will receive a notification after save.
+                </p>
+              </div>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setIsCardModalOpen(false);
+                  setCardModalError(null);
+                  setSelectedCardPlayerId("");
+                  setEditingCard(null);
+                }}
+              >
+                Close
+              </Button>
+            </div>
+
+            <div className="mb-4">
+              <Select
+                label="Player"
+                options={teamPlayers.map((player) => ({ value: player.id, label: player.name }))}
+                value={selectedCardPlayerId}
+                onChange={(event) => {
+                  const nextPlayerId = event.target.value;
+                  if (!nextPlayerId) return;
+                  void openCardEditorForPlayer(nextPlayerId);
+                }}
+              />
+            </div>
+
+            {cardModalError ? (
+              <p
+                className={`mb-3 rounded-md p-2 text-sm ${
+                  isCardStorageFullError
+                    ? "border border-amber-400/35 bg-amber-400/10 text-amber-300"
+                    : "border border-[var(--danger)]/30 bg-[var(--danger)]/10 text-[var(--danger)]"
+                }`}
+              >
+                {cardModalError}
+              </p>
+            ) : null}
+
+            {selectedCardPlayer && editingCard ? (
+              <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
+                <PlayerCardDisplay
+                  card={editingCard}
+                  aiBgCss={cardAiBgCss}
+                  compact
+                  onDisplayNameCommit={(displayName) =>
+                    setEditingCard((current) =>
+                      current
+                        ? {
+                            ...current,
+                            displayName,
+                          }
+                        : current
+                    )
+                  }
+                />
+                <PlayerCardEditor
+                  card={editingCard}
+                  aiBgCss={cardAiBgCss}
+                  generatingBg={cardGeneratingBg}
+                  saving={cardSaving}
+                  onChange={(partial) =>
+                    setEditingCard((current) =>
+                      current
+                        ? {
+                            ...current,
+                            ...partial,
+                            overall: Math.round(
+                              ((partial.statTec ?? current.statTec) +
+                                (partial.statPow ?? current.statPow) +
+                                (partial.statTim ?? current.statTim) +
+                                (partial.statCon ?? current.statCon) +
+                                (partial.statPac ?? current.statPac) +
+                                (partial.statFie ?? current.statFie)) /
+                                6
+                            ),
+                          }
+                        : current
+                    )
+                  }
+                  onSave={() => void saveCoachEditedCard()}
+                  onGenerateBg={() => void generateCoachCardBackground()}
+                  onProfileUpload={(file) => {
+                    void uploadCardImage(file)
+                      .then((url) =>
+                        setEditingCard((current) =>
+                          current
+                            ? {
+                                ...current,
+                                profilePhotoUrl: url,
+                              }
+                            : current
+                        )
+                      )
+                      .catch((error: unknown) =>
+                        setCardModalError(
+                          error instanceof Error ? error.message : "Image upload failed"
+                        )
+                      );
+                  }}
+                  onBgUpload={(file) => {
+                    void uploadCardImage(file)
+                      .then((url) =>
+                        setEditingCard((current) =>
+                          current
+                            ? {
+                                ...current,
+                                backgroundUrl: url,
+                                backgroundMode: "UPLOAD",
+                              }
+                            : current
+                        )
+                      )
+                      .catch((error: unknown) =>
+                        setCardModalError(
+                          error instanceof Error ? error.message : "Image upload failed"
+                        )
+                      );
+                  }}
+                />
+              </div>
+            ) : (
+              <p className="text-sm text-[var(--text-secondary)]">
+                Select a player to load and edit their card.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -1034,6 +1961,83 @@ export default function CoachRosterPage() {
         </div>
       )}
 
+      {isCreateTeamModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-lg rounded-xl bg-[var(--surface)] p-5">
+            <h3 className="text-lg font-semibold text-[var(--text-primary)]">Add Team</h3>
+            <p className="mt-1 text-sm text-[var(--text-secondary)]">
+              Create a new team in-app. Play-Cricket sync can be added later.
+            </p>
+            <div className="mt-4 space-y-3">
+              <Input
+                label="Team name"
+                value={teamFormState.name}
+                onChange={(event) =>
+                  setTeamFormState((current) => ({ ...current, name: event.target.value }))
+                }
+              />
+              <Input
+                label="Club"
+                value={teamFormState.clubName}
+                onChange={(event) =>
+                  setTeamFormState((current) => ({ ...current, clubName: event.target.value }))
+                }
+              />
+              <Input
+                label="Squad hint (optional)"
+                value={teamFormState.squadHint}
+                onChange={(event) =>
+                  setTeamFormState((current) => ({ ...current, squadHint: event.target.value }))
+                }
+              />
+              {teamFormError && <p className="text-sm text-[var(--danger)]">{teamFormError}</p>}
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <Button
+                variant="secondary"
+                onClick={() => setIsCreateTeamModalOpen(false)}
+                disabled={isCreatingTeam}
+              >
+                Cancel
+              </Button>
+              <Button onClick={() => void handleCreateTeam()} disabled={isCreatingTeam}>
+                {isCreatingTeam ? "Creating..." : "Create Team"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteModalTeam && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-xl bg-[var(--surface)] p-5">
+            <h3 className="text-lg font-semibold text-[var(--text-primary)]">Delete Team</h3>
+            <p className="mt-2 text-sm text-[var(--text-secondary)]">
+              Are you sure you want to delete <span className="font-semibold">{deleteModalTeam.name}</span>? This
+              action cannot be undone.
+            </p>
+            {teamFormError && <p className="mt-3 text-sm text-[var(--danger)]">{teamFormError}</p>}
+            <div className="mt-5 flex justify-end gap-2">
+              <Button
+                variant="secondary"
+                onClick={() => setDeleteModalTeam(null)}
+                disabled={deletingTeamId === deleteModalTeam.id}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="secondary"
+                className="border border-[var(--danger)]/40 text-[var(--danger)] hover:bg-[var(--danger)]/10"
+                onClick={() => void confirmDeleteTeam()}
+                disabled={deletingTeamId === deleteModalTeam.id}
+              >
+                {deletingTeamId === deleteModalTeam.id ? "Deleting..." : "Delete Team"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {isEditModalOpen && selectedPlayer && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-[var(--surface)] p-5">
@@ -1041,6 +2045,52 @@ export default function CoachRosterPage() {
             <p className="mt-1 text-sm text-[var(--text-secondary)]">
               Update technical and profile details for {selectedPlayer.name}.
             </p>
+            
+            {/* Avatar Upload Section */}
+            <div className="mt-4 flex items-center gap-4 rounded-lg border border-[var(--border)] bg-[var(--surface-secondary)] p-4">
+              <div className="flex-shrink-0">
+                {editPlayerForm.avatarUrl ? (
+                  <img
+                    src={editPlayerForm.avatarUrl}
+                    alt="Player avatar"
+                    className="h-20 w-20 rounded-full object-cover ring-2 ring-[var(--border)]"
+                  />
+                ) : (
+                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[var(--surface)] text-2xl font-semibold text-[var(--text-secondary)] ring-2 ring-[var(--border)]">
+                    {selectedPlayer.avatarInitials}
+                  </div>
+                )}
+              </div>
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-[var(--text-primary)]">
+                  Player Avatar
+                </label>
+                <p className="mt-1 text-xs text-[var(--text-secondary)]">
+                  Choose from gallery or upload a custom photo
+                </p>
+                <div className="mt-2 flex gap-2">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => setIsAvatarGalleryOpen(true)}
+                    disabled={isModalSubmitting}
+                  >
+                    Select Avatar
+                  </Button>
+                  {editPlayerForm.avatarUrl && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setEditPlayerForm((current) => ({ ...current, avatarUrl: "" }))}
+                      disabled={isModalSubmitting}
+                    >
+                      Remove
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <Input
                 label="Display name"
@@ -1168,6 +2218,14 @@ export default function CoachRosterPage() {
           </div>
         </div>
       )}
+
+      {/* Avatar Gallery Modal */}
+      <AvatarGalleryModal
+        isOpen={isAvatarGalleryOpen}
+        onClose={() => setIsAvatarGalleryOpen(false)}
+        onSelect={handleAvatarSelect}
+        currentAvatarUrl={editPlayerForm.avatarUrl}
+      />
     </div>
   );
 }

@@ -20,8 +20,8 @@ export const registerSchema = z.object({
       (v: string | undefined) => !v || /^\d{4}-\d{2}-\d{2}(T.*)?$/.test(v),
       "Invalid date format (use YYYY-MM-DD or ISO8601)"
     ),
-  agreedToTerms: z.literal(true, {
-    errorMap: () => ({ message: "You must agree to the terms" }),
+  agreedToTerms: z.literal(true).refine((val) => val === true, {
+    message: "You must agree to the terms",
   }),
   privacyPreferences: privacySchema.optional().default({
     performanceAnalytics: true,

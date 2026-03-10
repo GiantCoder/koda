@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     where: {
       conversationId: { in: conversationIds },
       isDeleted: false,
-      content: { contains: q, mode: "insensitive" },
+      content: { contains: q },
     },
     orderBy: { sentAt: "desc" },
     take: 50,

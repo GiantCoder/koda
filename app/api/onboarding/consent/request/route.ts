@@ -34,7 +34,6 @@ export async function POST(request: NextRequest) {
   const dbUser = await prisma.user.findUnique({
     where: { id: user.id },
     include: { consentRecord: true },
-    select: { dateOfBirth: true },
   });
 
   if (!dbUser) {

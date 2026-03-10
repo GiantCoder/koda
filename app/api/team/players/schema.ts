@@ -12,6 +12,7 @@ export const updateTeamPlayerSchema = z.object({
   displayName: z.string().min(1).max(120).optional(),
   firstName: z.string().max(120).optional().nullable(),
   lastName: z.string().max(120).optional().nullable(),
+  avatarUrl: z.string().url().optional().nullable(),
   dateOfBirth: z.string().datetime().optional().nullable(),
   battingStyle: z.string().max(120).optional().nullable(),
   bowlingStyle: z.string().max(120).optional().nullable(),

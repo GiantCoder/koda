@@ -47,6 +47,45 @@ function TeamIcon() {
   );
 }
 
+function PlayersIcon() {
+  return (
+    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M17 20h5V9H2v11h5m10 0v-2a4 4 0 00-4-4H11a4 4 0 00-4 4v2m10 0H7m8-11a3 3 0 11-6 0 3 3 0 016 0z"
+      />
+    </svg>
+  );
+}
+
+function ClubIcon() {
+  return (
+    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-3"
+      />
+    </svg>
+  );
+}
+
+function SquadsIcon() {
+  return (
+    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M17 20h5V9H2v11h5m10 0v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5m10 0H7"
+      />
+    </svg>
+  );
+}
+
 function ProfileIcon() {
   return (
     <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -63,11 +102,64 @@ function BarChartIcon() {
   );
 }
 
+function ExploreIcon() {
+  return (
+    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+    </svg>
+  );
+}
+
+function BookmarkIcon() {
+  return (
+    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+    </svg>
+  );
+}
+
+function BellIcon() {
+  return (
+    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+    </svg>
+  );
+}
+
+function TargetIcon() {
+  return (
+    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  );
+}
+
+function IdCardIcon() {
+  return (
+    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M3 7a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7zm5 2h8m-8 4h4m-4 4h3m7-8a2 2 0 11-4 0 2 2 0 014 0zm1 8a3 3 0 00-6 0"
+      />
+    </svg>
+  );
+}
+
 const baseNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: HomeIcon },
+  { href: "/explore", label: "Explore", icon: ExploreIcon },
+  { href: "/clubs", label: "Clubs", icon: ClubIcon },
+  { href: "/squads", label: "Squads", icon: SquadsIcon },
   { href: "/team", label: "Team", icon: TeamIcon },
+  { href: "/players", label: "Players", icon: PlayersIcon },
   { href: "/messages", label: "Messages", icon: MessageIcon },
+  { href: "/notifications", label: "Notifications", icon: BellIcon },
   { href: "/upload", label: "Upload", icon: UploadIcon },
+  { href: "/saved", label: "Saved", icon: BookmarkIcon },
+  { href: "/shadow-batting", label: "Shadow Batting", icon: TargetIcon },
+  { href: "/player-card", label: "Player Card", icon: IdCardIcon },
   { href: "/progress", label: "Progress", icon: BarChartIcon },
   { href: "/profile", label: "Profile", icon: ProfileIcon },
 ];
@@ -89,7 +181,7 @@ export default function Sidebar() {
       <div className="flex h-16 items-center justify-center border-b border-[#1e2330] px-4">
         <Link href="/dashboard" className="flex items-center gap-3">
           <Image
-            src="/koda.png"
+            src="/koda.svg"
             alt="Koda Cricket logo"
             width={32}
             height={32}

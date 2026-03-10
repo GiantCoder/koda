@@ -7,6 +7,7 @@ interface TeamPlayerDto {
   id: string;
   displayName: string;
   email: string;
+  avatarUrl?: string | null;
   firstName?: string | null;
   lastName?: string | null;
   dateOfBirth?: string | null;
@@ -59,6 +60,7 @@ export async function GET(request: NextRequest) {
             email: true,
             firstName: true,
             lastName: true,
+            avatarUrl: true,
             dateOfBirth: true,
             clubOrSchool: true,
             primaryPosition: true,
@@ -78,6 +80,7 @@ export async function GET(request: NextRequest) {
         email: member.user.email,
         firstName: member.user.firstName,
         lastName: member.user.lastName,
+        avatarUrl: member.user.avatarUrl,
         dateOfBirth: member.user.dateOfBirth?.toISOString() ?? null,
         clubOrSchool: member.user.clubOrSchool,
         primaryPosition: member.user.primaryPosition,
@@ -103,6 +106,7 @@ export async function GET(request: NextRequest) {
             email: true,
             firstName: true,
             lastName: true,
+            avatarUrl: true,
             dateOfBirth: true,
             clubOrSchool: true,
             primaryPosition: true,
@@ -126,6 +130,7 @@ export async function GET(request: NextRequest) {
           email: link.child.email,
           firstName: link.child.firstName,
           lastName: link.child.lastName,
+          avatarUrl: link.child.avatarUrl,
           dateOfBirth: link.child.dateOfBirth?.toISOString() ?? null,
           clubOrSchool: link.child.clubOrSchool,
           primaryPosition: link.child.primaryPosition,

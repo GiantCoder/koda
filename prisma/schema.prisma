@@ -63,6 +63,42 @@ enum AgeGroup {
   SENIOR
 }
 
+enum NotificationType {
+  ANALYSIS_COMPLETE
+  NEW_MESSAGE
+  TEAM_INVITATION
+  ACHIEVEMENT_UNLOCKED
+  SESSION_REMINDER
+  CONSENT_REQUEST
+  SYSTEM_ALERT
+}
+
+enum CardTier {
+  BRONZE
+  SILVER
+  GOLD
+  ELITE
+}
+
+enum CardRole {
+  BAT
+  BWL
+  ALL
+  WKT
+}
+
+enum SportIcon {
+  BAT_ICON
+  BALL_ICON
+  GLOVES_ICON
+}
+
+enum BgMode {
+  DEFAULT
+  UPLOAD
+  AI
+}
+
 model User {
   id           String    @id @default(uuid())
   email        String    @unique
@@ -71,6 +107,7 @@ model User {
   displayName  String  @default("")
   firstName    String?
   lastName     String?
+  avatarUrl    String?
   role         Role      @default(PLAYER)
   dateOfBirth  DateTime?
   ageGroup     String?
@@ -95,9 +132,15 @@ model User {
   auditLogs          AuditLog[]
   squadMemberships   SquadMember[]
   coachSquads        Squad[]
+  coachClubs         Club[]
   sessions           Session[]      @relation("PlayerSessions")
   coachSessions      Session[]     @relation("CoachSessions")
   annotationsAuthored Annotation[] @relation("AnnotationAuthor")
+  collections        Collection[]
+  collectionsSharedWithMe CollectionShare[] @relation("CollectionSharesRecipient")
+  collectionSharesSent    CollectionShare[] @relation("CollectionSharesSender")
+  notifications      Notification[]
+  playerCard         PlayerCard?
 }
 
 model Video {
@@ -115,8 +158,9 @@ model Video {
   isDeleted       Boolean   @default(false)
   deletedAt       DateTime?
 
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  analysis Analysis?
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  analysis   Analysis?
+  savedClips SavedClip[]
 
   @@index([userId])
 }
@@ -296,6 +340,28 @@ model Squad {
   @@index([coachId])
 }
 
+model Club {
+  id            String   @id @default(uuid())
+  coachId       String
+  name          String
+  website       String
+  playCricketUrl String
+  playCricketId String
+  address       String
+  postcode      String
+  badgeFileName String?
+  bannerFileName String?
+  badgeImageUrl String?  @db.LongText
+  bannerImageUrl String? @db.LongText
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  coach User @relation(fields: [coachId], references: [id], onDelete: Cascade)
+
+  @@index([coachId])
+  @@unique([coachId, name])
+}
+
 model SquadMember {
   id       String   @id @default(uuid())
   squadId  String
@@ -331,4 +397,94 @@ model Session {
   @@index([coachId])
   @@index([squadId])
   @@index([scheduledAt])
+}
+
+model Collection {
+  id          String   @id @default(uuid())
+  userId      String
+  name        String
+  description String?  @db.Text
+  isPublic    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  savedClips SavedClip[]
+  shares     CollectionShare[]
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model CollectionShare {
+  id             String   @id @default(uuid())
+  collectionId   String
+  userId         String
+  sharedByUserId String
+  createdAt      DateTime @default(now())
+
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  user       User       @relation("CollectionSharesRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  sharedBy   User       @relation("CollectionSharesSender", fields: [sharedByUserId], references: [id], onDelete: Cascade)
+
+  @@unique([collectionId, userId])
+  @@index([collectionId])
+  @@index([userId])
+  @@index([sharedByUserId])
+}
+
+model SavedClip {
+  id           String   @id @default(uuid())
+  collectionId String
+  videoId      String
+  notes        String?  @db.Text
+  savedAt      DateTime @default(now())
+
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  video      Video      @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@unique([collectionId, videoId])
+  @@index([collectionId])
+  @@index([videoId])
+  @@index([savedAt])
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String           @db.Text
+  isRead    Boolean          @default(false)
+  actionUrl String?
+  metadata  Json?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+}
+
+model PlayerCard {
+  id              String    @id @default(uuid())
+  userId          String    @unique
+  displayName     String
+  tier            CardTier  @default(BRONZE)
+  role            CardRole  @default(BAT)
+  sportIcon       SportIcon @default(BAT_ICON)
+  statTec         Int       @default(50)
+  statPow         Int       @default(50)
+  statTim         Int       @default(50)
+  statCon         Int       @default(50)
+  statPac         Int       @default(50)
+  statFie         Int       @default(50)
+  profilePhotoUrl String?
+  backgroundUrl   String?
+  backgroundMode  BgMode    @default(DEFAULT)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

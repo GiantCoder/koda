@@ -200,7 +200,7 @@ export default function DashboardHeader() {
     <header className="sticky top-0 z-50 flex items-center justify-between border-b border-[var(--surface-secondary)] bg-[var(--surface)] px-6 py-4">
       <Link href="/" className="flex items-center gap-2">
         <Image
-          src="/koda.png"
+          src="/koda.svg"
           alt="Koda Cricket logo"
           width={32}
           height={32}
