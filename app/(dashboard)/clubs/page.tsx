@@ -10,12 +10,20 @@ import { Input } from "@/app/components/ui/Input";
 import { StatCard } from "@/app/components/dashboard/StatCard";
 import { LoadingSpinner } from "@/app/components/common/LoadingSpinner";
 import { EmptyState } from "@/app/components/common/EmptyState";
+import { Avatar } from "@/app/components/ui/Avatar";
 import type { ClubRecord } from "@/app/lib/club-data";
 
 type ViewMode = "card" | "table";
 
 const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
-const ACCEPTED_TYPES = ["image/png", "image/svg+xml"];
+const ACCEPTED_TYPES = ["image/png", "image/svg+xml", "image/jpeg", "image/jpg"];
+
+interface ClubPlayerRecord {
+  id: string;
+  displayName: string;
+  clubOrSchool?: string | null;
+  avatarUrl?: string | null;
+}
 
 function BuildingIcon() {
   return (
@@ -64,6 +72,19 @@ function GridIcon() {
   );
 }
 
+function TrashIcon() {
+  return (
+    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M19 7l-1 12a2 2 0 01-2 2H8a2 2 0 01-2-2L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3M4 7h16"
+      />
+    </svg>
+  );
+}
+
 interface ClubFormState {
   name: string;
   website: string;
@@ -88,7 +109,7 @@ const INITIAL_FORM: ClubFormState = {
 
 function validateImageFile(file: File): string | null {
   if (!ACCEPTED_TYPES.includes(file.type)) {
-    return "Only PNG or SVG files are supported.";
+    return "Only PNG, JPG/JPEG, or SVG files are supported.";
   }
   if (file.size > MAX_UPLOAD_BYTES) {
     return "File size must be 2MB or less.";
@@ -100,6 +121,7 @@ export default function ClubsPage() {
   const { user, role } = useMockAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [deletingClubId, setDeletingClubId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [clubs, setClubs] = useState<ClubRecord[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>("card");
@@ -107,6 +129,8 @@ export default function ClubsPage() {
   const [formState, setFormState] = useState<ClubFormState>(INITIAL_FORM);
   const [formError, setFormError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [clubPlayers, setClubPlayers] = useState<ClubPlayerRecord[]>([]);
+  const [deleteModalClub, setDeleteModalClub] = useState<ClubRecord | null>(null);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -136,6 +160,36 @@ export default function ClubsPage() {
       cancelled = true;
     };
   }, []);
+
+  React.useEffect(() => {
+    if (!user) {
+      setClubPlayers([]);
+      return;
+    }
+
+    let cancelled = false;
+    async function loadPlayers() {
+      try {
+        const response = await fetch("/api/team/players", {
+          headers: buildMockAuthHeaders(user),
+        });
+        if (!response.ok) {
+          return;
+        }
+        const data = (await response.json()) as { players?: ClubPlayerRecord[] };
+        if (cancelled) return;
+        setClubPlayers(Array.isArray(data.players) ? data.players : []);
+      } catch {
+        if (!cancelled) {
+          setClubPlayers([]);
+        }
+      }
+    }
+    void loadPlayers();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   const filteredClubs = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -169,6 +223,36 @@ export default function ClubsPage() {
       avgRating,
     };
   }, [filteredClubs]);
+
+  const playersByClub = useMemo(() => {
+    function normalize(value: string): string {
+      return value.trim().toLowerCase();
+    }
+
+    const grouped = new Map<string, ClubPlayerRecord[]>();
+    for (const club of clubs) {
+      grouped.set(club.id, []);
+    }
+
+    for (const player of clubPlayers) {
+      const playerClub = player.clubOrSchool?.trim();
+      if (!playerClub) continue;
+      const normalizedPlayerClub = normalize(playerClub);
+      const matchingClub = clubs.find((club) => {
+        const normalizedClubName = normalize(club.name);
+        return (
+          normalizedClubName === normalizedPlayerClub ||
+          normalizedClubName.includes(normalizedPlayerClub) ||
+          normalizedPlayerClub.includes(normalizedClubName)
+        );
+      });
+      if (!matchingClub) continue;
+      const existing = grouped.get(matchingClub.id) ?? [];
+      grouped.set(matchingClub.id, [...existing, player]);
+    }
+
+    return grouped;
+  }, [clubPlayers, clubs]);
 
   function setFormValue(key: keyof ClubFormState, value: string) {
     setFormState((current) => ({ ...current, [key]: value }));
@@ -226,6 +310,35 @@ export default function ClubsPage() {
       setFormError(error instanceof Error ? error.message : "Failed to create club");
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  function requestDeleteClub(club: ClubRecord) {
+    setDeleteModalClub(club);
+  }
+
+  async function confirmDeleteClub() {
+    if (!user || !deleteModalClub) return;
+    if (!user) return;
+    const clubId = deleteModalClub.id;
+
+    setDeletingClubId(clubId);
+    setErrorMessage(null);
+    try {
+      const response = await fetch(`/api/clubs?id=${encodeURIComponent(clubId)}`, {
+        method: "DELETE",
+        headers: buildMockAuthHeaders(user),
+      });
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        throw new Error(errorBody.error ?? "Failed to delete club");
+      }
+      setClubs((current) => current.filter((item) => item.id !== clubId));
+      setDeleteModalClub(null);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Failed to delete club");
+    } finally {
+      setDeletingClubId(null);
     }
   }
 
@@ -310,7 +423,25 @@ export default function ClubsPage() {
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <h3 className="text-lg font-semibold text-[var(--text-primary)]">{club.name}</h3>
+                      <div className="flex items-center gap-3">
+                        <Avatar
+                          name={club.name}
+                          src={club.badgeFileName ? `/avatars/${club.badgeFileName}` : null}
+                          size="md"
+                        />
+                        <h3 className="text-lg font-semibold text-[var(--text-primary)]">{club.name}</h3>
+                        {(role === "coach" || role === "admin") && (
+                          <button
+                            type="button"
+                            onClick={() => requestDeleteClub(club)}
+                            disabled={deletingClubId === club.id}
+                            className="ml-1 inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--danger)]/40 text-[var(--danger)] transition-all duration-200 hover:scale-105 hover:bg-[var(--danger)]/10 disabled:cursor-not-allowed disabled:opacity-50"
+                            aria-label={`Delete ${club.name}`}
+                          >
+                            <TrashIcon />
+                          </button>
+                        )}
+                      </div>
                       <p className="mt-1 text-sm text-[var(--text-secondary)]">{club.address}</p>
                       <p className="text-sm text-[var(--text-secondary)]">{club.postcode}</p>
                     </div>
@@ -347,6 +478,25 @@ export default function ClubsPage() {
                     </a>
                     <span className="text-[var(--text-secondary)]">ID: {club.playCricketId}</span>
                   </div>
+                  <div className="mt-4 border-t border-[var(--surface-secondary)] pt-3">
+                    <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-secondary)]">
+                      Coached Players
+                    </p>
+                    <div className="mt-2 flex items-center">
+                      {(playersByClub.get(club.id) ?? []).slice(0, 6).map((player, index) => (
+                        <Avatar
+                          key={player.id}
+                          name={player.displayName}
+                          src={player.avatarUrl}
+                          size="sm"
+                          className={index === 0 ? "" : "-ml-2 border-2 border-[var(--surface)]"}
+                        />
+                      ))}
+                      {(playersByClub.get(club.id) ?? []).length === 0 && (
+                        <span className="text-sm text-[var(--text-secondary)]">No coached players yet</span>
+                      )}
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
@@ -367,7 +517,16 @@ export default function ClubsPage() {
                 <tbody>
                   {filteredClubs.map((club) => (
                     <tr key={club.id} className="border-b border-[var(--surface-secondary)] last:border-0">
-                      <td className="py-3 text-sm text-[var(--text-primary)]">{club.name}</td>
+                      <td className="py-3 text-sm text-[var(--text-primary)]">
+                        <div className="flex items-center gap-2">
+                          <Avatar
+                            name={club.name}
+                            src={club.badgeFileName ? `/avatars/${club.badgeFileName}` : null}
+                            size="sm"
+                          />
+                          <span>{club.name}</span>
+                        </div>
+                      </td>
                       <td className="py-3 text-sm text-[var(--text-secondary)]">
                         {club.address}, {club.postcode}
                       </td>
@@ -376,9 +535,21 @@ export default function ClubsPage() {
                         {club.badgeFileName ?? "No badge"} / {club.bannerFileName ?? "No banner"}
                       </td>
                       <td className="py-3 text-right">
-                        <Link href={`/team?club=${encodeURIComponent(club.name)}`}>
-                          <Button variant="secondary">View Coached Players</Button>
-                        </Link>
+                        <div className="flex justify-end gap-2">
+                          <Link href={`/team?club=${encodeURIComponent(club.name)}`}>
+                            <Button variant="secondary">View Coached Players</Button>
+                          </Link>
+                          {(role === "coach" || role === "admin") && (
+                            <Button
+                              variant="secondary"
+                              className="border border-[var(--danger)]/40 text-[var(--danger)] hover:bg-[var(--danger)]/10"
+                              onClick={() => requestDeleteClub(club)}
+                              disabled={deletingClubId === club.id}
+                            >
+                              {deletingClubId === club.id ? "Deleting..." : "Delete"}
+                            </Button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -394,7 +565,7 @@ export default function ClubsPage() {
           <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-[var(--surface)] p-5">
             <h2 className="text-lg font-semibold text-[var(--text-primary)]">Add Club</h2>
             <p className="mt-1 text-sm text-[var(--text-secondary)]">
-              Uploads support PNG/SVG files up to 2MB.
+              Uploads support PNG, JPG/JPEG, and SVG files up to 2MB.
             </p>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <Input
@@ -445,7 +616,7 @@ export default function ClubsPage() {
                 <label className="block text-sm font-medium text-[var(--text-primary)]">Club badge</label>
                 <input
                   type="file"
-                  accept=".png,.svg,image/png,image/svg+xml"
+                  accept=".png,.jpg,.jpeg,.svg,image/png,image/jpeg,image/jpg,image/svg+xml"
                   onChange={(event) => onFileChange("badgeFileName", event.target.files?.[0] ?? null)}
                   className="block w-full text-sm text-[var(--text-secondary)] file:mr-3 file:rounded-md file:border-0 file:bg-[var(--surface-secondary)] file:px-3 file:py-2 file:text-[var(--text-primary)]"
                 />
@@ -455,7 +626,7 @@ export default function ClubsPage() {
                 <label className="block text-sm font-medium text-[var(--text-primary)]">Club banner image</label>
                 <input
                   type="file"
-                  accept=".png,.svg,image/png,image/svg+xml"
+                  accept=".png,.jpg,.jpeg,.svg,image/png,image/jpeg,image/jpg,image/svg+xml"
                   onChange={(event) => onFileChange("bannerFileName", event.target.files?.[0] ?? null)}
                   className="block w-full text-sm text-[var(--text-secondary)] file:mr-3 file:rounded-md file:border-0 file:bg-[var(--surface-secondary)] file:px-3 file:py-2 file:text-[var(--text-primary)]"
                 />
@@ -476,6 +647,35 @@ export default function ClubsPage() {
               </Button>
               <Button onClick={() => void submitClub()} disabled={isSaving}>
                 {isSaving ? "Saving..." : "Save Club"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteModalClub && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-xl bg-[var(--surface)] p-5">
+            <h2 className="text-lg font-semibold text-[var(--text-primary)]">Delete Club</h2>
+            <p className="mt-2 text-sm text-[var(--text-secondary)]">
+              Are you sure you want to delete <span className="font-semibold">{deleteModalClub.name}</span>? This
+              action cannot be undone.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <Button
+                variant="secondary"
+                onClick={() => setDeleteModalClub(null)}
+                disabled={deletingClubId === deleteModalClub.id}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="secondary"
+                className="border border-[var(--danger)]/40 text-[var(--danger)] hover:bg-[var(--danger)]/10"
+                onClick={() => void confirmDeleteClub()}
+                disabled={deletingClubId === deleteModalClub.id}
+              >
+                {deletingClubId === deleteModalClub.id ? "Deleting..." : "Delete Club"}
               </Button>
             </div>
           </div>

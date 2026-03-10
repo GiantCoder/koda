@@ -60,3 +60,26 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({ club: createdClub }, { status: 201 });
 }
+
+export async function DELETE(request: NextRequest) {
+  const authUser = await getAuthUser(request);
+  if (!authUser) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (authUser.role !== "COACH" && authUser.role !== "ADMIN") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const clubId = request.nextUrl.searchParams.get("id")?.trim();
+  if (!clubId) {
+    return NextResponse.json({ error: "Club id is required" }, { status: 400 });
+  }
+
+  const existingLength = clubStore.length;
+  clubStore = clubStore.filter((club) => club.id !== clubId);
+  if (clubStore.length === existingLength) {
+    return NextResponse.json({ error: "Club not found" }, { status: 404 });
+  }
+
+  return NextResponse.json({ success: true });
+}
