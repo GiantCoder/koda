@@ -47,6 +47,19 @@ function TeamIcon() {
   );
 }
 
+function PlayersIcon() {
+  return (
+    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M17 20h5V9H2v11h5m10 0v-2a4 4 0 00-4-4H11a4 4 0 00-4 4v2m10 0H7m8-11a3 3 0 11-6 0 3 3 0 016 0z"
+      />
+    </svg>
+  );
+}
+
 function ClubIcon() {
   return (
     <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -140,6 +153,7 @@ const baseNavItems = [
   { href: "/clubs", label: "Clubs", icon: ClubIcon },
   { href: "/squads", label: "Squads", icon: SquadsIcon },
   { href: "/team", label: "Team", icon: TeamIcon },
+  { href: "/players", label: "Players", icon: PlayersIcon },
   { href: "/messages", label: "Messages", icon: MessageIcon },
   { href: "/notifications", label: "Notifications", icon: BellIcon },
   { href: "/upload", label: "Upload", icon: UploadIcon },
@@ -167,7 +181,7 @@ export default function Sidebar() {
       <div className="flex h-16 items-center justify-center border-b border-[#1e2330] px-4">
         <Link href="/dashboard" className="flex items-center gap-3">
           <Image
-            src="/koda.png"
+            src="/koda.svg"
             alt="Koda Cricket logo"
             width={32}
             height={32}

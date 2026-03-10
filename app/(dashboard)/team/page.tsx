@@ -15,6 +15,7 @@ import { Select } from "@/app/components/ui/Select";
 import { Input } from "@/app/components/ui/Input";
 import { EmptyState } from "@/app/components/common/EmptyState";
 import { LoadingSpinner } from "@/app/components/common/LoadingSpinner";
+import { AvatarGalleryModal } from "@/app/components/avatar/AvatarGalleryModal";
 import { type MockPlayer, type PlayerStatus } from "@/app/lib/mock-roster";
 import type { PlayerCardDto, UpdatePlayerCardInput } from "@/types/player-card";
 
@@ -290,6 +291,7 @@ interface RosterPlayer extends MockPlayer {
   email: string;
   firstName: string;
   lastName: string;
+  avatarUrl: string;
   dateOfBirth: string;
   ageGroup: string;
   primaryPosition: string;
@@ -319,6 +321,14 @@ interface PlayCricketTeam {
   squadHint?: string;
 }
 
+interface TeamFormState {
+  name: string;
+  clubName: string;
+  squadHint: string;
+}
+const STORAGE_FULL_MESSAGE =
+  "Image uploads are temporarily unavailable because local storage is full. Please contact support or try again after cleanup.";
+
 const AGE_GROUP_OPTIONS = [
   { value: "UNDER_10", label: "Under 10" },
   { value: "UNDER_12", label: "Under 12" },
@@ -338,6 +348,19 @@ export default function CoachRosterPage() {
   const [squadFilter, setSquadFilter] = useState("all");
   const [teamFilter, setTeamFilter] = useState("all");
   const [teamSearchQuery, setTeamSearchQuery] = useState("");
+  const [isCreateTeamModalOpen, setIsCreateTeamModalOpen] = useState(false);
+  const [isCreatingTeam, setIsCreatingTeam] = useState(false);
+  const [teamFormError, setTeamFormError] = useState<string | null>(null);
+  const [teamFormState, setTeamFormState] = useState<TeamFormState>({
+    name: "",
+    clubName: "",
+    squadHint: "",
+  });
+  const [assignPlayerSearch, setAssignPlayerSearch] = useState("");
+  const [assignSquadSearch, setAssignSquadSearch] = useState("");
+  const [assignPlayerId, setAssignPlayerId] = useState("");
+  const [assignSquadId, setAssignSquadId] = useState("");
+  const [isAssigningPlayer, setIsAssigningPlayer] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [teamPlayers, setTeamPlayers] = useState<RosterPlayer[]>([]);
   const [squadSummaries, setSquadSummaries] = useState<SquadSummary[]>([]);
@@ -364,6 +387,7 @@ export default function CoachRosterPage() {
     displayName: "",
     firstName: "",
     lastName: "",
+    avatarUrl: "",
     dateOfBirth: "",
     ageGroup: "",
     primaryPosition: "",
@@ -372,6 +396,8 @@ export default function CoachRosterPage() {
     clubOrSchool: "",
     profileVisibility: "",
   });
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [isAvatarGalleryOpen, setIsAvatarGalleryOpen] = useState(false);
   const [playerCardEntries, setPlayerCardEntries] = useState<TeamPlayerCardEntry[]>([]);
   const [cardsLoading, setCardsLoading] = useState(false);
   const [cardsError, setCardsError] = useState<string | null>(null);
@@ -382,6 +408,8 @@ export default function CoachRosterPage() {
   const [cardSaving, setCardSaving] = useState(false);
   const [cardGeneratingBg, setCardGeneratingBg] = useState(false);
   const [cardModalError, setCardModalError] = useState<string | null>(null);
+  const isCardStorageFullError =
+    cardModalError?.toLowerCase().includes("storage is full") ?? false;
 
   const mapApiPlayers = useCallback((rawPlayers: unknown[]): RosterPlayer[] => {
     return rawPlayers
@@ -394,6 +422,7 @@ export default function CoachRosterPage() {
           email?: string;
           firstName?: string | null;
           lastName?: string | null;
+          avatarUrl?: string | null;
           dateOfBirth?: string | null;
           ageGroup?: string | null;
           primaryPosition?: string | null;
@@ -426,6 +455,7 @@ export default function CoachRosterPage() {
           email: player.email ?? "",
           firstName: player.firstName ?? "",
           lastName: player.lastName ?? "",
+          avatarUrl: player.avatarUrl ?? "",
           dateOfBirth: player.dateOfBirth ? String(player.dateOfBirth).slice(0, 10) : "",
           ageGroup: player.ageGroup ?? "",
           primaryPosition: player.primaryPosition ?? "",
@@ -577,6 +607,24 @@ export default function CoachRosterPage() {
     [filteredPlayCricketTeams]
   );
 
+  const filteredAssignablePlayers = useMemo(() => {
+    const query = assignPlayerSearch.trim().toLowerCase();
+    if (!query) return teamPlayers;
+    return teamPlayers.filter((player) =>
+      [player.name, player.primaryPosition, player.clubOrSchool].some((value) =>
+        value.toLowerCase().includes(query)
+      )
+    );
+  }, [assignPlayerSearch, teamPlayers]);
+
+  const filteredAssignableSquads = useMemo(() => {
+    const query = assignSquadSearch.trim().toLowerCase();
+    if (!query) return squadSummaries;
+    return squadSummaries.filter((squad) =>
+      [squad.name, squad.clubName ?? ""].some((value) => value.toLowerCase().includes(query))
+    );
+  }, [assignSquadSearch, squadSummaries]);
+
   const filteredPlayers = useMemo(() => {
     const squadClubMap = new Map(
       squadSummaries
@@ -687,6 +735,74 @@ export default function CoachRosterPage() {
     setIsAddModalOpen(true);
   }, []);
 
+  const handleCreateTeam = useCallback(async () => {
+    if (!user) return;
+    if (!teamFormState.name.trim() || !teamFormState.clubName.trim()) {
+      setTeamFormError("Team name and club are required.");
+      return;
+    }
+
+    setIsCreatingTeam(true);
+    setTeamFormError(null);
+    try {
+      const response = await fetch("/api/play-cricket/teams", {
+        method: "POST",
+        headers: {
+          ...buildMockAuthHeaders(user),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: teamFormState.name.trim(),
+          clubName: teamFormState.clubName.trim(),
+          squadHint: teamFormState.squadHint.trim() || undefined,
+        }),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error ?? "Failed to create team");
+      }
+      const data = await response.json();
+      const created = data.team as PlayCricketTeam | undefined;
+      if (created) {
+        setPlayCricketTeams((current) => [created, ...current]);
+        setTeamFilter(created.id);
+      }
+      setTeamFormState({ name: "", clubName: "", squadHint: "" });
+      setIsCreateTeamModalOpen(false);
+    } catch (error) {
+      setTeamFormError(error instanceof Error ? error.message : "Failed to create team");
+    } finally {
+      setIsCreatingTeam(false);
+    }
+  }, [teamFormState, user]);
+
+  const handleAssignExistingPlayer = useCallback(async () => {
+    if (!user || !assignPlayerId || !assignSquadId) return;
+    setIsAssigningPlayer(true);
+    setModalError(null);
+    try {
+      const response = await fetch(`/api/squads/${assignSquadId}/members`, {
+        method: "POST",
+        headers: {
+          ...buildMockAuthHeaders(user),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ userId: assignPlayerId }),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error ?? "Failed to assign player");
+      }
+      setAssignPlayerId("");
+      setAssignSquadId("");
+      await refreshRoster();
+    } catch (error) {
+      setModalError(error instanceof Error ? error.message : "Failed to assign player");
+    } finally {
+      setIsAssigningPlayer(false);
+    }
+  }, [assignPlayerId, assignSquadId, refreshRoster, user]);
+
   const openCardEditorForPlayer = useCallback(
     async (playerId: string) => {
       if (!user) return;
@@ -720,6 +836,7 @@ export default function CoachRosterPage() {
       displayName: rosterPlayer.name,
       firstName: rosterPlayer.firstName,
       lastName: rosterPlayer.lastName,
+      avatarUrl: rosterPlayer.avatarUrl || "",
       dateOfBirth: rosterPlayer.dateOfBirth,
       ageGroup: rosterPlayer.ageGroup,
       primaryPosition: rosterPlayer.primaryPosition,
@@ -832,6 +949,7 @@ export default function CoachRosterPage() {
         displayName: editPlayerForm.displayName.trim(),
         firstName: editPlayerForm.firstName.trim() || null,
         lastName: editPlayerForm.lastName.trim() || null,
+        avatarUrl: editPlayerForm.avatarUrl || null,
         dateOfBirth: editPlayerForm.dateOfBirth || null,
         ageGroup: editPlayerForm.ageGroup || null,
         primaryPosition: editPlayerForm.primaryPosition.trim() || null,
@@ -851,6 +969,11 @@ export default function CoachRosterPage() {
     setIsModalSubmitting(false);
     setIsEditModalOpen(false);
   }, [editPlayerForm, refreshRoster, selectedPlayer, user]);
+
+  const handleAvatarSelect = useCallback((avatarUrl: string) => {
+    setEditPlayerForm((current) => ({ ...current, avatarUrl }));
+    setIsAvatarGalleryOpen(false);
+  }, []);
 
   const submitRemovePlayer = useCallback(async () => {
     if (!user || !selectedPlayer) return;
@@ -884,6 +1007,9 @@ export default function CoachRosterPage() {
       });
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
+        if (response.status === 507) {
+          throw new Error(STORAGE_FULL_MESSAGE);
+        }
         throw new Error((body as { error?: string }).error ?? "Image upload failed");
       }
       const payload = (await response.json()) as { url?: string };
@@ -1032,9 +1158,18 @@ export default function CoachRosterPage() {
           <Link href="/squads">
             <Button variant="secondary">Add Squad</Button>
           </Link>
-          <a href="https://play-cricket.com" target="_blank" rel="noreferrer">
-            <Button variant="secondary">Add Team</Button>
-          </a>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setIsCreateTeamModalOpen(true);
+              setTeamFormError(null);
+            }}
+          >
+            Add Team
+          </Button>
+          <Link href="/players">
+            <Button variant="secondary">Players Module</Button>
+          </Link>
           {(role === "coach" || role === "admin") && (
             <Button onClick={handleAddPlayer} className="shrink-0">
               <PlusIcon />
@@ -1042,6 +1177,53 @@ export default function CoachRosterPage() {
             </Button>
           )}
         </div>
+        <Card>
+          <CardHeader>Assign Existing Player</CardHeader>
+          <CardContent>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+              <Input
+                placeholder="Search player..."
+                value={assignPlayerSearch}
+                onChange={(event) => setAssignPlayerSearch(event.target.value)}
+              />
+              <select
+                value={assignPlayerId}
+                onChange={(event) => setAssignPlayerId(event.target.value)}
+                className="rounded-md border border-[var(--surface-secondary)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
+              >
+                <option value="">Select player...</option>
+                {filteredAssignablePlayers.map((player) => (
+                  <option key={player.id} value={player.id}>
+                    {player.name}
+                  </option>
+                ))}
+              </select>
+              <Input
+                placeholder="Search squad..."
+                value={assignSquadSearch}
+                onChange={(event) => setAssignSquadSearch(event.target.value)}
+              />
+              <select
+                value={assignSquadId}
+                onChange={(event) => setAssignSquadId(event.target.value)}
+                className="rounded-md border border-[var(--surface-secondary)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
+              >
+                <option value="">Select squad...</option>
+                {filteredAssignableSquads.map((squad) => (
+                  <option key={squad.id} value={squad.id}>
+                    {squad.name}
+                  </option>
+                ))}
+              </select>
+              <Button
+                onClick={() => void handleAssignExistingPlayer()}
+                disabled={!assignPlayerId || !assignSquadId || isAssigningPlayer}
+              >
+                {isAssigningPlayer ? "Assigning..." : "Assign Player"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Key metrics */}
@@ -1372,7 +1554,13 @@ export default function CoachRosterPage() {
             </div>
 
             {cardModalError ? (
-              <p className="mb-3 rounded-md border border-[var(--danger)]/30 bg-[var(--danger)]/10 p-2 text-sm text-[var(--danger)]">
+              <p
+                className={`mb-3 rounded-md p-2 text-sm ${
+                  isCardStorageFullError
+                    ? "border border-amber-400/35 bg-amber-400/10 text-amber-300"
+                    : "border border-[var(--danger)]/30 bg-[var(--danger)]/10 text-[var(--danger)]"
+                }`}
+              >
                 {cardModalError}
               </p>
             ) : null}
@@ -1586,6 +1774,53 @@ export default function CoachRosterPage() {
         </div>
       )}
 
+      {isCreateTeamModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-lg rounded-xl bg-[var(--surface)] p-5">
+            <h3 className="text-lg font-semibold text-[var(--text-primary)]">Add Team</h3>
+            <p className="mt-1 text-sm text-[var(--text-secondary)]">
+              Create a new team in-app. Play-Cricket sync can be added later.
+            </p>
+            <div className="mt-4 space-y-3">
+              <Input
+                label="Team name"
+                value={teamFormState.name}
+                onChange={(event) =>
+                  setTeamFormState((current) => ({ ...current, name: event.target.value }))
+                }
+              />
+              <Input
+                label="Club"
+                value={teamFormState.clubName}
+                onChange={(event) =>
+                  setTeamFormState((current) => ({ ...current, clubName: event.target.value }))
+                }
+              />
+              <Input
+                label="Squad hint (optional)"
+                value={teamFormState.squadHint}
+                onChange={(event) =>
+                  setTeamFormState((current) => ({ ...current, squadHint: event.target.value }))
+                }
+              />
+              {teamFormError && <p className="text-sm text-[var(--danger)]">{teamFormError}</p>}
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <Button
+                variant="secondary"
+                onClick={() => setIsCreateTeamModalOpen(false)}
+                disabled={isCreatingTeam}
+              >
+                Cancel
+              </Button>
+              <Button onClick={() => void handleCreateTeam()} disabled={isCreatingTeam}>
+                {isCreatingTeam ? "Creating..." : "Create Team"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {isEditModalOpen && selectedPlayer && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-[var(--surface)] p-5">
@@ -1593,6 +1828,52 @@ export default function CoachRosterPage() {
             <p className="mt-1 text-sm text-[var(--text-secondary)]">
               Update technical and profile details for {selectedPlayer.name}.
             </p>
+            
+            {/* Avatar Upload Section */}
+            <div className="mt-4 flex items-center gap-4 rounded-lg border border-[var(--border)] bg-[var(--surface-secondary)] p-4">
+              <div className="flex-shrink-0">
+                {editPlayerForm.avatarUrl ? (
+                  <img
+                    src={editPlayerForm.avatarUrl}
+                    alt="Player avatar"
+                    className="h-20 w-20 rounded-full object-cover ring-2 ring-[var(--border)]"
+                  />
+                ) : (
+                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[var(--surface)] text-2xl font-semibold text-[var(--text-secondary)] ring-2 ring-[var(--border)]">
+                    {selectedPlayer.avatarInitials}
+                  </div>
+                )}
+              </div>
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-[var(--text-primary)]">
+                  Player Avatar
+                </label>
+                <p className="mt-1 text-xs text-[var(--text-secondary)]">
+                  Choose from gallery or upload a custom photo
+                </p>
+                <div className="mt-2 flex gap-2">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => setIsAvatarGalleryOpen(true)}
+                    disabled={isModalSubmitting}
+                  >
+                    Select Avatar
+                  </Button>
+                  {editPlayerForm.avatarUrl && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setEditPlayerForm((current) => ({ ...current, avatarUrl: "" }))}
+                      disabled={isModalSubmitting}
+                    >
+                      Remove
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <Input
                 label="Display name"
@@ -1720,6 +2001,14 @@ export default function CoachRosterPage() {
           </div>
         </div>
       )}
+
+      {/* Avatar Gallery Modal */}
+      <AvatarGalleryModal
+        isOpen={isAvatarGalleryOpen}
+        onClose={() => setIsAvatarGalleryOpen(false)}
+        onSelect={handleAvatarSelect}
+        currentAvatarUrl={editPlayerForm.avatarUrl}
+      />
     </div>
   );
 }

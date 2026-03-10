@@ -29,6 +29,11 @@ interface SquadRecord {
   members: SquadMember[];
 }
 
+interface AvailablePlayer {
+  id: string;
+  displayName: string;
+}
+
 type ViewMode = "card" | "table";
 
 const AGE_GROUP_OPTIONS = [
@@ -95,6 +100,7 @@ export default function SquadsPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [squads, setSquads] = useState<SquadRecord[]>([]);
+  const [availablePlayers, setAvailablePlayers] = useState<AvailablePlayer[]>([]);
   const [clubs, setClubs] = useState<ClubRecord[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>("card");
   const [searchQuery, setSearchQuery] = useState("");
@@ -103,6 +109,10 @@ export default function SquadsPage() {
   const [clubName, setClubName] = useState("");
   const [movePlayerBySquad, setMovePlayerBySquad] = useState<Record<string, string>>({});
   const [moveTargetBySquad, setMoveTargetBySquad] = useState<Record<string, string>>({});
+  const [addPlayerBySquad, setAddPlayerBySquad] = useState<Record<string, string>>({});
+  const [addPlayerSearchBySquad, setAddPlayerSearchBySquad] = useState<Record<string, string>>({});
+  const [movePlayerSearchBySquad, setMovePlayerSearchBySquad] = useState<Record<string, string>>({});
+  const [moveTargetSearchBySquad, setMoveTargetSearchBySquad] = useState<Record<string, string>>({});
   const [deleteModalSquad, setDeleteModalSquad] = useState<SquadRecord | null>(null);
 
   const loadData = React.useCallback(async () => {
@@ -110,17 +120,29 @@ export default function SquadsPage() {
     setIsLoading(true);
     setErrorMessage(null);
     try {
-      const [squadsResponse, clubsResponse] = await Promise.all([
+      const [squadsResponse, clubsResponse, playersResponse] = await Promise.all([
         fetch("/api/squads", { headers: buildMockAuthHeaders(user) }),
-        fetch("/api/clubs"),
+        fetch("/api/clubs", { headers: buildMockAuthHeaders(user) }),
+        fetch("/api/team/players", { headers: buildMockAuthHeaders(user) }),
       ]);
-      if (!squadsResponse.ok || !clubsResponse.ok) {
+      if (!squadsResponse.ok || !clubsResponse.ok || !playersResponse.ok) {
         throw new Error("Failed to load squads");
       }
       const squadsData = await squadsResponse.json();
       const clubsData = await clubsResponse.json();
+      const playersData = await playersResponse.json();
       setSquads(Array.isArray(squadsData.squads) ? squadsData.squads : []);
       setClubs(Array.isArray(clubsData.clubs) ? clubsData.clubs : []);
+      setAvailablePlayers(
+        Array.isArray(playersData.players)
+          ? playersData.players
+              .filter(
+                (player: unknown): player is { id: string; displayName: string } =>
+                  Boolean(player && typeof player === "object" && "id" in player && "displayName" in player)
+              )
+              .map((player) => ({ id: player.id, displayName: player.displayName }))
+          : []
+      );
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to load squads");
     } finally {
@@ -227,6 +249,36 @@ export default function SquadsPage() {
       setMoveTargetBySquad((current) => ({ ...current, [fromSquadId]: "" }));
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to move player");
+    } finally {
+      setIsMovingPlayer(false);
+    }
+  }
+
+  async function addPlayerToSquad(squadId: string) {
+    if (!user) return;
+    const playerId = addPlayerBySquad[squadId];
+    if (!playerId) return;
+
+    setIsMovingPlayer(true);
+    setErrorMessage(null);
+    try {
+      const response = await fetch(`/api/squads/${squadId}/members`, {
+        method: "POST",
+        headers: {
+          ...buildMockAuthHeaders(user),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ userId: playerId }),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error ?? "Failed to add player to squad");
+      }
+      await loadData();
+      setAddPlayerBySquad((current) => ({ ...current, [squadId]: "" }));
+      setAddPlayerSearchBySquad((current) => ({ ...current, [squadId]: "" }));
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Failed to add player to squad");
     } finally {
       setIsMovingPlayer(false);
     }
@@ -414,6 +466,51 @@ export default function SquadsPage() {
                       )}
                     </div>
                     <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      <Input
+                        placeholder="Search available player..."
+                        value={addPlayerSearchBySquad[squad.id] ?? ""}
+                        onChange={(event) =>
+                          setAddPlayerSearchBySquad((current) => ({ ...current, [squad.id]: event.target.value }))
+                        }
+                      />
+                      <div className="flex gap-2">
+                        <select
+                          value={addPlayerBySquad[squad.id] ?? ""}
+                          onChange={(event) =>
+                            setAddPlayerBySquad((current) => ({ ...current, [squad.id]: event.target.value }))
+                          }
+                          className="flex-1 rounded-md border border-[var(--surface-secondary)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                        >
+                          <option value="">Available player...</option>
+                          {availablePlayers
+                            .filter((player) => {
+                              const query = (addPlayerSearchBySquad[squad.id] ?? "").trim().toLowerCase();
+                              const notInSquad = !squad.members.some((member) => member.id === player.id);
+                              if (!notInSquad) return false;
+                              if (!query) return true;
+                              return player.displayName.toLowerCase().includes(query);
+                            })
+                            .map((player) => (
+                              <option key={player.id} value={player.id}>
+                                {player.displayName}
+                              </option>
+                            ))}
+                        </select>
+                        <Button
+                          variant="secondary"
+                          onClick={() => void addPlayerToSquad(squad.id)}
+                          disabled={isMovingPlayer || !addPlayerBySquad[squad.id]}
+                        >
+                          Add
+                        </Button>
+                      </div>
+                      <Input
+                        placeholder="Search squad player..."
+                        value={movePlayerSearchBySquad[squad.id] ?? ""}
+                        onChange={(event) =>
+                          setMovePlayerSearchBySquad((current) => ({ ...current, [squad.id]: event.target.value }))
+                        }
+                      />
                       <select
                         value={movePlayerBySquad[squad.id] ?? ""}
                         onChange={(event) =>
@@ -422,13 +519,26 @@ export default function SquadsPage() {
                         className="rounded-md border border-[var(--surface-secondary)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
                       >
                         <option value="">Player in squad...</option>
-                        {squad.members.map((member) => (
-                          <option key={member.id} value={member.id}>
-                            {member.displayName}
-                          </option>
-                        ))}
+                        {squad.members
+                          .filter((member) => {
+                            const query = (movePlayerSearchBySquad[squad.id] ?? "").trim().toLowerCase();
+                            if (!query) return true;
+                            return member.displayName.toLowerCase().includes(query);
+                          })
+                          .map((member) => (
+                            <option key={member.id} value={member.id}>
+                              {member.displayName}
+                            </option>
+                          ))}
                       </select>
                       <div className="flex gap-2">
+                        <Input
+                          placeholder="Search target squad..."
+                          value={moveTargetSearchBySquad[squad.id] ?? ""}
+                          onChange={(event) =>
+                            setMoveTargetSearchBySquad((current) => ({ ...current, [squad.id]: event.target.value }))
+                          }
+                        />
                         <select
                           value={moveTargetBySquad[squad.id] ?? ""}
                           onChange={(event) =>
@@ -439,6 +549,11 @@ export default function SquadsPage() {
                           <option value="">Move to squad...</option>
                           {filteredSquads
                             .filter((candidate) => candidate.id !== squad.id)
+                            .filter((candidate) => {
+                              const query = (moveTargetSearchBySquad[squad.id] ?? "").trim().toLowerCase();
+                              if (!query) return true;
+                              return candidate.name.toLowerCase().includes(query);
+                            })
                             .map((candidate) => (
                               <option key={candidate.id} value={candidate.id}>
                                 {candidate.name}
@@ -500,6 +615,55 @@ export default function SquadsPage() {
                       <td className="py-3 text-sm text-[var(--text-secondary)]">{getSquadAverageRating(squad)}</td>
                       <td className="py-3">
                         <div className="flex justify-end gap-2">
+                          <Input
+                            placeholder="Search available..."
+                            value={addPlayerSearchBySquad[squad.id] ?? ""}
+                            onChange={(event) =>
+                              setAddPlayerSearchBySquad((current) => ({ ...current, [squad.id]: event.target.value }))
+                            }
+                          />
+                          <select
+                            value={addPlayerBySquad[squad.id] ?? ""}
+                            onChange={(event) =>
+                              setAddPlayerBySquad((current) => ({
+                                ...current,
+                                [squad.id]: event.target.value,
+                              }))
+                            }
+                            className="min-w-[220px] rounded-md border border-[var(--surface-secondary)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                          >
+                            <option value="">Available player...</option>
+                            {availablePlayers
+                              .filter((player) => {
+                                const query = (addPlayerSearchBySquad[squad.id] ?? "").trim().toLowerCase();
+                                const notInSquad = !squad.members.some((member) => member.id === player.id);
+                                if (!notInSquad) return false;
+                                if (!query) return true;
+                                return player.displayName.toLowerCase().includes(query);
+                              })
+                              .map((player) => (
+                                <option key={player.id} value={player.id}>
+                                  {player.displayName}
+                                </option>
+                              ))}
+                          </select>
+                          <Button
+                            variant="secondary"
+                            onClick={() => void addPlayerToSquad(squad.id)}
+                            disabled={isMovingPlayer || !addPlayerBySquad[squad.id]}
+                          >
+                            Add
+                          </Button>
+                          <Input
+                            placeholder="Search squad player..."
+                            value={movePlayerSearchBySquad[squad.id] ?? ""}
+                            onChange={(event) =>
+                              setMovePlayerSearchBySquad((current) => ({
+                                ...current,
+                                [squad.id]: event.target.value,
+                              }))
+                            }
+                          />
                           <select
                             value={movePlayerBySquad[squad.id] ?? ""}
                             onChange={(event) =>
@@ -511,12 +675,28 @@ export default function SquadsPage() {
                             className="min-w-[220px] rounded-md border border-[var(--surface-secondary)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
                           >
                             <option value="">Player in squad...</option>
-                            {squad.members.map((player) => (
-                              <option key={player.id} value={player.id}>
-                                {player.displayName}
-                              </option>
-                            ))}
+                            {squad.members
+                              .filter((player) => {
+                                const query = (movePlayerSearchBySquad[squad.id] ?? "").trim().toLowerCase();
+                                if (!query) return true;
+                                return player.displayName.toLowerCase().includes(query);
+                              })
+                              .map((player) => (
+                                <option key={player.id} value={player.id}>
+                                  {player.displayName}
+                                </option>
+                              ))}
                           </select>
+                          <Input
+                            placeholder="Search target squad..."
+                            value={moveTargetSearchBySquad[squad.id] ?? ""}
+                            onChange={(event) =>
+                              setMoveTargetSearchBySquad((current) => ({
+                                ...current,
+                                [squad.id]: event.target.value,
+                              }))
+                            }
+                          />
                           <select
                             value={moveTargetBySquad[squad.id] ?? ""}
                             onChange={(event) =>
@@ -530,6 +710,11 @@ export default function SquadsPage() {
                             <option value="">Move to squad...</option>
                             {filteredSquads
                               .filter((candidate) => candidate.id !== squad.id)
+                              .filter((candidate) => {
+                                const query = (moveTargetSearchBySquad[squad.id] ?? "").trim().toLowerCase();
+                                if (!query) return true;
+                                return candidate.name.toLowerCase().includes(query);
+                              })
                               .map((candidate) => (
                                 <option key={candidate.id} value={candidate.id}>
                                   {candidate.name}
