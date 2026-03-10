@@ -6,10 +6,12 @@ RUN npm ci
 
 FROM base AS development
 COPY . .
+RUN npx prisma generate
 EXPOSE 3000 3001
 
 FROM base AS builder
 COPY . .
+RUN npx prisma generate
 RUN npm run build
 
 FROM node:22-alpine AS production
