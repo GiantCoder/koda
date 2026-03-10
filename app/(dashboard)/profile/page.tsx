@@ -79,12 +79,38 @@ export default function ProfilePage() {
   const [isAvatarGalleryOpen, setIsAvatarGalleryOpen] = useState(false);
   const [playerCard, setPlayerCard] = useState<PlayerCardDto | null>(null);
   const [cardLoading, setCardLoading] = useState(true);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [profileError, setProfileError] = useState("");
+  const [profileSuccess, setProfileSuccess] = useState("");
+  const [profileFields, setProfileFields] = useState({
+    displayName: "",
+    firstName: "",
+    lastName: "",
+    clubOrSchool: "",
+    primaryPosition: "",
+    battingStyle: "",
+    bowlingStyle: "",
+  });
 
   const displayName = user
-    ? `${user.firstName} ${user.lastName}`
+    ? `${profileFields.firstName || user.firstName} ${profileFields.lastName || user.lastName}`
     : "User";
   const role = user?.role ?? "coach";
   const joinedAt = user?.joinedAt ?? "—";
+
+  useEffect(() => {
+    if (!user) return;
+    setProfileFields({
+      displayName: user.displayName ?? "",
+      firstName: user.firstName ?? "",
+      lastName: user.lastName ?? "",
+      clubOrSchool: "",
+      primaryPosition: "",
+      battingStyle: "",
+      bowlingStyle: "",
+    });
+  }, [user]);
 
   useEffect(() => {
     let isMounted = true;
@@ -112,6 +138,73 @@ export default function ProfilePage() {
       isMounted = false;
     };
   }, [user]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchProfile = async () => {
+      if (!user) return;
+      try {
+        const response = await fetch("/api/users/me", {
+          headers: buildMockAuthHeaders(user),
+        });
+        if (!response.ok) return;
+        const profileData = (await response.json()) as Partial<typeof profileFields>;
+        if (!isMounted) return;
+        setProfileFields((previous) => ({
+          ...previous,
+          displayName: profileData.displayName ?? previous.displayName,
+          firstName: profileData.firstName ?? previous.firstName,
+          lastName: profileData.lastName ?? previous.lastName,
+          clubOrSchool: profileData.clubOrSchool ?? "",
+          primaryPosition: profileData.primaryPosition ?? "",
+          battingStyle: profileData.battingStyle ?? "",
+          bowlingStyle: profileData.bowlingStyle ?? "",
+        }));
+      } catch {
+        // keep fallback profile fields
+      }
+    };
+
+    void fetchProfile();
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
+
+  const updateProfileField = (field: keyof typeof profileFields, value: string) => {
+    setProfileFields((previous) => ({ ...previous, [field]: value }));
+  };
+
+  const handleSaveProfile = async () => {
+    if (!user) return;
+    setIsSavingProfile(true);
+    setProfileError("");
+    setProfileSuccess("");
+    try {
+      const response = await fetch("/api/users/me", {
+        method: "PUT",
+        headers: {
+          ...buildMockAuthHeaders(user),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(profileFields),
+      });
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        throw new Error(payload.error ?? "Failed to update profile.");
+      }
+      setProfileSuccess("Profile updated successfully.");
+      setIsEditingProfile(false);
+    } catch (error) {
+      setProfileError(
+        error instanceof Error ? error.message : "Failed to update profile."
+      );
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -223,19 +316,101 @@ export default function ProfilePage() {
               <button
                 type="button"
                 className="text-sm font-medium text-[var(--primary)] hover:underline"
+                onClick={() => {
+                  setIsEditingProfile((previous) => !previous);
+                  setProfileError("");
+                  setProfileSuccess("");
+                }}
               >
-                Edit
+                {isEditingProfile ? "Cancel" : "Edit"}
               </button>
             </div>
             <CardContent>
-              <p className="text-[var(--text-secondary)]">
-                For full profile editing and settings, visit the Settings page.
-              </p>
-              <Link href="/settings">
-                <Button variant="secondary" className="mt-4">
-                  Go to Settings
-                </Button>
-              </Link>
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="text-sm">
+                  <span className="mb-1 block text-[var(--text-secondary)]">Display Name</span>
+                  <input
+                    value={profileFields.displayName}
+                    onChange={(event) => updateProfileField("displayName", event.target.value)}
+                    disabled={!isEditingProfile}
+                    className="w-full rounded-md border border-[var(--surface-secondary)] bg-[var(--surface)] px-3 py-2 text-[var(--text-primary)] disabled:opacity-70"
+                  />
+                </label>
+                <label className="text-sm">
+                  <span className="mb-1 block text-[var(--text-secondary)]">Club / School</span>
+                  <input
+                    value={profileFields.clubOrSchool}
+                    onChange={(event) => updateProfileField("clubOrSchool", event.target.value)}
+                    disabled={!isEditingProfile}
+                    className="w-full rounded-md border border-[var(--surface-secondary)] bg-[var(--surface)] px-3 py-2 text-[var(--text-primary)] disabled:opacity-70"
+                  />
+                </label>
+                <label className="text-sm">
+                  <span className="mb-1 block text-[var(--text-secondary)]">First Name</span>
+                  <input
+                    value={profileFields.firstName}
+                    onChange={(event) => updateProfileField("firstName", event.target.value)}
+                    disabled={!isEditingProfile}
+                    className="w-full rounded-md border border-[var(--surface-secondary)] bg-[var(--surface)] px-3 py-2 text-[var(--text-primary)] disabled:opacity-70"
+                  />
+                </label>
+                <label className="text-sm">
+                  <span className="mb-1 block text-[var(--text-secondary)]">Last Name</span>
+                  <input
+                    value={profileFields.lastName}
+                    onChange={(event) => updateProfileField("lastName", event.target.value)}
+                    disabled={!isEditingProfile}
+                    className="w-full rounded-md border border-[var(--surface-secondary)] bg-[var(--surface)] px-3 py-2 text-[var(--text-primary)] disabled:opacity-70"
+                  />
+                </label>
+                <label className="text-sm">
+                  <span className="mb-1 block text-[var(--text-secondary)]">Primary Position</span>
+                  <input
+                    value={profileFields.primaryPosition}
+                    onChange={(event) =>
+                      updateProfileField("primaryPosition", event.target.value)
+                    }
+                    disabled={!isEditingProfile}
+                    className="w-full rounded-md border border-[var(--surface-secondary)] bg-[var(--surface)] px-3 py-2 text-[var(--text-primary)] disabled:opacity-70"
+                  />
+                </label>
+                <label className="text-sm">
+                  <span className="mb-1 block text-[var(--text-secondary)]">Batting Style</span>
+                  <input
+                    value={profileFields.battingStyle}
+                    onChange={(event) => updateProfileField("battingStyle", event.target.value)}
+                    disabled={!isEditingProfile}
+                    className="w-full rounded-md border border-[var(--surface-secondary)] bg-[var(--surface)] px-3 py-2 text-[var(--text-primary)] disabled:opacity-70"
+                  />
+                </label>
+                <label className="text-sm md:col-span-2">
+                  <span className="mb-1 block text-[var(--text-secondary)]">Bowling Style</span>
+                  <input
+                    value={profileFields.bowlingStyle}
+                    onChange={(event) => updateProfileField("bowlingStyle", event.target.value)}
+                    disabled={!isEditingProfile}
+                    className="w-full rounded-md border border-[var(--surface-secondary)] bg-[var(--surface)] px-3 py-2 text-[var(--text-primary)] disabled:opacity-70"
+                  />
+                </label>
+              </div>
+
+              {profileError && (
+                <p className="mt-3 text-sm text-[var(--danger)]">{profileError}</p>
+              )}
+              {profileSuccess && (
+                <p className="mt-3 text-sm text-emerald-700">{profileSuccess}</p>
+              )}
+
+              <div className="mt-4 flex gap-2">
+                {isEditingProfile && (
+                  <Button onClick={() => void handleSaveProfile()} disabled={isSavingProfile}>
+                    {isSavingProfile ? "Saving..." : "Save Changes"}
+                  </Button>
+                )}
+                <Link href="/settings">
+                  <Button variant="secondary">Advanced Settings</Button>
+                </Link>
+              </div>
             </CardContent>
           </Card>
         </div>
