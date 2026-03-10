@@ -39,6 +39,7 @@ export interface RecentUpload {
   filename: string;
   status: "analyzed" | "processing" | "failed";
   timestamp: string;
+  processingLabel?: string;
 }
 
 interface RecentUploadsListProps {
@@ -87,7 +88,8 @@ export function RecentUploadsList({
                     <p className="text-xs text-[var(--text-secondary)]">
                       {upload.status === "analyzed" && "Analyzed"}
                       {upload.status === "failed" && "Failed"}
-                      {upload.status === "processing" && "Processing"}
+                      {upload.status === "processing" &&
+                        (upload.processingLabel ? `Processing (${upload.processingLabel})` : "Processing")}
                       {" • "}
                       {upload.timestamp}
                     </p>
@@ -103,13 +105,16 @@ export function RecentUploadsList({
                   </Link>
                 )}
                 {upload.status === "processing" && (
-                  <Link
-                    href={`/analysis/${upload.id}/processing`}
-                    className="shrink-0 rounded-lg p-2 text-[var(--text-secondary)] opacity-0 transition-opacity hover:bg-[var(--surface)] hover:text-[var(--primary)] group-hover:opacity-100"
-                    aria-label={`View processing for ${upload.filename}`}
-                  >
-                    <ExternalLinkIcon />
-                  </Link>
+                  <div className="flex items-center gap-1">
+                    <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-[var(--surface-secondary)] border-t-[var(--primary)]" aria-label="Processing upload" />
+                    <Link
+                      href={`/analysis/${upload.id}/processing`}
+                      className="shrink-0 rounded-lg p-2 text-[var(--text-secondary)] opacity-0 transition-opacity hover:bg-[var(--surface)] hover:text-[var(--primary)] group-hover:opacity-100"
+                      aria-label={`View processing for ${upload.filename}`}
+                    >
+                      <ExternalLinkIcon />
+                    </Link>
+                  </div>
                 )}
               </li>
             ))}

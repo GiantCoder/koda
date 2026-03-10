@@ -6,6 +6,7 @@ import Redis from "ioredis";
 interface VideoJobData {
   videoId: string;
   userId: string;
+  analysisId?: string;
 }
 
 const connection = { url: process.env.REDIS_URL ?? "redis://localhost:6379" };
@@ -31,7 +32,7 @@ redisPublisher.on("connect", () => {
 export const videoWorker = new Worker<VideoJobData>(
   "video-processing",
   async (job: Job<VideoJobData>) => {
-    const { videoId, userId } = job.data;
+    const { videoId, userId, analysisId: queuedAnalysisId } = job.data;
     const video = await prisma.video.findUnique({
       where: { id: videoId },
       select: { id: true, userId: true, storagePath: true },
@@ -54,10 +55,19 @@ export const videoWorker = new Worker<VideoJobData>(
       },
     });
 
+    const analysisCreateData = queuedAnalysisId
+      ? { id: queuedAnalysisId, videoId, status: "QUEUED" as const }
+      : { videoId, status: "QUEUED" as const };
+
     const analysis = await prisma.analysis.upsert({
       where: { videoId },
-      update: { status: "QUEUED", errorMessage: null, startedAt: null, completedAt: null },
-      create: { videoId, status: "QUEUED" },
+      update: {
+        status: "QUEUED",
+        errorMessage: null,
+        startedAt: null,
+        completedAt: null,
+      },
+      create: analysisCreateData,
       select: { id: true },
     });
 
