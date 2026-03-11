@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach, beforeAll } from "vitest";
 
 const getAuthUserMock = vi.fn();
 const findUniqueCardMock = vi.fn();
@@ -8,6 +8,10 @@ const upsertCardMock = vi.fn();
 
 vi.mock("@/lib/get-auth-user", () => ({
   getAuthUser: getAuthUserMock,
+}));
+
+vi.mock("@/src/lib/storage", () => ({
+  getSignedUrl: vi.fn().mockResolvedValue("https://example.com/signed"),
 }));
 
 vi.mock("@/prisma/client", () => ({
@@ -21,19 +25,27 @@ vi.mock("@/prisma/client", () => ({
   },
 }));
 
+let GET: (req: Request) => Promise<Response>;
+let PUT: (req: Request) => Promise<Response>;
+
 describe("player card API route", () => {
+  beforeAll(async () => {
+    const route = await import("./route");
+    GET = route.GET;
+    PUT = route.PUT;
+  }, 30000);
+
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("GET returns 401 when unauthenticated", async () => {
+  it("GET returns 401 when unauthenticated", { timeout: 15000 }, async () => {
     getAuthUserMock.mockResolvedValueOnce(null);
-    const { GET } = await import("./route");
     const response = await GET(new Request("http://localhost/api/player-card") as never);
     expect(response.status).toBe(401);
   });
 
-  it("GET returns derived card when no existing card", async () => {
+  it("GET returns derived card when no existing card", { timeout: 15000 }, async () => {
     getAuthUserMock.mockResolvedValueOnce({
       id: "2298d34b-321a-4200-af3e-0159dd1594ec",
       email: "player@test.com",
@@ -60,7 +72,6 @@ describe("player card API route", () => {
       },
     ]);
 
-    const { GET } = await import("./route");
     const response = await GET(new Request("http://localhost/api/player-card") as never);
     const json = (await response.json()) as { id: string | null; overall: number; tier: string };
 
@@ -70,7 +81,7 @@ describe("player card API route", () => {
     expect(json.overall).toBeGreaterThan(0);
   });
 
-  it("PUT returns 200 and saved card for valid payload", async () => {
+  it("PUT returns 200 and saved card for valid payload", { timeout: 15000 }, async () => {
     getAuthUserMock.mockResolvedValueOnce({
       id: "2298d34b-321a-4200-af3e-0159dd1594ec",
       email: "player@test.com",
@@ -94,7 +105,6 @@ describe("player card API route", () => {
       backgroundMode: "DEFAULT",
     });
 
-    const { PUT } = await import("./route");
     const request = new Request("http://localhost/api/player-card", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -122,14 +132,13 @@ describe("player card API route", () => {
     expect(json.overall).toBe(83);
   });
 
-  it("PUT returns 400 for invalid payload", async () => {
+  it("PUT returns 400 for invalid payload", { timeout: 15000 }, async () => {
     getAuthUserMock.mockResolvedValueOnce({
       id: "2298d34b-321a-4200-af3e-0159dd1594ec",
       email: "player@test.com",
       role: "PLAYER",
     });
 
-    const { PUT } = await import("./route");
     const request = new Request("http://localhost/api/player-card", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },

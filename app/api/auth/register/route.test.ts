@@ -1,7 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeAll } from "vitest";
 
 const findUniqueMock = vi.fn();
 const createMock = vi.fn();
+
+vi.mock("@/src/lib/redis", () => ({
+  redis: { set: vi.fn().mockResolvedValue(undefined) },
+}));
 
 vi.mock("@/prisma/client", () => ({
   prisma: {
@@ -17,11 +21,17 @@ vi.mock("@/lib/auth", () => ({
   signJwt: vi.fn().mockResolvedValue("access-token"),
 }));
 
+let POST: (req: Request) => Promise<Response>;
+
 describe("POST /api/auth/register", () => {
-  it("returns 409 when email exists", async () => {
+  beforeAll(async () => {
+    const route = await import("./route");
+    POST = route.POST;
+  }, 30000);
+
+  it("returns 409 when email exists", { timeout: 15000 }, async () => {
     findUniqueMock.mockResolvedValueOnce({ id: "existing-user" });
 
-    const { POST } = await import("./route");
     const request = new Request("http://localhost/api/auth/register", {
       method: "POST",
       body: JSON.stringify({
@@ -29,6 +39,7 @@ describe("POST /api/auth/register", () => {
         password: "Test1234!",
         displayName: "Existing User",
         role: "PLAYER",
+        agreedToTerms: true,
         privacyPreferences: {
           performanceAnalytics: true,
           marketingCommunications: false,

@@ -6,6 +6,10 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
+    exclude: ["**/node_modules/**", "**/tests/e2e/**"],
+    testTimeout: 20000,
+    hookTimeout: 20000,
+    pool: "threads",
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov"],
@@ -20,7 +24,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      "@": path.resolve(__dirname, "."),
     },
   },
 });

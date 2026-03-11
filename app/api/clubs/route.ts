@@ -166,6 +166,38 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Auto-create club league and first season; add creating coach as first member
+    const seasonStartsAt = new Date();
+    const seasonEndsAt = new Date(seasonStartsAt);
+    seasonEndsAt.setDate(seasonEndsAt.getDate() + 30);
+
+    const clubLeague = await prisma.league.create({
+      data: {
+        name: `${createdClub.name} League`,
+        scope: "CLUB",
+        clubId: createdClub.id,
+        createdByUserId: authUser.id,
+        isActive: true,
+      },
+    });
+
+    await prisma.leagueSeason.create({
+      data: {
+        leagueId: clubLeague.id,
+        seasonNumber: 1,
+        startsAt: seasonStartsAt,
+        endsAt: seasonEndsAt,
+        isActive: true,
+      },
+    });
+
+    await prisma.leagueMember.create({
+      data: {
+        leagueId: clubLeague.id,
+        userId: authUser.id,
+      },
+    });
+
     const payload: ClubRecord = {
       id: createdClub.id,
       name: createdClub.name,

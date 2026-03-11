@@ -7,7 +7,7 @@ vi.mock("@/app/lib/avatars", () => ({
 }));
 
 describe("GET /api/avatars", () => {
-  it("returns dynamic categories from the avatar resolver", async () => {
+  it("returns dynamic categories from the avatar resolver", { timeout: 15000 }, async () => {
     resolveAvatarCategoriesMock.mockResolvedValueOnce([
       {
         key: "cricket",

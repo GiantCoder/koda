@@ -12,6 +12,7 @@ services:
     environment:
       - NODE_ENV=development
       - DATABASE_URL=mysql://koda:secret@mysql:3306/kodacricket
+      - SHADOW_DATABASE_URL=mysql://root:rootsecret@mysql:3306/kodacricket_shadow
       - REDIS_URL=redis://redis:6379
       - STORAGE_ENDPOINT=http://minio:9000
       - STORAGE_ACCESS_KEY=minioadmin
@@ -51,6 +52,7 @@ services:
     environment:
       - NODE_ENV=development
       - DATABASE_URL=mysql://koda:secret@mysql:3306/kodacricket
+      - SHADOW_DATABASE_URL=mysql://root:rootsecret@mysql:3306/kodacricket_shadow
       - REDIS_URL=redis://redis:6379
       - STORAGE_ENDPOINT=http://minio:9000
       - STORAGE_ACCESS_KEY=minioadmin

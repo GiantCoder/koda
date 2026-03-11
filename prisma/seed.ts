@@ -1,5 +1,6 @@
 import { PrismaClient, Role } from "@prisma/client";
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
+import { seedBadges } from "./seeds/badges";
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) {
@@ -36,6 +37,8 @@ async function main(): Promise<void> {
   await upsertUser("parent@test.com", Role.PARENT, "Michael Thompson");
   await upsertUser("junior@test.com", Role.PLAYER, "Jake Thompson");
   await upsertUser("admin@test.com", Role.ADMIN, "Admin User");
+
+  await seedBadges(prisma);
 }
 
 main()

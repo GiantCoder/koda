@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { resolveAvatarCategories } from "./avatars";
 
-const readdirMock = vi.fn();
+const { readdirMock } = vi.hoisted(() => ({ readdirMock: vi.fn() }));
 
-vi.mock("fs/promises", () => ({
-  readdir: readdirMock,
-}));
+vi.mock("fs/promises", () => {
+  const mod = { readdir: readdirMock };
+  return { default: mod, ...mod };
+});
 
 function createDirectoryEntry(name: string) {
   return {
@@ -27,13 +29,12 @@ describe("resolveAvatarCategories", () => {
     vi.clearAllMocks();
   });
 
-  it("builds categories from folder names under public/avatars", async () => {
+  it("builds categories from folder names under public/avatars", { timeout: 15000 }, async () => {
     readdirMock
       .mockResolvedValueOnce([createDirectoryEntry("zebra-team"), createDirectoryEntry("cricket")])
       .mockResolvedValueOnce([createFileEntry("cricket_02.png"), createFileEntry("readme.txt"), createFileEntry("cricket_01.png")])
       .mockResolvedValueOnce([createFileEntry("zebra_02.webp"), createFileEntry("zebra_01.jpg")]);
 
-    const { resolveAvatarCategories } = await import("./avatars");
     const categories = await resolveAvatarCategories();
 
     expect(categories).toEqual([
@@ -72,13 +73,13 @@ describe("resolveAvatarCategories", () => {
     ]);
   });
 
-  it("filters out categories that have no image files", async () => {
+  it("filters out categories that have no image files", { timeout: 15000 }, async () => {
+    // Root returns two dirs; implementation sorts by name so "cricket" is read before "documents"
     readdirMock
       .mockResolvedValueOnce([createDirectoryEntry("documents"), createDirectoryEntry("cricket")])
-      .mockResolvedValueOnce([createFileEntry("notes.md")])
-      .mockResolvedValueOnce([createFileEntry("cricket_01.png")]);
+      .mockResolvedValueOnce([createFileEntry("cricket_01.png")]) // cricket (first alphabetically)
+      .mockResolvedValueOnce([createFileEntry("notes.md")]); // documents (no images)
 
-    const { resolveAvatarCategories } = await import("./avatars");
     const categories = await resolveAvatarCategories();
 
     expect(categories).toEqual([

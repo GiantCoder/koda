@@ -29,13 +29,13 @@ describe("PlayerCardDisplay", () => {
 
   it("renders correct overall score", () => {
     render(<PlayerCardDisplay card={baseCard} aiBgCss={null} interactive={false} />);
-    expect(screen.getByText("85")).toBeInTheDocument();
+    expect(screen.getByTestId("player-card-overall-score")).toHaveTextContent("85");
   });
 
   it("renders tier accent colour for gold", () => {
     render(<PlayerCardDisplay card={baseCard} aiBgCss={null} interactive={false} />);
-    const scoreElement = screen.getByText("85");
-    expect(scoreElement).toHaveStyle({ color: "#ffd700" });
+    const scoreElement = screen.getByTestId("player-card-overall-score");
+    expect(scoreElement).toHaveStyle({ color: "rgb(255, 215, 0)" });
   });
 
   it("shows sport icon when no profile photo", () => {

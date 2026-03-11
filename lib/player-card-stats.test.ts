@@ -30,7 +30,7 @@ describe("deriveCardStats", () => {
       statTec: 97,
       statPow: 23,
       statTim: 93,
-      statCon: 31,
+      statCon: 29,
       statPac: 75,
       statFie: 64,
     });

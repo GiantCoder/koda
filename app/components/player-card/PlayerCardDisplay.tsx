@@ -198,6 +198,7 @@ export default function PlayerCardDisplay({
               <div className="flex items-start justify-between px-4 pt-4">
                 <div className="flex flex-col items-center gap-0.5">
                   <div
+                    data-testid="player-card-overall-score"
                     className="text-[58px] font-bold leading-none tracking-[-2px]"
                     style={{
                       color: theme.accent,

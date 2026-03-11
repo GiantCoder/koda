@@ -71,6 +71,34 @@ enum NotificationType {
   SESSION_REMINDER
   CONSENT_REQUEST
   SYSTEM_ALERT
+  CARD_STAT_UPDATE
+  LEAGUE_POSITION_CHANGE
+  SEASON_ENDING
+  SEASON_COMPLETE
+  CHALLENGE_LIVE
+  CHALLENGE_RESULT
+}
+
+enum LeagueScope {
+  CLUB
+  CUSTOM
+  GLOBAL
+}
+
+enum BadgeRarity {
+  COMMON
+  UNCOMMON
+  RARE
+  EPIC
+  LEGENDARY
+}
+
+enum ChallengeStatus {
+  DRAFT
+  ACTIVE
+  JUDGING
+  COMPLETE
+  CANCELLED
 }
 
 enum CardTier {
@@ -141,6 +169,13 @@ model User {
   collectionSharesSent    CollectionShare[] @relation("CollectionSharesSender")
   notifications      Notification[]
   playerCard         PlayerCard?
+  userPoints         UserPoints?
+  userBadges         UserBadge[]
+  leagueMemberships  LeagueMember[]
+  leagueEntries      LeagueEntry[]
+  challengeSubmissions ChallengeSubmission[]
+  createdLeagues     League[]              @relation("CreatedLeagues")
+  createdChallenges  Challenge[]           @relation("CreatedChallenges")
 }
 
 model Video {
@@ -487,4 +522,181 @@ model PlayerCard {
   updatedAt       DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UserPoints {
+  id                 String    @id @default(uuid())
+  userId             String    @unique
+  totalPoints        Int       @default(0)
+  currentSeasonPts   Int       @default(0)
+  goldStarCount      Int       @default(0)
+  practiceStreakDays Int       @default(0)
+  lastPracticeDate   DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions PointTransaction[]
+
+  @@index([totalPoints])
+  @@index([currentSeasonPts])
+}
+
+model PointTransaction {
+  id          String   @id @default(uuid())
+  userId      String
+  points      Int
+  reason      String
+  referenceId String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  userPoints UserPoints @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model BadgeDefinition {
+  id          String      @id @default(uuid())
+  key         String      @unique
+  name        String
+  description String      @db.Text
+  rarity      BadgeRarity @default(COMMON)
+  iconKey     String
+  pointsValue Int         @default(25)
+  isActive    Boolean     @default(true)
+  sortOrder   Int         @default(0)
+  createdAt   DateTime    @default(now())
+
+  userBadges UserBadge[]
+}
+
+model UserBadge {
+  id                String   @id @default(uuid())
+  userId            String
+  badgeDefinitionId String
+  earnedAt          DateTime @default(now())
+  referenceId       String?
+
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badgeDefinition BadgeDefinition @relation(fields: [badgeDefinitionId], references: [id])
+
+  @@unique([userId, badgeDefinitionId])
+  @@index([userId])
+  @@index([earnedAt])
+}
+
+model League {
+  id              String      @id @default(uuid())
+  name            String
+  scope           LeagueScope @default(CUSTOM)
+  clubId          String?
+  createdByUserId String
+  joinCode        String?     @unique
+  ageGroup        AgeGroup?
+  isActive        Boolean     @default(true)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  createdBy User           @relation("CreatedLeagues", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  members   LeagueMember[]
+  seasons   LeagueSeason[]
+
+  @@index([scope])
+  @@index([clubId])
+}
+
+model LeagueSeason {
+  id           String    @id @default(uuid())
+  leagueId     String
+  seasonNumber Int
+  startsAt     DateTime
+  endsAt       DateTime
+  isActive     Boolean   @default(true)
+  completedAt  DateTime?
+  createdAt    DateTime  @default(now())
+
+  league  League         @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  entries LeagueEntry[]
+
+  @@unique([leagueId, seasonNumber])
+  @@index([leagueId, isActive])
+}
+
+model LeagueMember {
+  id        String   @id @default(uuid())
+  leagueId  String
+  userId    String
+  joinedAt  DateTime @default(now())
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueId, userId])
+  @@index([leagueId])
+  @@index([userId])
+}
+
+model LeagueEntry {
+  id              String   @id @default(uuid())
+  leagueSeasonId  String
+  userId          String
+  points          Int      @default(0)
+  goldStars       Int      @default(0)
+  topScore        Float?
+  analysisCount   Int      @default(0)
+  currentRank     Int?
+  previousRank    Int?
+  updatedAt       DateTime @updatedAt
+
+  leagueSeason LeagueSeason @relation(fields: [leagueSeasonId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueSeasonId, userId])
+  @@index([leagueSeasonId, points])
+  @@index([userId])
+}
+
+model Challenge {
+  id              String          @id @default(uuid())
+  title           String
+  description     String          @db.Text
+  status          ChallengeStatus @default(DRAFT)
+  shotType        ShotType?
+  targetScore     Float?
+  targetDimension String?
+  targetDimScore  Float?
+  prizeDesc       String?
+  isPublic        Boolean         @default(false)
+  clubId          String?
+  createdByUserId String
+  startsAt        DateTime
+  endsAt          DateTime
+  maxEntries      Int?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  createdBy   User                   @relation("CreatedChallenges", fields: [createdByUserId], references: [id])
+  submissions ChallengeSubmission[]
+
+  @@index([status, startsAt])
+}
+
+model ChallengeSubmission {
+  id               String   @id @default(uuid())
+  challengeId      String
+  userId           String
+  analysisId       String
+  score            Float
+  isApproved       Boolean  @default(false)
+  approvedByUserId String?
+  isShowcased      Boolean  @default(false)
+  finalRank        Int?
+  submittedAt      DateTime @default(now())
+
+  challenge Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([challengeId, userId])
+  @@index([challengeId, score])
 }
