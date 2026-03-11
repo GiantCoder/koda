@@ -1,9 +1,10 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useMockAuth } from "@/app/hooks/useMockAuth";
+import { buildMockAuthHeaders } from "@/app/lib/mock-auth-headers";
 import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 import { Input } from "@/app/components/ui/Input";
@@ -84,6 +85,33 @@ function BugIcon({ className = "text-[var(--warning)]" }: { className?: string }
   );
 }
 
+function EyeIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg className={`h-5 w-5 ${className}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+    </svg>
+  );
+}
+
+function EyeOffIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg className={`h-5 w-5 ${className}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+    </svg>
+  );
+}
+
+const ECB_API_DOCS_URL =
+  process.env.NEXT_PUBLIC_ECB_API_DOCS_URL ??
+  "https://play-cricket.ecb.co.uk/hc/en-us/sections/360000978518-API-Experienced-Developers-Only";
+
+type EcbKeyState = {
+  hasKey: boolean;
+  maskedKey: string | null;
+  verifiedAt: string | null;
+};
+
 export default function SettingsPage() {
   const { user, role, setRole } = useMockAuth();
   const selectedAvatarUrl = useProfileAvatar();
@@ -94,6 +122,140 @@ export default function SettingsPage() {
   const [newMessages, setNewMessages] = useState(true);
   const [trainingReminders, setTrainingReminders] = useState(true);
   const [progressUpdates, setProgressUpdates] = useState(false);
+
+  const [ecbKey, setEcbKey] = useState<EcbKeyState>({ hasKey: false, maskedKey: null, verifiedAt: null });
+  const [ecbKeyInput, setEcbKeyInput] = useState("");
+  const [ecbKeyVisible, setEcbKeyVisible] = useState(false);
+  const [ecbShowInput, setEcbShowInput] = useState(false);
+  const [ecbSaving, setEcbSaving] = useState(false);
+  const [ecbValidating, setEcbValidating] = useState(false);
+  const [ecbError, setEcbError] = useState<string | null>(null);
+  const [ecbSuccess, setEcbSuccess] = useState<string | null>(null);
+
+  const clearEcbFeedback = useCallback(() => {
+    setEcbError(null);
+    setEcbSuccess(null);
+  }, []);
+
+  useEffect(() => {
+    if (ecbKeyInput) clearEcbFeedback();
+  }, [ecbKeyInput, clearEcbFeedback]);
+
+  useEffect(() => {
+    if (role !== "coach" || !user) return;
+    const headers = buildMockAuthHeaders(user);
+    fetch("/api/coach/ecb-api-key", { headers })
+      .then((res) => (res.ok ? res.json() : { hasKey: false, maskedKey: null, verifiedAt: null }))
+      .then((data: EcbKeyState) => setEcbKey(data))
+      .catch(() => setEcbKey({ hasKey: false, maskedKey: null, verifiedAt: null }));
+  }, [role, user?.id]);
+
+  const dismissEcbFeedbackAfter = useCallback((ms: number) => {
+    setTimeout(() => {
+      setEcbError(null);
+      setEcbSuccess(null);
+    }, ms);
+  }, []);
+
+  const handleSaveEcbKey = async () => {
+    if (!user || ecbSaving || !ecbKeyInput.trim()) return;
+    setEcbSaving(true);
+    setEcbError(null);
+    setEcbSuccess(null);
+    try {
+      const res = await fetch("/api/coach/ecb-api-key", {
+        method: "POST",
+        headers: { ...buildMockAuthHeaders(user), "Content-Type": "application/json" },
+        body: JSON.stringify({ apiKey: ecbKeyInput.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setEcbError((data as { error?: string }).error ?? "Failed to save key");
+        return;
+      }
+      setEcbKey({ hasKey: true, maskedKey: (data as { maskedKey?: string }).maskedKey ?? null, verifiedAt: null });
+      setEcbKeyInput("");
+      setEcbShowInput(false);
+      setEcbSuccess("Key saved. Verifying…");
+      const validateRes = await fetch("/api/coach/ecb-api-key/validate", {
+        method: "POST",
+        headers: buildMockAuthHeaders(user),
+      });
+      const validateData = await validateRes.json().catch(() => ({}));
+      if (validateData.valid && validateData.verifiedAt) {
+        setEcbKey((prev) => ({ ...prev, verifiedAt: validateData.verifiedAt }));
+        setEcbSuccess("Key saved and verified successfully.");
+      } else {
+        setEcbSuccess("Key saved. You can verify it later.");
+      }
+      dismissEcbFeedbackAfter(5000);
+    } catch {
+      setEcbError("Failed to save key");
+    } finally {
+      setEcbSaving(false);
+    }
+  };
+
+  const handleValidateEcbKey = async () => {
+    if (!user || ecbValidating) return;
+    setEcbValidating(true);
+    setEcbError(null);
+    setEcbSuccess(null);
+    try {
+      const res = await fetch("/api/coach/ecb-api-key/validate", {
+        method: "POST",
+        headers: buildMockAuthHeaders(user),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data.valid && data.verifiedAt) {
+        setEcbKey((prev) => ({ ...prev, verifiedAt: data.verifiedAt }));
+        setEcbSuccess("Key verified successfully.");
+      } else {
+        const reason = (data as { reason?: string }).reason;
+        if (reason === "invalid_key") {
+          setEcbError("Your key was rejected by Play-Cricket. Please check you've copied it correctly.");
+        } else {
+          setEcbError("Could not reach the Play-Cricket API. Please try again in a few minutes.");
+        }
+      }
+      dismissEcbFeedbackAfter(5000);
+    } catch {
+      setEcbError("Could not reach the Play-Cricket API. Please try again in a few minutes.");
+      dismissEcbFeedbackAfter(5000);
+    } finally {
+      setEcbValidating(false);
+    }
+  };
+
+  const handleRemoveEcbKey = async () => {
+    if (!user || !window.confirm("Remove your saved ECB API key? You can add it again later.")) return;
+    setEcbError(null);
+    setEcbSuccess(null);
+    try {
+      const res = await fetch("/api/coach/ecb-api-key", {
+        method: "DELETE",
+        headers: buildMockAuthHeaders(user),
+      });
+      if (res.ok) {
+        setEcbKey({ hasKey: false, maskedKey: null, verifiedAt: null });
+        setEcbSuccess("API key removed.");
+        dismissEcbFeedbackAfter(5000);
+      } else {
+        setEcbError("Failed to remove key");
+      }
+    } catch {
+      setEcbError("Failed to remove key");
+    }
+  };
+
+  const formatVerifiedAt = (iso: string) => {
+    try {
+      const d = new Date(iso);
+      return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) + " at " + d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+    } catch {
+      return iso;
+    }
+  };
 
   const displayName = user
     ? `${user.firstName} ${user.lastName}`
@@ -263,6 +425,122 @@ export default function SettingsPage() {
                       Active
                     </span>
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {role === "coach" && (
+            <Card>
+              <CardHeader>Integrations</CardHeader>
+              <CardContent>
+                <div className="rounded-lg border border-[var(--surface-secondary)] p-4">
+                  <div className="flex items-center gap-2 text-lg font-medium text-[var(--text-primary)]">
+                    <span aria-hidden>🏏</span>
+                    Play-Cricket / ECB API
+                  </div>
+                  <p className="mt-2 text-sm text-[var(--text-secondary)]">
+                    Connect your ECB API key to import players and match data from Play-Cricket.
+                  </p>
+                  <a
+                    href={ECB_API_DOCS_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-1 inline-block text-sm font-medium text-[var(--primary)] hover:underline"
+                  >
+                    Learn more ↗
+                  </a>
+
+                  {ecbKey.hasKey && !ecbShowInput && (
+                    <div className="mt-4 space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {ecbKey.verifiedAt ? (
+                          <span className="rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-700 dark:bg-green-900/50 dark:text-green-300">
+                            ✓ Connected
+                          </span>
+                        ) : (
+                          <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-700 dark:bg-amber-900/50 dark:text-amber-300">
+                            ⚠ Not verified
+                          </span>
+                        )}
+                        <span className="font-mono text-sm text-[var(--text-secondary)]">
+                          {ecbKey.maskedKey ?? "••••••••"}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={handleRemoveEcbKey}
+                          className="text-sm font-medium text-[var(--danger)] hover:underline"
+                        >
+                          Remove
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEcbShowInput(true)}
+                          className="text-sm font-medium text-[var(--primary)] hover:underline"
+                        >
+                          Replace key
+                        </button>
+                      </div>
+                      {ecbKey.verifiedAt && (
+                        <p className="text-sm text-[var(--text-secondary)]">
+                          Verified: {formatVerifiedAt(ecbKey.verifiedAt)}
+                        </p>
+                      )}
+                      {!ecbKey.verifiedAt && (
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          disabled={ecbValidating}
+                          onClick={handleValidateEcbKey}
+                        >
+                          {ecbValidating ? "Validating…" : "Validate now"}
+                        </Button>
+                      )}
+                    </div>
+                  )}
+
+                  {(!ecbKey.hasKey || ecbShowInput) && (
+                    <div className="mt-4 space-y-2">
+                      <div className="flex gap-2">
+                        <div className="flex-1">
+                          <Input
+                            type={ecbKeyVisible ? "text" : "password"}
+                            placeholder="Paste your ECB API key here..."
+                            value={ecbKeyInput}
+                            onChange={(e) => setEcbKeyInput(e.target.value)}
+                            aria-label="ECB API key"
+                          />
+                        </div>
+                        <Button
+                          variant="secondary"
+                          size="md"
+                          type="button"
+                          onClick={() => setEcbKeyVisible((v) => !v)}
+                          aria-label={ecbKeyVisible ? "Hide key" : "Show key"}
+                        >
+                          {ecbKeyVisible ? <EyeOffIcon /> : <EyeIcon />}
+                        </Button>
+                      </div>
+                      <Button
+                        variant="primary"
+                        disabled={ecbSaving || !ecbKeyInput.trim()}
+                        onClick={handleSaveEcbKey}
+                      >
+                        {ecbSaving ? "Saving…" : "Save Key"}
+                      </Button>
+                    </div>
+                  )}
+
+                  {ecbError && (
+                    <p className="mt-2 text-sm text-[var(--danger)]" role="alert">
+                      {ecbError}
+                    </p>
+                  )}
+                  {ecbSuccess && (
+                    <p className="mt-2 text-sm text-green-600 dark:text-green-400" role="status">
+                      {ecbSuccess}
+                    </p>
+                  )}
                 </div>
               </CardContent>
             </Card>

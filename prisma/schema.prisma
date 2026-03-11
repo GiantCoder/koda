@@ -157,6 +157,13 @@ model User {
   updatedAt    DateTime  @updatedAt
   lastLoginAt  DateTime?
 
+  // ECB / Play-Cricket integration (coaches only)
+  ecbApiKeyEncrypted  String?   // AES-256-GCM ciphertext (hex)
+  ecbApiKeyIv         String?   // 12-byte IV (hex)
+  ecbApiKeyTag        String?   // 16-byte GCM auth tag (hex)
+  ecbApiKeyVerifiedAt DateTime? // set when the key passes validation
+  playCricketPersonId String?   // Play-Cricket person ID (players only)
+
   consentRecord      ConsentRecord?
   privacyPreferences PrivacyPreferences?
   videos             Video[]
@@ -183,6 +190,8 @@ model User {
   challengeSubmissions ChallengeSubmission[]
   createdLeagues     League[]              @relation("CreatedLeagues")
   createdChallenges  Challenge[]           @relation("CreatedChallenges")
+  coachPlayCricketImports  PlayCricketImport[] @relation("CoachPlayCricketImports")
+  linkedPlayCricketImports PlayCricketImport[] @relation("LinkedPlayCricketImports")
 }
 
 model Video {
@@ -399,9 +408,47 @@ model Club {
   updatedAt     DateTime @updatedAt
 
   coach User @relation(fields: [coachId], references: [id], onDelete: Cascade)
+  playCricketImports PlayCricketImport[]
 
   @@index([coachId])
   @@unique([coachId, name])
+}
+
+enum PlayCricketImportStatus {
+  PENDING  // imported but coach has not acted
+  INVITED  // invitation email sent
+  LINKED   // matched to existing Koda user
+  SKIPPED  // coach chose not to import this player
+}
+
+model PlayCricketImport {
+  id                  String   @id @default(uuid())
+  coachId             String
+  clubId              String
+  playCricketPersonId String
+  playCricketTeamId   String?
+  firstName           String
+  lastName            String
+  email               String?
+  dateOfBirth         DateTime?
+  battingStyle        String?
+  bowlingStyle        String?
+  primaryPosition     String?
+  rawPayload          Json     // full API response preserved for auditing
+  status              PlayCricketImportStatus @default(PENDING)
+  linkedUserId        String?  // set if matched to an existing Koda user
+  invitedAt           DateTime?
+  importedAt          DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  coach      User  @relation("CoachPlayCricketImports", fields: [coachId], references: [id], onDelete: Cascade)
+  club       Club  @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  linkedUser User? @relation("LinkedPlayCricketImports", fields: [linkedUserId], references: [id], onDelete: SetNull)
+
+  @@unique([coachId, playCricketPersonId])
+  @@index([coachId])
+  @@index([clubId])
+  @@index([status])
 }
 
 model SquadMember {
