@@ -3,11 +3,8 @@ import Redis from "ioredis";
 import { prisma } from "@/prisma/client";
 import { calculateGrade } from "@/src/lib/grading";
 import { classifyShotWithGemini, scoreBiomechanicsWithGemini } from "@/src/lib/llm/gemini";
-import { awardAnalysisPoints } from "@/lib/gamification/points";
-import { checkAndAwardBadges } from "@/lib/gamification/badges";
-import { updateLeagueEntriesForUser } from "@/lib/gamification/leagues";
-import { updatePlayerCardFromAnalyses } from "@/lib/gamification/card-update";
-import { sendGamificationNotifications } from "@/lib/gamification/notifications";
+import { runGamificationPipeline } from "@/lib/gamification/run-pipeline";
+import { shouldAwardPointsForUploads } from "@/lib/gamification/settings";
 
 interface AnalysisJobData {
   videoId: string;
@@ -190,34 +187,13 @@ export const analysisWorker = new Worker<AnalysisJobData>(
       redirectUrl: `/analysis/${videoId}`,
     });
 
-    // Gamification pipeline: points → badges → league → card update → notifications (non-fatal)
-    try {
-      const userId = job.data.userId;
+    // Gamification pipeline: only if points can be earned from uploads
+    const userId = job.data.userId;
+    if (await shouldAwardPointsForUploads()) {
       const analysis = await prisma.analysis.findUniqueOrThrow({
         where: { id: analysisId },
       });
-      const transactions = await awardAnalysisPoints(userId, {
-        id: analysis.id,
-        gradeOverall: analysis.gradeOverall,
-      });
-      const totalAwarded = transactions.reduce((sum, t) => sum + t.points, 0);
-      const newBadges = await checkAndAwardBadges(userId, analysis);
-      await updateLeagueEntriesForUser(userId, totalAwarded, {
-        gradeOverall: analysis.gradeOverall,
-      });
-      const cardResult = await updatePlayerCardFromAnalyses(userId);
-      const tierChange =
-        cardResult?.tierChanged && cardResult.previousTier != null
-          ? { from: cardResult.previousTier, to: cardResult.newTier }
-          : undefined;
-      await sendGamificationNotifications(userId, {
-        pointsAwarded: totalAwarded,
-        newBadges,
-        tierChange,
-        cardUpdated: cardResult?.cardUpdated ? { newTier: cardResult.newTier } : undefined,
-      });
-    } catch (err) {
-      console.error("[Gamification] Pipeline error (non-fatal):", err);
+      await runGamificationPipeline(userId, analysis);
     }
   },
   { connection, concurrency: 2 }

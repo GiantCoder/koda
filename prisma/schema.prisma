@@ -93,6 +93,13 @@ enum BadgeRarity {
   LEGENDARY
 }
 
+/// Whether players earn points from upload analyses, shadow batting, or both.
+enum PointEarnSource {
+  UPLOADS_ONLY
+  SHADOW_BATTING_ONLY
+  BOTH
+}
+
 enum ChallengeStatus {
   DRAFT
   ACTIVE
@@ -554,6 +561,13 @@ model PointTransaction {
   userPoints UserPoints @relation(fields: [userId], references: [userId], onDelete: Cascade)
 
   @@index([userId, createdAt])
+}
+
+/// Platform-wide gamification settings. Single row (id = "default").
+model GameSettings {
+  id              String          @id @default("default")
+  pointEarnSource PointEarnSource @default(BOTH)
+  updatedAt       DateTime        @updatedAt
 }
 
 model BadgeDefinition {

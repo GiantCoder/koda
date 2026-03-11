@@ -16,54 +16,74 @@ const createLeagueSchema = z.object({
  * GET /api/leagues — Leagues the current user is a member of, with current season and rank.
  */
 export async function GET(request: NextRequest) {
-  const user = await getAuthUser(request);
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  try {
+    const user = await getAuthUser(request);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-  const memberships = await prisma.leagueMember.findMany({
-    where: { userId: user.id },
-    include: {
-      league: {
-        include: {
-          seasons: {
-            where: { isActive: true },
-            orderBy: { seasonNumber: "desc" },
-            take: 1,
+    if (!prisma.leagueMember) {
+      console.error("[GET /api/leagues] Prisma client missing leagueMember. Run: npx prisma generate");
+      return NextResponse.json(
+        {
+          error: "Server configuration error",
+          details: "Prisma client is out of date. Run 'npx prisma generate' and restart the server.",
+        },
+        { status: 500 }
+      );
+    }
+
+    const memberships = await prisma.leagueMember.findMany({
+      where: { userId: user.id },
+      include: {
+        league: {
+          include: {
+            seasons: {
+              where: { isActive: true },
+              orderBy: { seasonNumber: "desc" },
+              take: 1,
+            },
           },
         },
       },
-    },
-  });
+    });
 
-  const leagues = await Promise.all(
-    memberships.map(async (m) => {
-      const season = m.league.seasons[0] ?? null;
-      let userRank: number | null = null;
-      let memberCount = 0;
-      if (season) {
-        const entry = await prisma.leagueEntry.findUnique({
-          where: {
-            leagueSeasonId_userId: { leagueSeasonId: season.id, userId: user.id },
-          },
-        });
-        userRank = entry?.currentRank ?? null;
-        memberCount = await prisma.leagueEntry.count({
-          where: { leagueSeasonId: season.id },
-        });
-      }
-      return {
-        id: m.league.id,
-        name: m.league.name,
-        scope: m.league.scope,
-        currentSeason: season,
-        userRank,
-        memberCount,
-      };
-    })
-  );
+    const leagues = await Promise.all(
+      memberships.map(async (m) => {
+        const season = m.league.seasons[0] ?? null;
+        let userRank: number | null = null;
+        let memberCount = 0;
+        if (season) {
+          const entry = await prisma.leagueEntry.findUnique({
+            where: {
+              leagueSeasonId_userId: { leagueSeasonId: season.id, userId: user.id },
+            },
+          });
+          userRank = entry?.currentRank ?? null;
+          memberCount = await prisma.leagueEntry.count({
+            where: { leagueSeasonId: season.id },
+          });
+        }
+        return {
+          id: m.league.id,
+          name: m.league.name,
+          scope: m.league.scope,
+          currentSeason: season,
+          userRank,
+          memberCount,
+        };
+      })
+    );
 
-  return NextResponse.json({ leagues });
+    return NextResponse.json({ leagues });
+  } catch (err) {
+    console.error("[GET /api/leagues]", err);
+    const message = err instanceof Error ? err.message : "Internal server error";
+    return NextResponse.json(
+      { error: "Failed to load leagues", details: message },
+      { status: 500 }
+    );
+  }
 }
 
 /**

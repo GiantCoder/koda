@@ -4,6 +4,8 @@ import { Role } from "@prisma/client";
 import { prisma } from "@/prisma/client";
 import { uploadToStorage } from "@/src/lib/storage";
 import { getAuthUser } from "@/lib/get-auth-user";
+import { runGamificationPipeline } from "@/lib/gamification/run-pipeline";
+import { shouldAwardPointsForShadowBatting } from "@/lib/gamification/settings";
 import { classifyShotWithGemini, scoreBiomechanicsWithGemini } from "@/src/lib/llm/gemini";
 
 /**
@@ -237,6 +239,14 @@ export async function POST(request: NextRequest) {
           completedAt: new Date(),
         },
       });
+
+      // Gamification: award points/badges/league/card if shadow batting is allowed
+      if (await shouldAwardPointsForShadowBatting()) {
+        const completeAnalysis = await prisma.analysis.findUniqueOrThrow({
+          where: { id: analysis.id },
+        });
+        await runGamificationPipeline(userId, completeAnalysis);
+      }
     } catch (error) {
       console.error("Analysis error:", error);
       

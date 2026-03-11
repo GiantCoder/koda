@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/prisma/client";
 import { getAuthUser } from "@/lib/get-auth-user";
+import { getSettings } from "@/lib/gamification/settings";
 
 /**
  * GET /api/gamification/summary
- * Returns current user's gamification overview: points, streak, gold stars, recent badges, league summary.
+ * Returns current user's gamification overview: points, streak, gold stars, recent badges, league summary, point earn source.
  */
 export async function GET(request: NextRequest) {
   const user = await getAuthUser(request);
@@ -12,7 +13,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const [userPoints, recentBadges, leagueSummary] = await Promise.all([
+  const [userPoints, recentBadges, leagueSummary, settings] = await Promise.all([
     prisma.userPoints.findUnique({
       where: { userId: user.id },
     }),
@@ -23,6 +24,7 @@ export async function GET(request: NextRequest) {
       include: { badgeDefinition: true },
     }),
     getLeagueSummary(user.id),
+    getSettings(),
   ]);
 
   const summary = {
@@ -35,6 +37,7 @@ export async function GET(request: NextRequest) {
       earnedAt: ub.earnedAt,
     })),
     leagueSummary,
+    pointEarnSource: settings.pointEarnSource,
   };
 
   return NextResponse.json(summary);
