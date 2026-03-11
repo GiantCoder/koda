@@ -3,6 +3,10 @@ import Redis from "ioredis";
 import { prisma } from "@/prisma/client";
 import { calculateGrade } from "@/src/lib/grading";
 import { classifyShotWithGemini, scoreBiomechanicsWithGemini } from "@/src/lib/llm/gemini";
+import { awardAnalysisPoints } from "@/lib/gamification/points";
+import { checkAndAwardBadges } from "@/lib/gamification/badges";
+import { updateLeagueEntriesForUser } from "@/lib/gamification/leagues";
+import { sendGamificationNotifications } from "@/lib/gamification/notifications";
 
 interface AnalysisJobData {
   videoId: string;
@@ -184,6 +188,29 @@ export const analysisWorker = new Worker<AnalysisJobData>(
       videoId,
       redirectUrl: `/analysis/${videoId}`,
     });
+
+    // Gamification pipeline: points → badges → league stub → notifications (non-fatal)
+    try {
+      const userId = job.data.userId;
+      const analysis = await prisma.analysis.findUniqueOrThrow({
+        where: { id: analysisId },
+      });
+      const transactions = await awardAnalysisPoints(userId, {
+        id: analysis.id,
+        gradeOverall: analysis.gradeOverall,
+      });
+      const totalAwarded = transactions.reduce((sum, t) => sum + t.points, 0);
+      const newBadges = await checkAndAwardBadges(userId, analysis);
+      await updateLeagueEntriesForUser(userId, totalAwarded, {
+        gradeOverall: analysis.gradeOverall,
+      });
+      await sendGamificationNotifications(userId, {
+        pointsAwarded: totalAwarded,
+        newBadges,
+      });
+    } catch (err) {
+      console.error("[Gamification] Pipeline error (non-fatal):", err);
+    }
   },
   { connection, concurrency: 2 }
 );
