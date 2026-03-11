@@ -8,6 +8,7 @@ import { Button } from "@/app/components/ui/Button";
 import { Input } from "@/app/components/ui/Input";
 import { registerSchema } from "@/app/lib/validators";
 import { getPostAuthRoute, setAuthToken, setOnboardingComplete } from "@/app/lib/auth";
+import { setMockUserFromApiUser } from "@/app/lib/mock-auth";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -16,8 +17,9 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
@@ -25,17 +27,49 @@ export default function RegisterPage() {
       email,
       password,
       confirmPassword,
-      acceptTerms,
+      acceptTerms: acceptTerms as true,
     });
     if (!result.success) {
       setError(result.error.issues[0]?.message ?? "Invalid input");
       return;
     }
+    if (!acceptTerms) {
+      setError("You must accept the Terms and Privacy Policy");
+      return;
+    }
 
-    // Mock: accept valid form and set token
-    setAuthToken("mock-token-" + Date.now());
-    setOnboardingComplete(false);
-    router.push(getPostAuthRoute());
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: result.data.email,
+          password: result.data.password,
+          displayName: result.data.email.split("@")[0] || "User",
+          role: "COACH",
+          agreedToTerms: true,
+          privacyPreferences: {
+            performanceAnalytics: true,
+            marketingCommunications: false,
+            coachParentComms: true,
+          },
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError((data as { error?: string }).error ?? "Registration failed");
+        return;
+      }
+      setAuthToken((data as { accessToken: string }).accessToken);
+      setMockUserFromApiUser((data as { user: { id: string; email: string; displayName?: string | null; role: string } }).user);
+      setOnboardingComplete(false);
+      router.push(getPostAuthRoute());
+    } catch {
+      setError("Registration failed");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -100,9 +134,9 @@ export default function RegisterPage() {
               <Button
                 type="submit"
                 className="w-full"
-                disabled={!acceptTerms}
+                disabled={!acceptTerms || loading}
               >
-                Create Account
+                {loading ? "Creating account…" : "Create Account"}
               </Button>
             </form>
             <p className="mt-4 text-center text-sm text-[var(--text-secondary)]">

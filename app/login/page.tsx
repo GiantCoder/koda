@@ -6,16 +6,18 @@ import { useRouter } from "next/navigation";
 import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 import { Input } from "@/app/components/ui/Input";
-import { loginSchema, type LoginFormData } from "@/app/lib/validators";
+import { loginSchema } from "@/app/lib/validators";
 import { getPostAuthRoute, setAuthToken } from "@/app/lib/auth";
+import { setMockUserFromApiUser } from "@/app/lib/mock-auth";
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
@@ -25,9 +27,26 @@ export default function LoginPage() {
       return;
     }
 
-    // Mock: accept any valid form and set token
-    setAuthToken("mock-token-" + Date.now());
-    router.push(getPostAuthRoute());
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: result.data.email, password: result.data.password }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError((data as { error?: string }).error ?? "Sign in failed");
+        return;
+      }
+      setAuthToken((data as { accessToken: string }).accessToken);
+      setMockUserFromApiUser((data as { user: { id: string; email: string; displayName?: string | null; role: string } }).user);
+      router.push(getPostAuthRoute());
+    } catch {
+      setError("Sign in failed");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -63,8 +82,8 @@ export default function LoginPage() {
                   {error}
                 </p>
               )}
-              <Button type="submit" className="w-full">
-                Sign In
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? "Signing in…" : "Sign In"}
               </Button>
             </form>
             <p className="mt-4 text-center text-sm text-[var(--text-secondary)]">

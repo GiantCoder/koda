@@ -54,10 +54,46 @@ export function getMockUser(): MockUser | null {
     try {
       return JSON.parse(stored) as MockUser;
     } catch {
-      return DEFAULT_COACH;
+      return null;
     }
   }
-  return DEFAULT_COACH;
+  return null;
+}
+
+/** API user shape returned by login/register. */
+export interface ApiAuthUser {
+  id: string;
+  email: string;
+  displayName?: string | null;
+  role: string;
+}
+
+/**
+ * Sync the displayed user from a successful login/register API response.
+ * Ensures the header and dashboard show the actual logged-in user instead of a default.
+ */
+export function setMockUserFromApiUser(apiUser: ApiAuthUser): void {
+  if (typeof window === "undefined") return;
+  const display = (apiUser.displayName || apiUser.email || "").trim() || "User";
+  const parts = display.split(/\s+/);
+  const firstName = parts[0] ?? display;
+  const lastName = parts.slice(1).join(" ") || "";
+  const role = apiUser.role.toLowerCase() as UserRole;
+  const mockUser: MockUser = {
+    id: apiUser.id,
+    email: apiUser.email,
+    firstName,
+    lastName,
+    role: role === "admin" ? "admin" : role === "coach" ? "coach" : role === "player" ? "player" : "parent",
+    joinedAt: new Date().toLocaleDateString("en-GB", { month: "long", year: "numeric" }),
+    avatarUrl: undefined,
+  };
+  localStorage.setItem(MOCK_USER_KEY, JSON.stringify(mockUser));
+}
+
+export function clearMockUser(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(MOCK_USER_KEY);
 }
 
 export function setMockUser(user: Partial<MockUser> | UserRole): void {
@@ -77,6 +113,17 @@ export function setMockUser(user: Partial<MockUser> | UserRole): void {
     const merged = { ...current, ...user };
     localStorage.setItem(MOCK_USER_KEY, JSON.stringify(merged));
   }
+}
+
+/** For dev/role switcher: get a default user by role when no one is logged in. */
+export function getDefaultMockUser(role: UserRole): MockUser {
+  return role === "coach"
+    ? DEFAULT_COACH
+    : role === "player"
+      ? DEFAULT_PLAYER
+      : role === "parent"
+        ? DEFAULT_PARENT
+        : DEFAULT_COACH;
 }
 
 export function getMockUserRole(): UserRole {

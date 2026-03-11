@@ -1,3 +1,5 @@
+import { clearMockUser } from "@/app/lib/mock-auth";
+
 /**
  * Simple auth mock for MVP. Replace with real auth (e.g. NextAuth, JWT) later.
  * Checks localStorage for a mock token; no server-side validation.
@@ -22,6 +24,7 @@ export function clearAuthToken(): void {
   localStorage.removeItem(AUTH_STORAGE_KEY);
   localStorage.removeItem(ONBOARDING_COMPLETE_KEY);
   localStorage.removeItem(PROFILE_AVATAR_URL_KEY);
+  clearMockUser();
   window.dispatchEvent(new Event(PROFILE_AVATAR_UPDATED_EVENT));
 }
 

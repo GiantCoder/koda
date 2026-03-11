@@ -2,6 +2,8 @@ FROM node:22-alpine AS base
 RUN apk add --no-cache libc6-compat curl
 WORKDIR /app
 COPY package*.json ./
+# Retries and longer timeout to reduce ECONNRESET failures on flaky networks
+RUN npm config set fetch-retries 5 && npm config set fetch-retry-mintimeout 20000 && npm config set fetch-timeout 300000
 RUN npm ci
 
 FROM base AS development

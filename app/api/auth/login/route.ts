@@ -80,7 +80,12 @@ export async function POST(request: NextRequest) {
     email: user.email,
     ageGroup: user.ageGroup,
   });
-  await redis.set(`refresh:${user.id}:${tokenId}`, "1", "EX", REFRESH_TTL_SECONDS);
+  try {
+    await redis.set(`refresh:${user.id}:${tokenId}`, "1", "EX", REFRESH_TTL_SECONDS);
+  } catch (err) {
+    console.error("[auth/login] Redis set failed (refresh token not stored):", err);
+    // Still return success so login works when Redis is down (e.g. dev); refresh may not work until Redis is up
+  }
 
   const response = NextResponse.json({
     user: {

@@ -7,10 +7,13 @@ services:
       dockerfile: Dockerfile
       target: development
     container_name: koda-web-app
+    restart: unless-stopped
     ports:
       - "3005:3000"
     environment:
       - NODE_ENV=development
+      # Heap size for Next dev + Turbopack; increase if you see "JavaScript heap out of memory" when compiling routes
+      - NODE_OPTIONS=--max-old-space-size=1280
       - DATABASE_URL=mysql://koda:secret@mysql:3306/kodacricket
       - SHADOW_DATABASE_URL=mysql://root:rootsecret@mysql:3306/kodacricket_shadow
       - REDIS_URL=redis://redis:6379
@@ -39,7 +42,15 @@ services:
         condition: service_healthy
     networks:
       - koda_network
-    command: npm run dev
+    # Run next dev directly so container restarts don't re-run predev (prisma generate).
+    # Prisma client is generated at image build time; use `docker compose exec app npx prisma generate` after schema changes.
+    command: npx next dev
+    deploy:
+      resources:
+        limits:
+          memory: 1536M
+        reservations:
+          memory: 512M
 
   worker:
     build:
@@ -129,7 +140,7 @@ services:
     image: redis:7-alpine
     container_name: koda-redis
     ports:
-      - "6380:6379"
+      - "6381:6379"
     volumes:
       - redis_data:/data
     networks:
