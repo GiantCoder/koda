@@ -6,6 +6,7 @@ import { classifyShotWithGemini, scoreBiomechanicsWithGemini } from "@/src/lib/l
 import { awardAnalysisPoints } from "@/lib/gamification/points";
 import { checkAndAwardBadges } from "@/lib/gamification/badges";
 import { updateLeagueEntriesForUser } from "@/lib/gamification/leagues";
+import { updatePlayerCardFromAnalyses } from "@/lib/gamification/card-update";
 import { sendGamificationNotifications } from "@/lib/gamification/notifications";
 
 interface AnalysisJobData {
@@ -189,7 +190,7 @@ export const analysisWorker = new Worker<AnalysisJobData>(
       redirectUrl: `/analysis/${videoId}`,
     });
 
-    // Gamification pipeline: points → badges → league stub → notifications (non-fatal)
+    // Gamification pipeline: points → badges → league → card update → notifications (non-fatal)
     try {
       const userId = job.data.userId;
       const analysis = await prisma.analysis.findUniqueOrThrow({
@@ -204,9 +205,16 @@ export const analysisWorker = new Worker<AnalysisJobData>(
       await updateLeagueEntriesForUser(userId, totalAwarded, {
         gradeOverall: analysis.gradeOverall,
       });
+      const cardResult = await updatePlayerCardFromAnalyses(userId);
+      const tierChange =
+        cardResult?.tierChanged && cardResult.previousTier != null
+          ? { from: cardResult.previousTier, to: cardResult.newTier }
+          : undefined;
       await sendGamificationNotifications(userId, {
         pointsAwarded: totalAwarded,
         newBadges,
+        tierChange,
+        cardUpdated: cardResult?.cardUpdated ? { newTier: cardResult.newTier } : undefined,
       });
     } catch (err) {
       console.error("[Gamification] Pipeline error (non-fatal):", err);

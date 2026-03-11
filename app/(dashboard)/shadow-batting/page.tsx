@@ -121,6 +121,7 @@ export default function ShadowBattingPage() {
   const streamRef = useRef<MediaStream | null>(null);
   const analyzedClipsRef = useRef<AnalyzedClip[]>([]);
   const recordingFinalizedRef = useRef(false);
+  const isFirstPersistRunRef = useRef(true);
 
   const [hasPermission, setHasPermission] = useState(false);
   const [permissionError, setPermissionError] = useState("");
@@ -323,6 +324,11 @@ export default function ShadowBattingPage() {
   }, [getPersistedVideoUrl]);
 
   useEffect(() => {
+    // Skip first run so we don't overwrite localStorage with [] before restore has populated state
+    if (isFirstPersistRunRef.current) {
+      isFirstPersistRunRef.current = false;
+      return;
+    }
     const persistableClips = analyzedClips
       .filter((clip) => clip.status === "complete" && clip.serverVideoId)
       .map((clip) => ({

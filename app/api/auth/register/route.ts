@@ -30,7 +30,11 @@ export async function POST(request: NextRequest) {
     ? new Date(data.dateOfBirth)
     : null;
   const age = getAgeFromDateOfBirth(dateOfBirth);
-  const consentStatus = getConsentStatusForAge(age);
+  // COACH/PARENT without DOB: treat as adult so account is active; PLAYER without DOB stays PENDING until consent/DOB
+  const consentStatus =
+    age === null && (data.role === "COACH" || data.role === "PARENT")
+      ? ConsentStatus.NOT_REQUIRED
+      : getConsentStatusForAge(age);
 
   const existing = await prisma.user.findUnique({
     where: { email: data.email.toLowerCase() },
