@@ -102,6 +102,7 @@ export async function POST(request: NextRequest) {
         select: {
           firstName: true,
           lastName: true,
+          linkedUserId: true,
         },
       },
     },
@@ -170,8 +171,114 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const statsPayload = { players };
-  const userPrompt = buildUserPrompt(season, competitionType, statsPayload);
+  const linkedUserIds = [
+    ...new Set(
+      statsRows
+        .map((r) => r.import.linkedUserId)
+        .filter((id): id is string => id != null)
+    ),
+  ];
+
+  const linkedAnalysesMap = new Map<
+    string,
+    Array<{
+      gradeOverall: number | null;
+      gradeLetter: string | null;
+      scoreBacklift: number | null;
+      scoreWeightTransfer: number | null;
+      scoreHeadPosition: number | null;
+      scoreFollowThrough: number | null;
+      scoreTiming: number | null;
+      scoreBalance: number | null;
+      scoreFootwork: number | null;
+      scoreShotSelection: number | null;
+    }>
+  >();
+
+  if (linkedUserIds.length > 0) {
+    const analyses = await prisma.analysis.findMany({
+      where: {
+        status: "COMPLETE",
+        video: {
+          userId: { in: linkedUserIds },
+          isDeleted: false,
+        },
+      },
+      select: {
+        gradeOverall: true,
+        gradeLetter: true,
+        scoreBacklift: true,
+        scoreWeightTransfer: true,
+        scoreHeadPosition: true,
+        scoreFollowThrough: true,
+        scoreTiming: true,
+        scoreBalance: true,
+        scoreFootwork: true,
+        scoreShotSelection: true,
+        completedAt: true,
+        video: { select: { userId: true } },
+      },
+      orderBy: { completedAt: "desc" },
+      take: linkedUserIds.length * 10,
+    });
+
+    for (const a of analyses) {
+      const uid = a.video.userId;
+      if (!linkedAnalysesMap.has(uid)) linkedAnalysesMap.set(uid, []);
+      linkedAnalysesMap.get(uid)!.push({
+        gradeOverall: a.gradeOverall,
+        gradeLetter: a.gradeLetter,
+        scoreBacklift: a.scoreBacklift,
+        scoreWeightTransfer: a.scoreWeightTransfer,
+        scoreHeadPosition: a.scoreHeadPosition,
+        scoreFollowThrough: a.scoreFollowThrough,
+        scoreTiming: a.scoreTiming,
+        scoreBalance: a.scoreBalance,
+        scoreFootwork: a.scoreFootwork,
+        scoreShotSelection: a.scoreShotSelection,
+      });
+    }
+  }
+
+  const personIdToLinkedUserId = new Map<string, string>();
+  for (const row of statsRows) {
+    if (row.import.linkedUserId) {
+      personIdToLinkedUserId.set(row.playCricketPersonId, row.import.linkedUserId);
+    }
+  }
+
+  function avg(values: (number | null)[]): number | null {
+    const defined = values.filter((v): v is number => v != null);
+    if (defined.length === 0) return null;
+    return defined.reduce((a, b) => a + b, 0) / defined.length;
+  }
+
+  const crossRefLines: string[] = [];
+  let crossReferenced = 0;
+  for (const p of players) {
+    const linkedUserId = personIdToLinkedUserId.get(p.playCricketPersonId);
+    if (!linkedUserId) continue;
+    const list = linkedAnalysesMap.get(linkedUserId);
+    if (!list || list.length === 0) continue;
+    crossReferenced++;
+    const gradeOverall = avg(list.map((a) => a.gradeOverall));
+    const gradeLetter = list.find((a) => a.gradeLetter)?.gradeLetter ?? "—";
+    const scoreBacklift = avg(list.map((a) => a.scoreBacklift));
+    const scoreTiming = avg(list.map((a) => a.scoreTiming));
+    const scoreHeadPosition = avg(list.map((a) => a.scoreHeadPosition));
+    const scoreFootwork = avg(list.map((a) => a.scoreFootwork));
+    const scoreWeightTransfer = avg(list.map((a) => a.scoreWeightTransfer));
+    const scoreFollowThrough = avg(list.map((a) => a.scoreFollowThrough));
+    const playerName = `${p.firstName} ${p.lastName}`;
+    crossRefLines.push(
+      `${playerName} — Koda technique grade: ${gradeLetter} (${gradeOverall?.toFixed(1) ?? "—"}/10 overall)\n  Batting scores: Backlift ${scoreBacklift?.toFixed(1) ?? "—"}/10, Timing ${scoreTiming?.toFixed(1) ?? "—"}/10, Head Position ${scoreHeadPosition?.toFixed(1) ?? "—"}/10, Footwork ${scoreFootwork?.toFixed(1) ?? "—"}/10, Weight Transfer ${scoreWeightTransfer?.toFixed(1) ?? "—"}/10, Follow Through ${scoreFollowThrough?.toFixed(1) ?? "—"}/10\n  (Based on ${list.length} video analyses)`
+    );
+  }
+
+  let userPrompt = buildUserPrompt(season, competitionType, { players });
+  if (crossRefLines.length > 0) {
+    userPrompt += `\n\nThe following players are also registered on Koda Cricket and have video analysis data available.\nUse this to cross-reference match performance with batting technique:\n\n${crossRefLines.join("\n\n")}\n\nWhere relevant, note whether a player's match performance is consistent with their technique grade, or where there is a gap between technical quality and match output.`;
+  }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -204,6 +311,7 @@ export async function POST(request: NextRequest) {
     const parsedJson = JSON.parse(jsonPayload) as object;
     return NextResponse.json({
       ...parsedJson,
+      crossReferenced,
       generatedAt: new Date().toISOString(),
     });
   } catch (e) {

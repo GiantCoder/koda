@@ -158,7 +158,15 @@ export default function SquadIntelligencePage() {
   }>({ seasons: [], teams: [], lastSyncedAt: null });
 
   const [playersLoading, setPlayersLoading] = useState(false);
-  const [syncLoading, setSyncLoading] = useState(false);
+  type SyncStatus = "idle" | "pending" | "running" | "complete" | "failed";
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
+  const [syncProgress, setSyncProgress] = useState<{
+    playersUpserted: number;
+    statsRowsUpserted: number;
+    matchesSynced: number;
+    errorMessage: string | null;
+  }>({ playersUpserted: 0, statsRowsUpserted: 0, matchesSynced: 0, errorMessage: null });
+  const [inviteUrls, setInviteUrls] = useState<Record<string, string>>({});
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysis, setAnalysis] = useState<AnalysisResponse | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
@@ -277,7 +285,8 @@ export default function SquadIntelligencePage() {
 
   const handleSync = useCallback(async () => {
     if (!user || !clubId) return;
-    setSyncLoading(true);
+    setSyncStatus("pending");
+    setSyncProgress({ playersUpserted: 0, statsRowsUpserted: 0, matchesSynced: 0, errorMessage: null });
     try {
       const res = await fetch("/api/coach/play-cricket/sync", {
         method: "POST",
@@ -289,20 +298,86 @@ export default function SquadIntelligencePage() {
       });
       const body = await res.json();
       if (!res.ok) {
+        setSyncStatus("failed");
+        setSyncProgress((p) => ({ ...p, errorMessage: body?.error ?? "Sync failed" }));
         showToast(body?.error ?? "Sync failed", "error");
         return;
       }
-      showToast(
-        `Sync complete — ${body.playersUpserted ?? 0} players, ${body.statsRowsUpserted ?? 0} stat rows updated.`,
-        "success"
-      );
-      void fetchPlayers();
+      setSyncStatus("running");
+      const pollInterval = 3000;
+      const poll = async () => {
+        const statusRes = await fetch(
+          `/api/coach/play-cricket/sync/status?clubId=${encodeURIComponent(clubId)}&season=${encodeURIComponent(season)}`,
+          { headers: buildMockAuthHeaders(user) }
+        );
+        const statusData = await statusRes.json().catch(() => ({}));
+        setSyncProgress({
+          playersUpserted: statusData.playersUpserted ?? 0,
+          statsRowsUpserted: statusData.statsRowsUpserted ?? 0,
+          matchesSynced: statusData.matchesSynced ?? 0,
+          errorMessage: statusData.errorMessage ?? null,
+        });
+        if (statusData.status === "COMPLETE") {
+          setSyncStatus("complete");
+          showToast(
+            `Sync complete — ${statusData.playersUpserted ?? 0} players, ${statusData.statsRowsUpserted ?? 0} stat rows, ${statusData.matchesSynced ?? 0} matches.`,
+            "success"
+          );
+          void fetchPlayers();
+          return;
+        }
+        if (statusData.status === "FAILED") {
+          setSyncStatus("failed");
+          showToast(statusData.errorMessage ?? "Sync failed", "error");
+          return;
+        }
+        setTimeout(poll, pollInterval);
+      };
+      setTimeout(poll, pollInterval);
     } catch (e) {
+      setSyncStatus("failed");
+      setSyncProgress((p) => ({ ...p, errorMessage: e instanceof Error ? e.message : "Sync failed" }));
       showToast(e instanceof Error ? e.message : "Sync failed", "error");
-    } finally {
-      setSyncLoading(false);
     }
   }, [user, clubId, season, fetchPlayers, showToast]);
+
+  const handleInvite = useCallback(
+    async (importId: string) => {
+      if (!user) return;
+      try {
+        const res = await fetch("/api/coach/play-cricket/invite", {
+          method: "POST",
+          headers: {
+            ...buildMockAuthHeaders(user),
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ importId }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showToast(data?.error ?? "Invite failed", "error");
+          return;
+        }
+        setInviteUrls((prev) => ({ ...prev, [importId]: data.inviteUrl }));
+        setPlayers((prev) =>
+          prev.map((p) =>
+            p.importId === importId ? { ...p, status: "INVITED" as const } : p
+          )
+        );
+        showToast("Invite link generated. Share it with the player to get them on Koda.", "success");
+      } catch (e) {
+        showToast(e instanceof Error ? e.message : "Invite failed", "error");
+      }
+    },
+    [user, showToast]
+  );
+
+  const copyInviteUrl = useCallback((url: string) => {
+    navigator.clipboard.writeText(url).then(
+      () => showToast("Invite link copied to clipboard", "success"),
+      () => showToast("Failed to copy", "error")
+    );
+  }, [showToast]);
 
   const handleGenerateAnalysis = useCallback(async () => {
     if (!user || !clubId) return;
@@ -440,14 +515,27 @@ export default function SquadIntelligencePage() {
           ) : (
             <Button
               variant="secondary"
-              disabled={syncLoading || !clubId}
+              disabled={(syncStatus === "pending" || syncStatus === "running") || !clubId}
               onClick={() => void handleSync()}
               className="flex items-center gap-2"
             >
-              {syncLoading ? <LoadingSpinner size="sm" /> : <SyncIcon />}
-              Sync Now
+              {(syncStatus === "pending" || syncStatus === "running") ? (
+                <LoadingSpinner size="sm" />
+              ) : (
+                <SyncIcon />
+              )}
+              {syncStatus === "pending" || syncStatus === "running"
+                ? `Syncing… ${syncProgress.playersUpserted} players, ${syncProgress.matchesSynced} matches`
+                : syncStatus === "failed"
+                  ? "Retry sync"
+                  : "Sync Now"}
             </Button>
           ))}
+        {syncStatus === "failed" && syncProgress.errorMessage && (
+          <p className="mt-2 rounded-lg border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
+            {syncProgress.errorMessage}
+          </p>
+        )}
       </div>
 
       <p className="text-xs italic text-[var(--text-secondary)]">
@@ -770,12 +858,13 @@ export default function SquadIntelligencePage() {
                         Ct {sortBy === "fieldingCatches" ? (sortDir === "asc" ? "↑" : "↓") : ""}
                       </button>
                     </th>
-                    <th className="px-4 py-3 text-left">Status</th>
+                    <th className="px-4 py-3 text-left">Invite / Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {players.map((p) => {
                     const s = p.stats[0];
+                    const inviteUrl = inviteUrls[p.importId];
                     return (
                       <tr key={p.importId} className="border-b border-[var(--border)] hover:bg-[var(--bg)]/50">
                         <td className="px-4 py-2 font-medium">{`${p.firstName} ${p.lastName}`}</td>
@@ -793,7 +882,35 @@ export default function SquadIntelligencePage() {
                         <td className="px-4 py-2 text-right">{formatEcon(s?.bowlingEconomy)}</td>
                         <td className="px-4 py-2 text-right">{formatNull(s?.fieldingCatches)}</td>
                         <td className="px-4 py-2">
-                          <StatusBadge status={p.status} />
+                          {p.status === "LINKED" ? (
+                            <span className="rounded-full bg-[var(--success)]/20 px-2 py-0.5 text-xs font-medium text-[var(--success)]">
+                              On Koda ✓
+                            </span>
+                          ) : p.status === "INVITED" ? (
+                            <span className="flex items-center gap-1">
+                              <StatusBadge status="INVITED" />
+                              {inviteUrl && (
+                                <button
+                                  type="button"
+                                  onClick={() => copyInviteUrl(inviteUrl)}
+                                  className="rounded p-1 text-[var(--text-secondary)] hover:bg-[var(--border)]"
+                                  title="Copy invite link"
+                                  aria-label="Copy invite link"
+                                >
+                                  📋
+                                </button>
+                              )}
+                            </span>
+                          ) : (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              className="text-xs"
+                              onClick={() => void handleInvite(p.importId)}
+                            >
+                              Invite to Koda
+                            </Button>
+                          )}
                         </td>
                       </tr>
                     );

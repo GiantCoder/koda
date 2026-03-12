@@ -28,6 +28,9 @@ export const registerSchema = z.object({
     marketingCommunications: false,
     coachParentComms: true,
   }),
+  inviteToken: z.string().length(64).optional(),
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
 });
 
 export const loginSchema = z.object({

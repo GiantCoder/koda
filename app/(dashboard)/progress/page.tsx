@@ -5,7 +5,8 @@ import Link from "next/link";
 import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
 import { LoadingSpinner } from "@/app/components/common/LoadingSpinner";
 import { useMockAuth } from "@/app/hooks/useMockAuth";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { buildMockAuthHeaders } from "@/app/lib/mock-auth-headers";
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { PieChart, Pie, Cell } from "recharts";
 
 interface ProgressData {
@@ -153,10 +154,39 @@ function SessionIcon({ color }: { color: string }) {
   );
 }
 
+interface PlayCricketStatsPayload {
+  playCricketPersonId: string;
+  stats: Array<{
+    season: string;
+    competitionType: string;
+    battingInnings: number;
+    battingRuns: number;
+    battingAverage: number | null;
+    battingHighest: number;
+    bowlingWickets: number;
+    bowlingRuns: number;
+    fieldingCatches: number;
+    fieldingStumpings: number;
+    fieldingRunOuts: number;
+  }>;
+  recentInnings: Array<{
+    matchDate: string;
+    homeTeamName: string;
+    awayTeamName: string;
+    battingRuns: number | null;
+    battingBalls: number | null;
+    battingDismissal: string | null;
+    bowlingOvers: number | null;
+    bowlingWickets: number | null;
+    bowlingRuns: number | null;
+  }>;
+}
+
 export default function ProgressPage() {
   const { user } = useMockAuth();
   const [data, setData] = useState<ProgressData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [playCricketData, setPlayCricketData] = useState<PlayCricketStatsPayload | null | "none">(null);
 
   useEffect(() => {
     // Simulate API call
@@ -165,6 +195,22 @@ export default function ProgressPage() {
       setLoading(false);
     }, 500);
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    fetch("/api/players/me/play-cricket-stats", { headers: buildMockAuthHeaders(user) })
+      .then((res) => {
+        if (res.status === 404) {
+          setPlayCricketData("none");
+          return null;
+        }
+        return res.json();
+      })
+      .then((payload) => {
+        if (payload) setPlayCricketData(payload as PlayCricketStatsPayload);
+      })
+      .catch(() => setPlayCricketData("none"));
+  }, [user]);
 
   if (loading) {
     return (
@@ -245,6 +291,68 @@ export default function ProgressPage() {
           iconBg="bg-[var(--primary)]/10"
         />
       </div>
+
+      {/* Play-Cricket Stats (only when linked) */}
+      {playCricketData && playCricketData !== "none" && (
+        <Card>
+          <CardHeader>Play-Cricket Stats</CardHeader>
+          <CardContent className="space-y-4">
+            {playCricketData.stats.length > 0 && (
+              <>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 text-sm">
+                  <div>
+                    <p className="text-[var(--text-secondary)]">Innings</p>
+                    <p className="font-semibold text-[var(--text-primary)]">
+                      {playCricketData.stats.reduce((a, s) => a + s.battingInnings, 0)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[var(--text-secondary)]">Runs</p>
+                    <p className="font-semibold text-[var(--text-primary)]">
+                      {playCricketData.stats.reduce((a, s) => a + s.battingRuns, 0)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[var(--text-secondary)]">Highest</p>
+                    <p className="font-semibold text-[var(--text-primary)]">
+                      {Math.max(...playCricketData.stats.map((s) => s.battingHighest), 0)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[var(--text-secondary)]">Wickets</p>
+                    <p className="font-semibold text-[var(--text-primary)]">
+                      {playCricketData.stats.reduce((a, s) => a + s.bowlingWickets, 0)}
+                    </p>
+                  </div>
+                </div>
+                {playCricketData.recentInnings.length > 0 && (
+                  <div>
+                    <p className="mb-2 text-xs font-medium text-[var(--text-secondary)]">Last 5 innings (runs)</p>
+                    <div className="h-10 w-full">
+                      <ResponsiveContainer width="100%" height={40}>
+                        <BarChart
+                          data={playCricketData.recentInnings.slice(0, 5).map((inn, i) => ({
+                            name: `Inn ${i + 1}`,
+                            runs: inn.battingRuns ?? 0,
+                          }))}
+                          margin={{ top: 0, right: 4, left: 0, bottom: 0 }}
+                        >
+                          <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                          <YAxis width={24} tick={{ fontSize: 10 }} />
+                          <Bar dataKey="runs" fill="var(--primary)" radius={[2, 2, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+            <p className="text-xs text-[var(--text-secondary)] italic">
+              Stats sourced from Play-Cricket. Linked to your account via your coach.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Charts Row */}
       <div className="grid gap-6 lg:grid-cols-3">

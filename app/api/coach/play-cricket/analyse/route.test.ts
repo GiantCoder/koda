@@ -49,7 +49,7 @@ const mockStatsRows = [
     fieldingCatches: 2,
     fieldingStumpings: 0,
     fieldingRunOuts: 1,
-    import: { firstName: "John", lastName: "Smith" },
+    import: { firstName: "John", lastName: "Smith", linkedUserId: null },
   },
   {
     playCricketPersonId: "101",
@@ -71,7 +71,7 @@ const mockStatsRows = [
     fieldingCatches: 1,
     fieldingStumpings: 0,
     fieldingRunOuts: 0,
-    import: { firstName: "Jane", lastName: "Doe" },
+    import: { firstName: "Jane", lastName: "Doe", linkedUserId: null },
   },
 ];
 

@@ -193,6 +193,9 @@ model User {
   coachPlayCricketImports  PlayCricketImport[]    @relation("CoachPlayCricketImports")
   linkedPlayCricketImports PlayCricketImport[]    @relation("LinkedPlayCricketImports")
   coachPlayCricketStats    PlayCricketPlayerStats[] @relation("CoachPlayCricketStats")
+  coachPlayCricketMatches  PlayCricketMatch[]    @relation("CoachPlayCricketMatches")
+  coachSyncLogs            PlayCricketSyncLog[]   @relation("CoachSyncLogs")
+  coachInviteTokens       PlayCricketInviteToken[] @relation("CoachInviteTokens")
 }
 
 model Video {
@@ -411,6 +414,8 @@ model Club {
   coach User @relation(fields: [coachId], references: [id], onDelete: Cascade)
   playCricketImports   PlayCricketImport[]
   playCricketStats     PlayCricketPlayerStats[]
+  playCricketMatches   PlayCricketMatch[]   @relation("ClubPlayCricketMatches")
+  syncLogs             PlayCricketSyncLog[] @relation("ClubSyncLogs")
 
   @@index([coachId])
   @@unique([coachId, name])
@@ -444,9 +449,10 @@ model PlayCricketImport {
   updatedAt           DateTime @updatedAt
 
   coach      User  @relation("CoachPlayCricketImports", fields: [coachId], references: [id], onDelete: Cascade)
-  club       Club  @relation(fields: [clubId], references: [id], onDelete: Cascade)
-  linkedUser User? @relation("LinkedPlayCricketImports", fields: [linkedUserId], references: [id], onDelete: SetNull)
-  stats      PlayCricketPlayerStats[]
+  club         Club  @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  linkedUser   User? @relation("LinkedPlayCricketImports", fields: [linkedUserId], references: [id], onDelete: SetNull)
+  stats        PlayCricketPlayerStats[]
+  inviteToken  PlayCricketInviteToken?
 
   @@unique([coachId, playCricketPersonId])
   @@index([coachId])
@@ -501,6 +507,97 @@ model PlayCricketPlayerStats {
   @@index([coachId, season])
   @@index([clubId])
   @@index([playCricketPersonId])
+}
+
+/// Records each sync run for UI display and debugging.
+model PlayCricketSyncLog {
+  id                String    @id @default(uuid())
+  coachId           String
+  clubId            String
+  season            String
+  status            String    // "PENDING" | "COMPLETE" | "FAILED"
+  playersUpserted   Int       @default(0)
+  statsRowsUpserted Int       @default(0)
+  matchesSynced     Int       @default(0)
+  errorMessage      String?   @db.Text
+  startedAt         DateTime  @default(now())
+  completedAt       DateTime?
+
+  coach User @relation("CoachSyncLogs", fields: [coachId], references: [id], onDelete: Cascade)
+  club  Club @relation("ClubSyncLogs", fields: [clubId], references: [id], onDelete: Cascade)
+
+  @@index([coachId, clubId, season])
+  @@index([startedAt])
+}
+
+/// One row per match. GDPR: cascade delete when Club removed.
+model PlayCricketMatch {
+  id                  String    @id @default(uuid())
+  coachId             String
+  clubId              String
+  playCricketMatchId  Int       @unique
+  matchDate           DateTime?
+  homeTeamId          String?
+  awayTeamId          String?
+  homeTeamName        String?
+  awayTeamName        String?
+  resultDescription   String?   // "Home team won by 34 runs"
+  competitionType     String?
+  season              String
+  rawPayload          Json
+
+  syncedAt  DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  innings PlayCricketMatchInning[]
+
+  coach User @relation("CoachPlayCricketMatches", fields: [coachId], references: [id], onDelete: Cascade)
+  club  Club @relation("ClubPlayCricketMatches", fields: [clubId], references: [id], onDelete: Cascade)
+
+  @@index([coachId, season])
+  @@index([clubId])
+}
+
+/// One row per player per innings per match. Enables form calculations. GDPR: cascade from PlayCricketMatch.
+model PlayCricketMatchInning {
+  id                  String  @id @default(uuid())
+  matchId             String  // FK → PlayCricketMatch
+  playCricketPersonId String
+  inningsNumber       Int     // 1 or 2
+  battingPosition     Int?
+  battingRuns         Int?
+  battingBalls        Int?
+  battingFours        Int?
+  battingSixes        Int?
+  battingDismissal    String? // "caught", "lbw", "run out", "not out", etc.
+  bowlingOvers        Float?
+  bowlingMaidens      Int?
+  bowlingRuns         Int?
+  bowlingWickets      Int?
+  fieldingCatches     Int?    @default(0)
+  fieldingStumpings   Int?    @default(0)
+  fieldingRunOuts     Int?    @default(0)
+
+  match PlayCricketMatch @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@unique([matchId, playCricketPersonId, inningsNumber])
+  @@index([playCricketPersonId])
+  @@index([matchId])
+}
+
+model PlayCricketInviteToken {
+  id        String   @id @default(uuid())
+  importId  String   @unique   // one active token per import record
+  coachId   String
+  token     String   @unique   // 32-byte hex, used in registration URL
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  import PlayCricketImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+  coach  User              @relation("CoachInviteTokens", fields: [coachId], references: [id], onDelete: Cascade)
+
+  @@index([token])
 }
 
 model SquadMember {

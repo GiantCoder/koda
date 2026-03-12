@@ -2,6 +2,8 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
+**Inngest (background jobs):** For local development with Play-Cricket sync, run the Inngest dev server alongside Next.js: `npx inngest-cli@latest dev`. Configure `INNGEST_EVENT_KEY` and `INNGEST_SIGNING_KEY` in `.env.local` (see `.env.local.example`).
+
 First, run the development server:
 
 ```bash

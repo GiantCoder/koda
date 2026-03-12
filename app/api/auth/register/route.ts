@@ -46,10 +46,32 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  let inviteImport: { playCricketPersonId: string; id: string } | null = null;
+  if (data.inviteToken) {
+    const inviteToken = await prisma.playCricketInviteToken.findUnique({
+      where: { token: data.inviteToken },
+      include: { import: true },
+    });
+    if (
+      !inviteToken ||
+      inviteToken.usedAt ||
+      new Date() > inviteToken.expiresAt
+    ) {
+      return NextResponse.json(
+        { error: "Invalid or expired invite", code: "INVITE_INVALID" },
+        { status: 400 }
+      );
+    }
+    inviteImport = {
+      id: inviteToken.import.id,
+      playCricketPersonId: inviteToken.import.playCricketPersonId,
+    };
+  }
+
   const passwordHash = await hashPassword(data.password);
 
-  const user = await prisma.$transaction(async (tx) =>
-    tx.user.create({
+  const user = await prisma.$transaction(async (tx) => {
+    const created = await tx.user.create({
       data: {
         email: data.email.toLowerCase(),
         passwordHash,
@@ -57,6 +79,9 @@ export async function POST(request: NextRequest) {
         name: data.displayName,
         role: data.role,
         dateOfBirth,
+        firstName: data.firstName ?? undefined,
+        lastName: data.lastName ?? undefined,
+        playCricketPersonId: inviteImport?.playCricketPersonId ?? undefined,
         isActive: consentStatus === ConsentStatus.NOT_REQUIRED,
         emailVerified: true,
         consentRecord: {
@@ -76,8 +101,25 @@ export async function POST(request: NextRequest) {
         consentRecord: true,
         privacyPreferences: true,
       },
-    })
-  );
+    });
+
+    if (data.inviteToken && inviteImport) {
+      await tx.playCricketInviteToken.update({
+        where: { token: data.inviteToken },
+        data: { usedAt: new Date() },
+      });
+      await tx.playCricketImport.update({
+        where: { id: inviteImport.id },
+        data: {
+          status: "LINKED",
+          linkedUserId: created.id,
+          updatedAt: new Date(),
+        },
+      });
+    }
+
+    return created;
+  });
 
   const accessToken = await generateAccessToken({
     sub: user.id,
