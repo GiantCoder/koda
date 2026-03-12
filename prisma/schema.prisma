@@ -190,8 +190,9 @@ model User {
   challengeSubmissions ChallengeSubmission[]
   createdLeagues     League[]              @relation("CreatedLeagues")
   createdChallenges  Challenge[]           @relation("CreatedChallenges")
-  coachPlayCricketImports  PlayCricketImport[] @relation("CoachPlayCricketImports")
-  linkedPlayCricketImports PlayCricketImport[] @relation("LinkedPlayCricketImports")
+  coachPlayCricketImports  PlayCricketImport[]    @relation("CoachPlayCricketImports")
+  linkedPlayCricketImports PlayCricketImport[]    @relation("LinkedPlayCricketImports")
+  coachPlayCricketStats    PlayCricketPlayerStats[] @relation("CoachPlayCricketStats")
 }
 
 model Video {
@@ -408,7 +409,8 @@ model Club {
   updatedAt     DateTime @updatedAt
 
   coach User @relation(fields: [coachId], references: [id], onDelete: Cascade)
-  playCricketImports PlayCricketImport[]
+  playCricketImports   PlayCricketImport[]
+  playCricketStats     PlayCricketPlayerStats[]
 
   @@index([coachId])
   @@unique([coachId, name])
@@ -444,11 +446,61 @@ model PlayCricketImport {
   coach      User  @relation("CoachPlayCricketImports", fields: [coachId], references: [id], onDelete: Cascade)
   club       Club  @relation(fields: [clubId], references: [id], onDelete: Cascade)
   linkedUser User? @relation("LinkedPlayCricketImports", fields: [linkedUserId], references: [id], onDelete: SetNull)
+  stats      PlayCricketPlayerStats[]
 
   @@unique([coachId, playCricketPersonId])
   @@index([coachId])
   @@index([clubId])
   @@index([status])
+}
+
+/// Player stats from Play-Cricket per season/competition. Cascade delete when Club removed (GDPR).
+model PlayCricketPlayerStats {
+  id                    String   @id @default(uuid())
+  importId              String
+  coachId               String
+  clubId                String
+  playCricketPersonId   String
+  playCricketTeamId     String
+  teamName              String
+  season                String   // "2024"
+  competitionType       String   // "Limited Overs" | "T20" | "Declaration"
+
+  // Batting
+  battingInnings        Int      @default(0)
+  battingNotOuts        Int      @default(0)
+  battingRuns           Int      @default(0)
+  battingHighest        Int      @default(0)
+  battingAverage        Float?
+  battingStrikeRate     Float?
+  battingFifties        Int      @default(0)
+  battingHundreds       Int      @default(0)
+
+  // Bowling
+  bowlingOvers          Float    @default(0)
+  bowlingWickets        Int      @default(0)
+  bowlingRuns           Int      @default(0)
+  bowlingAverage        Float?
+  bowlingEconomy        Float?
+  bowlingBestFigures    String?
+  bowlingFiveWickets    Int      @default(0)
+
+  // Fielding
+  fieldingCatches       Int      @default(0)
+  fieldingStumpings     Int      @default(0)
+  fieldingRunOuts       Int      @default(0)
+
+  syncedAt              DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  import PlayCricketImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+  coach  User              @relation("CoachPlayCricketStats", fields: [coachId], references: [id], onDelete: Cascade)
+  club   Club              @relation("ClubPlayCricketStats", fields: [clubId], references: [id], onDelete: Cascade)
+
+  @@unique([importId, season, competitionType])
+  @@index([coachId, season])
+  @@index([clubId])
+  @@index([playCricketPersonId])
 }
 
 model SquadMember {
