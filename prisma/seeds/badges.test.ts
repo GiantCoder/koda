@@ -1,4 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("@prisma/client", () => ({
+  BadgeRarity: {
+    COMMON: "COMMON",
+    UNCOMMON: "UNCOMMON",
+    RARE: "RARE",
+    EPIC: "EPIC",
+    LEGENDARY: "LEGENDARY",
+  },
+}));
+
 import { BADGE_SEED_DATA } from "./badges";
 
 describe("badge seed data", () => {

@@ -1,12 +1,27 @@
 import { describe, expect, it, vi, beforeEach, beforeAll } from "vitest";
 
 const getAuthUserMock = vi.fn();
+const parseRequestBodyMock = vi.fn();
+
+function postAnalyseRequest(body: { clubId: string; season: string; competitionType?: string }) {
+  parseRequestBodyMock.mockResolvedValueOnce(body);
+  return new Request("http://localhost/api/coach/play-cricket/analyse", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
 const clubFindFirstMock = vi.fn();
 const statsFindManyMock = vi.fn();
+const analysisFindManyMock = vi.fn();
 const anthropicCreateMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/get-auth-user", () => ({
   getAuthUser: (...args: unknown[]) => getAuthUserMock(...args),
+}));
+
+vi.mock("@/lib/parse-request-body", () => ({
+  parseRequestBody: (...args: unknown[]) => parseRequestBodyMock(...args),
 }));
 
 vi.mock("@/prisma/client", () => ({
@@ -15,6 +30,7 @@ vi.mock("@/prisma/client", () => ({
     playCricketPlayerStats: {
       findMany: (...args: unknown[]) => statsFindManyMock(...args),
     },
+    analysis: { findMany: (...args: unknown[]) => analysisFindManyMock(...args) },
   },
 }));
 
@@ -87,17 +103,12 @@ describe("POST /api/coach/play-cricket/analyse", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.ANTHROPIC_API_KEY = origKey ?? "test-key";
+    analysisFindManyMock.mockResolvedValue([]);
   });
 
   it("returns 401 when unauthenticated", async () => {
     getAuthUserMock.mockResolvedValueOnce(null);
-    const res = await POST(
-      new Request("http://localhost/api/coach/play-cricket/analyse", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clubId: "11111111-1111-1111-1111-111111111111", season: "2024" }),
-      }) as never
-    );
+    const res = await POST(postAnalyseRequest({ clubId: "11111111-1111-1111-1111-111111111111", season: "2024" }) as never);
     expect(res.status).toBe(401);
     expect(statsFindManyMock).not.toHaveBeenCalled();
     expect(anthropicCreateMock).not.toHaveBeenCalled();
@@ -109,13 +120,7 @@ describe("POST /api/coach/play-cricket/analyse", () => {
       email: "p@test.com",
       role: "PLAYER",
     });
-    const res = await POST(
-      new Request("http://localhost/api/coach/play-cricket/analyse", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clubId: "11111111-1111-1111-1111-111111111111", season: "2024" }),
-      }) as never
-    );
+    const res = await POST(postAnalyseRequest({ clubId: "11111111-1111-1111-1111-111111111111", season: "2024" }) as never);
     expect(res.status).toBe(403);
     expect(anthropicCreateMock).not.toHaveBeenCalled();
   });
@@ -125,13 +130,7 @@ describe("POST /api/coach/play-cricket/analyse", () => {
     getAuthUserMock.mockResolvedValueOnce({ id: "coach-1", email: "c@test.com", role: "COACH" });
     clubFindFirstMock.mockResolvedValueOnce({ id: clubId });
     statsFindManyMock.mockResolvedValueOnce(mockStatsRows.slice(0, 1));
-    const res = await POST(
-      new Request("http://localhost/api/coach/play-cricket/analyse", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clubId, season: "2024" }),
-      }) as never
-    );
+    const res = await POST(postAnalyseRequest({ clubId, season: "2024" }) as never);
     expect(res.status).toBe(400);
     const json = (await res.json()) as { error?: string };
     expect(json.error).toContain("Insufficient data");
@@ -161,13 +160,7 @@ describe("POST /api/coach/play-cricket/analyse", () => {
     };
     anthropicCreateMock.mockResolvedValueOnce(mockResponse);
 
-    const res = await POST(
-      new Request("http://localhost/api/coach/play-cricket/analyse", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clubId, season: "2024" }),
-      }) as never
-    );
+    const res = await POST(postAnalyseRequest({ clubId, season: "2024" }) as never);
     expect(res.status).toBe(200);
     const json = (await res.json()) as { summary?: string; generatedAt?: string };
     expect(json.summary).toBe("Solid squad performance.");
@@ -188,13 +181,7 @@ describe("POST /api/coach/play-cricket/analyse", () => {
     statsFindManyMock.mockResolvedValueOnce(mockStatsRows);
     anthropicCreateMock.mockRejectedValueOnce(new Error("API unavailable"));
 
-    const res = await POST(
-      new Request("http://localhost/api/coach/play-cricket/analyse", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clubId, season: "2024" }),
-      }) as never
-    );
+    const res = await POST(postAnalyseRequest({ clubId, season: "2024" }) as never);
     expect(res.status).toBe(502);
     const json = (await res.json()) as { error?: string };
     expect(json.error).toBe("Analysis service unavailable");
@@ -209,13 +196,7 @@ describe("POST /api/coach/play-cricket/analyse", () => {
       content: [{ type: "text", text: JSON.stringify({ summary: "Ok", improving: [], declining: [], standouts: [], insights: [], dataNote: "" }) }],
     });
 
-    await POST(
-      new Request("http://localhost/api/coach/play-cricket/analyse", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clubId, season: "2024" }),
-      }) as never
-    );
+    await POST(postAnalyseRequest({ clubId, season: "2024" }) as never);
 
     expect(statsFindManyMock).toHaveBeenCalledTimes(1);
     expect(clubFindFirstMock).toHaveBeenCalledTimes(1);

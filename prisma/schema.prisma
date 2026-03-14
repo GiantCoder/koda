@@ -413,7 +413,7 @@ model Club {
 
   coach User @relation(fields: [coachId], references: [id], onDelete: Cascade)
   playCricketImports   PlayCricketImport[]
-  playCricketStats     PlayCricketPlayerStats[]
+  playCricketStats     PlayCricketPlayerStats[] @relation("ClubPlayCricketStats")
   playCricketMatches   PlayCricketMatch[]   @relation("ClubPlayCricketMatches")
   syncLogs             PlayCricketSyncLog[] @relation("ClubSyncLogs")
 

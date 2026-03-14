@@ -43,8 +43,9 @@ services:
     networks:
       - koda_network
     # Run next dev directly so container restarts don't re-run predev (prisma generate).
-    # Prisma client is generated at image build time; use `docker compose exec app npx prisma generate` after schema changes.
-    command: npx next dev
+    # After schema changes: run `docker compose exec app npx prisma generate` then restart the app,
+    # or rebuild the image so the client in the preserved node_modules volume is up to date.
+    command: sh -c "npx prisma generate && npx next dev"
     deploy:
       resources:
         limits:

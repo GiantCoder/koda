@@ -1,15 +1,15 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "crypto";
 
 const ALGORITHM = "aes-256-gcm";
-const KEY_HEX = process.env.ECB_API_KEY_SECRET ?? "";
 
 function getKey(): Buffer {
-  if (KEY_HEX.length !== 64) {
+  const keyHex = process.env.ECB_API_KEY_SECRET ?? "";
+  if (keyHex.length !== 64) {
     throw new Error(
       "ECB_API_KEY_SECRET must be a 64-character hex string (32 bytes)"
     );
   }
-  return Buffer.from(KEY_HEX, "hex");
+  return Buffer.from(keyHex, "hex");
 }
 
 export interface EncryptedPayload {

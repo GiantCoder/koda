@@ -2,21 +2,20 @@ import { describe, expect, it, vi, beforeEach, beforeAll } from "vitest";
 
 const getAuthUserMock = vi.fn();
 const decryptApiKeyMock = vi.fn();
-const inngestSendMock = vi.fn();
 const syncLogCreateMock = vi.fn();
+const parseRequestBodyMock = vi.fn();
+let sendMock: ReturnType<typeof vi.fn>;
 
 vi.mock("@/lib/get-auth-user", () => ({
   getAuthUser: (...args: unknown[]) => getAuthUserMock(...args),
 }));
 
-vi.mock("@/lib/encrypt", () => ({
-  decryptApiKey: (...args: unknown[]) => decryptApiKeyMock(...args),
+vi.mock("@/lib/parse-request-body", () => ({
+  parseRequestBody: (...args: unknown[]) => parseRequestBodyMock(...args),
 }));
 
-vi.mock("@/inngest/client", () => ({
-  inngest: {
-    send: (...args: unknown[]) => inngestSendMock(...args),
-  },
+vi.mock("@/lib/encrypt", () => ({
+  decryptApiKey: (...args: unknown[]) => decryptApiKeyMock(...args),
 }));
 
 const clubFindFirstMock = vi.fn();
@@ -34,12 +33,16 @@ let POST: (req: Request) => Promise<Response>;
 
 describe("POST /api/coach/play-cricket/sync", () => {
   beforeAll(async () => {
+    const { inngestSendMock } = await import("@/src/test/mocks/inngest");
+    sendMock = vi.fn().mockResolvedValue(undefined);
+    inngestSendMock.send = sendMock;
     const route = await import("./route");
     POST = route.POST;
   }, 30000);
 
   beforeEach(() => {
     vi.clearAllMocks();
+    sendMock.mockResolvedValue(undefined);
   });
 
   it("returns 401 when unauthenticated", async () => {
@@ -73,17 +76,19 @@ describe("POST /api/coach/play-cricket/sync", () => {
   });
 
   it("returns 404 if clubId does not belong to coach", async () => {
+    const clubId = "11111111-1111-1111-1111-111111111111";
     getAuthUserMock.mockResolvedValueOnce({
       id: "coach-1",
       email: "c@test.com",
       role: "COACH",
     });
     clubFindFirstMock.mockResolvedValueOnce(null);
+    parseRequestBodyMock.mockResolvedValueOnce({ clubId });
     const res = await POST(
       new Request("http://localhost/api/coach/play-cricket/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clubId: "11111111-1111-1111-1111-111111111111" }),
+        body: JSON.stringify({ clubId }),
       }) as never
     );
     expect(res.status).toBe(404);
@@ -105,6 +110,7 @@ describe("POST /api/coach/play-cricket/sync", () => {
       ecbApiKeyIv: null,
       ecbApiKeyTag: null,
     });
+    parseRequestBodyMock.mockResolvedValueOnce({ clubId });
     const res = await POST(
       new Request("http://localhost/api/coach/play-cricket/sync", {
         method: "POST",
@@ -115,7 +121,7 @@ describe("POST /api/coach/play-cricket/sync", () => {
     expect(res.status).toBe(400);
     const json = (await res.json()) as { error?: string };
     expect(json.error).toBe("no_api_key");
-    expect(inngestSendMock).not.toHaveBeenCalled();
+    expect(sendMock).not.toHaveBeenCalled();
   });
 
   it("creates PENDING sync log and dispatches Inngest event", async () => {
@@ -133,7 +139,8 @@ describe("POST /api/coach/play-cricket/sync", () => {
     });
     decryptApiKeyMock.mockReturnValueOnce("plain-token");
     syncLogCreateMock.mockResolvedValueOnce({ id: "log-1" });
-    inngestSendMock.mockResolvedValueOnce(undefined);
+    sendMock.mockResolvedValueOnce(undefined);
+    parseRequestBodyMock.mockResolvedValueOnce({ clubId, season: "2024" });
 
     const res = await POST(
       new Request("http://localhost/api/coach/play-cricket/sync", {
@@ -159,7 +166,7 @@ describe("POST /api/coach/play-cricket/sync", () => {
         startedAt: expect.any(Date),
       },
     });
-    expect(inngestSendMock).toHaveBeenCalledWith({
+    expect(sendMock).toHaveBeenCalledWith({
       name: "play-cricket/sync.requested",
       data: {
         coachId: "coach-1",

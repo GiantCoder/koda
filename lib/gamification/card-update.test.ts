@@ -34,7 +34,7 @@ describe("updatePlayerCardFromAnalyses", () => {
 
     expect(result).toEqual({
       cardUpdated: true,
-      tierChanged: false,
+      tierChanged: true, // no previous card → first tier set counts as change
       previousTier: null,
       newTier: "BRONZE",
     });
@@ -67,7 +67,7 @@ describe("updatePlayerCardFromAnalyses", () => {
     const result = await updatePlayerCardFromAnalyses(userId);
 
     expect(result?.newTier).toBe("SILVER");
-    expect(result?.tierChanged).toBe(false);
+    expect(result?.tierChanged).toBe(true); // no previous card → first tier set counts as change
     expect(playerCardUpsert.mock.calls[0][0].create.tier).toBe("SILVER");
   });
 

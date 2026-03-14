@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getAuthUser } from "@/lib/get-auth-user";
+import { parseRequestBody } from "@/lib/parse-request-body";
 import { prisma } from "@/prisma/client";
 
 const analyseSchema = z.object({
@@ -65,7 +66,7 @@ export async function POST(request: NextRequest) {
 
   let body: unknown;
   try {
-    body = await request.json();
+    body = await parseRequestBody(request);
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }

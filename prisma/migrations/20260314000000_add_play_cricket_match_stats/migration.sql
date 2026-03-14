@@ -61,9 +61,9 @@ CREATE TABLE `PlayCricketMatchInning` (
     `fieldingStumpings` INTEGER NULL DEFAULT 0,
     `fieldingRunOuts` INTEGER NULL DEFAULT 0,
 
-    UNIQUE INDEX `PlayCricketMatchInning_matchId_playCricketPersonId_inningsNumber_key`(`matchId`, `playCricketPersonId`, `inningsNumber`),
-    INDEX `PlayCricketMatchInning_playCricketPersonId_idx`(`playCricketPersonId`),
-    INDEX `PlayCricketMatchInning_matchId_idx`(`matchId`),
+    UNIQUE INDEX `PCMInn_match_person_inn_key`(`matchId`, `playCricketPersonId`, `inningsNumber`),
+    INDEX `PCMInn_playCricketPersonId_idx`(`playCricketPersonId`),
+    INDEX `PCMInn_matchId_idx`(`matchId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 

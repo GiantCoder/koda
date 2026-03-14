@@ -6,6 +6,7 @@ const userBadgeFindManyMock = vi.fn();
 const leagueMemberFindFirstMock = vi.fn();
 const leagueEntryFindUniqueMock = vi.fn();
 const leagueEntryCountMock = vi.fn();
+const gameSettingsUpsertMock = vi.fn();
 
 vi.mock("@/lib/get-auth-user", () => ({
   getAuthUser: getAuthUserMock,
@@ -24,6 +25,7 @@ vi.mock("@/prisma/client", () => ({
       findUnique: (...args: unknown[]) => leagueEntryFindUniqueMock(...args),
       count: (...args: unknown[]) => leagueEntryCountMock(...args),
     },
+    gameSettings: { upsert: (...args: unknown[]) => gameSettingsUpsertMock(...args) },
   },
 }));
 
@@ -40,6 +42,7 @@ describe("GET /api/gamification/summary", () => {
     userPointsFindUniqueMock.mockResolvedValue(null);
     userBadgeFindManyMock.mockResolvedValue([]);
     leagueMemberFindFirstMock.mockResolvedValue(null);
+    gameSettingsUpsertMock.mockResolvedValue({ id: "default", pointEarnSource: "BOTH" });
   });
 
   it("returns 401 when unauthenticated", async () => {
