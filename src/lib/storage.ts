@@ -1,4 +1,9 @@
-import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import {
+  S3Client,
+  PutObjectCommand,
+  DeleteObjectCommand,
+  GetObjectCommand,
+} from "@aws-sdk/client-s3";
 import { getSignedUrl as awsGetSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const client = new S3Client({
@@ -42,4 +47,19 @@ export async function deleteFromStorage(key: string): Promise<void> {
       Key: key,
     })
   );
+}
+
+/** Download object bytes from the videos bucket. */
+export async function downloadFromStorage(key: string): Promise<Buffer> {
+  const response = await client.send(
+    new GetObjectCommand({
+      Bucket: videosBucket,
+      Key: key,
+    })
+  );
+  const body = response.Body;
+  if (!body) {
+    throw new Error(`Empty body for storage key: ${key}`);
+  }
+  return Buffer.from(await body.transformToByteArray());
 }

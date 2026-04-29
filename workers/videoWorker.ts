@@ -2,6 +2,12 @@ import { Worker, type Job } from "bullmq";
 import { Queue } from "bullmq";
 import { prisma } from "@/prisma/client";
 import Redis from "ioredis";
+import { downloadFromStorage } from "@/src/lib/storage";
+import {
+  probeVideoFile,
+  removeTempPath,
+  writeTempVideoFile,
+} from "@/src/lib/analysis/video-frames";
 
 interface VideoJobData {
   videoId: string;
@@ -35,23 +41,53 @@ export const videoWorker = new Worker<VideoJobData>(
     const { videoId, userId, analysisId: queuedAnalysisId } = job.data;
     const video = await prisma.video.findUnique({
       where: { id: videoId },
-      select: { id: true, userId: true, storagePath: true },
+      select: { id: true, userId: true, storagePath: true, originalFormat: true },
     });
     if (!video || video.userId !== userId) {
       throw new Error("Video not found or ownership mismatch");
     }
 
-    // MVP fallback: emulate FFmpeg pipeline outputs.
-    // In production this worker will download, transcode, thumbnail, and inspect metadata.
-    const cdnUrl = `${process.env.STORAGE_PUBLIC_URL ?? "http://localhost:9000"}/${process.env.STORAGE_BUCKET_VIDEOS ?? "koda-videos"}/${video.storagePath}`;
+    const bucket = process.env.STORAGE_BUCKET_VIDEOS ?? "koda-videos";
+    const cdnUrl = `${process.env.STORAGE_PUBLIC_URL ?? "http://localhost:9000"}/${bucket}/${video.storagePath}`;
+
+    let durationSeconds = 12.4;
+    let resolutionWidth = 1920;
+    let resolutionHeight = 1080;
+
+    const ext = (video.originalFormat || "mp4").replace(/[^a-z0-9]/gi, "") || "mp4";
+    let tempPath: string | null = null;
+    try {
+      const buffer = await downloadFromStorage(video.storagePath);
+      tempPath = await writeTempVideoFile(buffer, ext);
+      const probe = await probeVideoFile(tempPath);
+      if (probe.durationSeconds > 0) {
+        durationSeconds = probe.durationSeconds;
+      }
+      if (probe.width > 0 && probe.height > 0) {
+        resolutionWidth = probe.width;
+        resolutionHeight = probe.height;
+      }
+      console.log(
+        `[videoWorker] probed video ${videoId}: ${durationSeconds.toFixed(2)}s ${resolutionWidth}x${resolutionHeight}`
+      );
+    } catch (err) {
+      console.warn(
+        `[videoWorker] ffprobe/download skipped for ${videoId}, using defaults:`,
+        err instanceof Error ? err.message : err
+      );
+    } finally {
+      if (tempPath) {
+        await removeTempPath(tempPath);
+      }
+    }
 
     await prisma.video.update({
       where: { id: videoId },
       data: {
         cdnUrl,
-        durationSeconds: 12.4,
-        resolutionWidth: 1920,
-        resolutionHeight: 1080,
+        durationSeconds,
+        resolutionWidth,
+        resolutionHeight,
       },
     });
 

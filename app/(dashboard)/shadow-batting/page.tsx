@@ -5,32 +5,7 @@ import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 import { useMockAuth } from "@/app/hooks/useMockAuth";
 import { buildMockAuthHeaders } from "@/app/lib/mock-auth-headers";
-
-const SHOT_TYPES = [
-  { value: "COVER_DRIVE", label: "Cover Drive" },
-  { value: "PULL", label: "Pull Shot" },
-  { value: "CUT", label: "Cut Shot" },
-  { value: "HOOK", label: "Hook Shot" },
-  { value: "DEFENSIVE", label: "Defensive" },
-  { value: "STRAIGHT_DRIVE", label: "Straight Drive" },
-  { value: "OFF_DRIVE", label: "Off Drive" },
-  { value: "ON_DRIVE", label: "On Drive" },
-  { value: "SWEEP", label: "Sweep" },
-  { value: "REVERSE_SWEEP", label: "Reverse Sweep" },
-  { value: "LATE_CUT", label: "Late Cut" },
-  { value: "FLICK", label: "Flick" },
-  { value: "GLANCE", label: "Glance" },
-  { value: "SCOOP", label: "Scoop" },
-  { value: "FORWARD_DEFENCE", label: "Forward Defence" },
-  { value: "BACK_FOOT_DEFENCE", label: "Back Foot Defence" },
-  { value: "LEG_GLANCE", label: "Leg Glance" },
-  { value: "SQUARE_CUT", label: "Square Cut" },
-  { value: "UPPER_CUT", label: "Upper Cut" },
-  { value: "LOFTED_DRIVE", label: "Lofted Drive" },
-  { value: "PADDLE_SWEEP", label: "Paddle Sweep" },
-  { value: "RAMP", label: "Ramp" },
-  { value: "CHECK_DRIVE", label: "Check Drive" },
-];
+import { SHOT_TYPE_OPTIONS } from "@/src/lib/cricket/shot-types";
 
 const DURATIONS = [5, 10, 15, 30, 45, 60];
 
@@ -151,8 +126,8 @@ export default function ShadowBattingPage() {
 
   const filteredShotTypes = useMemo(() => {
     const query = shotSearchTerm.trim().toLowerCase();
-    if (!query) return SHOT_TYPES;
-    return SHOT_TYPES.filter(
+    if (!query) return SHOT_TYPE_OPTIONS;
+    return SHOT_TYPE_OPTIONS.filter(
       (shot) =>
         shot.label.toLowerCase().includes(query) ||
         shot.value.toLowerCase().includes(query.replace(/\s+/g, "_"))
@@ -261,7 +236,7 @@ export default function ShadowBattingPage() {
 
       if (
         parsed.selectedShotType &&
-        SHOT_TYPES.some((shot) => shot.value === parsed.selectedShotType)
+        SHOT_TYPE_OPTIONS.some((shot) => shot.value === parsed.selectedShotType)
       ) {
         setSelectedShotType(parsed.selectedShotType);
       }
@@ -402,6 +377,60 @@ export default function ShadowBattingPage() {
       setIsUploading(true);
       setUploadError("");
 
+      const authHeaders = buildMockAuthHeaders(user);
+
+      async function pollUntilComplete(analysisId: string): Promise<void> {
+        const maxMs = 5 * 60 * 1000;
+        const started = Date.now();
+        while (Date.now() - started < maxMs) {
+          const stRes = await fetch(`/api/analysis/${analysisId}/status`, {
+            headers: authHeaders,
+          });
+          if (!stRes.ok) {
+            throw new Error("Could not read analysis status");
+          }
+          const st = (await stRes.json()) as {
+            stage?: string;
+            error?: string | null;
+          };
+          if (st.stage === "failed") {
+            throw new Error(st.error || "Analysis failed");
+          }
+          if (st.stage === "complete") {
+            return;
+          }
+          await new Promise((r) => setTimeout(r, 1500));
+        }
+        throw new Error("Analysis timed out — try again or check worker logs");
+      }
+
+      function mapServerAnalysisToResult(payload: Record<string, unknown>): {
+        coachingFeedback: string;
+        scores: Record<string, number>;
+        grade: string;
+      } {
+        const tips = payload.coachingTips as
+          | { description?: string; title?: string }[]
+          | undefined;
+        const coachingFeedback =
+          (tips && tips[0]?.description) ||
+          "Great job! Keep practicing your technique.";
+        return {
+          coachingFeedback,
+          scores: {
+            backlift: Number(payload.scoreBacklift ?? 0),
+            weightTransfer: Number(payload.scoreWeightTransfer ?? 0),
+            headPosition: Number(payload.scoreHeadPosition ?? 0),
+            followThrough: Number(payload.scoreFollowThrough ?? 0),
+            timing: Number(payload.scoreTiming ?? 0),
+            balance: Number(payload.scoreBalance ?? 0),
+            footwork: Number(payload.scoreFootwork ?? 0),
+            shotSelection: Number(payload.scoreShotSelection ?? 0),
+          },
+          grade: String(payload.gradeLetter ?? "B+"),
+        };
+      }
+
       try {
         const formData = new FormData();
         const extension = getBlobExtension(blob);
@@ -412,23 +441,38 @@ export default function ShadowBattingPage() {
 
         const res = await fetch("/api/shadow-batting/upload", {
           method: "POST",
-          headers: buildMockAuthHeaders(user),
+          headers: authHeaders,
           body: formData,
         });
 
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
-          throw new Error(data.error ?? "Upload failed");
+          throw new Error(
+            (data as { error?: string }).error ?? "Upload failed"
+          );
         }
 
-        const data = await res.json();
-        const nextResult = {
-          coachingFeedback:
-            data.coachingFeedback ||
-            "Great job! Keep practicing your technique.",
-          scores: data.scores || {},
-          grade: data.grade || "B+",
+        const data = (await res.json()) as {
+          id?: string;
+          analysisId?: string;
         };
+
+        const videoId = data.id;
+        const analysisId = data.analysisId;
+        if (!videoId || !analysisId) {
+          throw new Error("Invalid upload response");
+        }
+
+        await pollUntilComplete(analysisId);
+
+        const ar = await fetch(`/api/analysis/video/${videoId}`, {
+          headers: authHeaders,
+        });
+        if (!ar.ok) {
+          throw new Error("Could not load analysis results");
+        }
+        const analysisPayload = (await ar.json()) as Record<string, unknown>;
+        const nextResult = mapServerAnalysisToResult(analysisPayload);
 
         setAnalysisResult(nextResult);
         setAnalyzedClips((prev) => [
@@ -436,8 +480,8 @@ export default function ShadowBattingPage() {
             clip.id === localClipId
               ? {
                   ...clip,
-                  serverVideoId: String(data.id ?? ""),
-                  localUrl: data.id ? getPersistedVideoUrl(String(data.id)) : clip.localUrl,
+                  serverVideoId: String(videoId),
+                  localUrl: getPersistedVideoUrl(String(videoId)),
                   coachingFeedback: nextResult.coachingFeedback,
                   scores: nextResult.scores,
                   grade: nextResult.grade,

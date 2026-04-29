@@ -97,8 +97,10 @@ services:
       - PYTHONUNBUFFERED=1
       - MODEL_COMPLEXITY=1
       - ENABLE_SEGMENTATION=false
-      - MIN_DETECTION_CONFIDENCE=0.5
-      - MIN_TRACKING_CONFIDENCE=0.5
+      # Looser defaults for phone/portrait webcam; see services/mediapipe/main.py
+      - MIN_DETECTION_CONFIDENCE=0.35
+      - MIN_TRACKING_CONFIDENCE=0.35
+      - MIN_POSE_AVG_VISIBILITY=0.32
     volumes:
       - ./services/mediapipe:/app
       - mediapipe_models:/app/models

@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
+import os
 import mediapipe as mp
 import cv2
 import numpy as np
@@ -58,9 +59,19 @@ def decode_frame(b64_string: str) -> np.ndarray:
     return cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
 
-def detect_batsman_bbox(frame: np.ndarray) -> Optional[dict]:
+def roi_bbox_for_frame(frame: np.ndarray) -> dict:
+    """
+    Landscape: narrow central strip (behind-stumps heuristic).
+    Portrait / phone selfie: full frame — a width-only crop cuts the batter off (e.g. 478×850).
+    """
     h, w = frame.shape[:2]
-    return {"x": int(w * 0.35), "y": int(h * 0.05), "w": int(w * 0.35), "h": int(h * 0.90)}
+    if h > w:
+        return {"x": 0, "y": 0, "w": w, "h": h}
+    cw = int(w * 0.42)
+    cx = max(0, (w - cw) // 2)
+    ch = int(h * 0.92)
+    cy = max(0, int(h * 0.04))
+    return {"x": cx, "y": cy, "w": min(cw, w - cx), "h": min(ch, h - cy)}
 
 
 @app.get("/health")
@@ -74,23 +85,35 @@ async def estimate_pose(request: PoseRequest):
     results_list = []
     batsman_bbox = None
 
+    # Keyframes from FFmpeg are weakly temporal; static mode detects each frame independently.
+    det_conf = float(os.environ.get("MIN_DETECTION_CONFIDENCE", "0.35"))
+    track_conf = float(os.environ.get("MIN_TRACKING_CONFIDENCE", "0.35"))
+    min_avg_vis = float(os.environ.get("MIN_POSE_AVG_VISIBILITY", "0.32"))
+
     with mp_pose.Pose(
-        static_image_mode=False,
+        static_image_mode=True,
         model_complexity=1,
         enable_segmentation=False,
-        min_detection_confidence=0.5,
-        min_tracking_confidence=0.5
+        min_detection_confidence=min(0.9, max(0.2, det_conf)),
+        min_tracking_confidence=min(0.9, max(0.2, track_conf)),
     ) as pose:
         for idx, b64_frame in enumerate(request.frames):
             try:
                 frame = decode_frame(b64_frame)
 
                 if idx == 0 or batsman_bbox is None:
-                    batsman_bbox = detect_batsman_bbox(frame)
+                    batsman_bbox = roi_bbox_for_frame(frame)
 
                 if batsman_bbox:
-                    x, y, w, h = batsman_bbox["x"], batsman_bbox["y"], batsman_bbox["w"], batsman_bbox["h"]
-                    cropped = frame[y:y+h, x:x+w]
+                    x, y, bw, bh = (
+                        batsman_bbox["x"],
+                        batsman_bbox["y"],
+                        batsman_bbox["w"],
+                        batsman_bbox["h"],
+                    )
+                    cropped = frame[y : y + bh, x : x + bw]
+                    if cropped.size == 0:
+                        cropped = frame
                 else:
                     cropped = frame
 
@@ -106,18 +129,25 @@ async def estimate_pose(request: PoseRequest):
                             "x": round(landmark.x, 4),
                             "y": round(landmark.y, 4),
                             "z": round(landmark.z, 4),
-                            "visibility": round(landmark.visibility, 4)
+                            "visibility": round(landmark.visibility, 4),
                         }
                         visibility_sum += landmark.visibility
 
                     avg_confidence = visibility_sum / len(result.pose_landmarks.landmark)
-                    if avg_confidence >= 0.5:
+                    # Torso + arms matter most for batting; mean over all 33 points is harsh for phone video
+                    core_idx = {11, 12, 23, 24, 0}  # shoulders, hips, nose
+                    core_vis = [
+                        result.pose_landmarks.landmark[i].visibility for i in core_idx
+                    ]
+                    core_avg = sum(core_vis) / len(core_vis)
+                    gate = max(avg_confidence, core_avg * 0.95)
+                    if gate >= min_avg_vis:
                         results_list.append(
                             FrameLandmarks(
                                 frameIndex=idx,
-                                timestamp=round(idx / request.videoMetadata.fps, 3),
+                                timestamp=round(idx / max(request.videoMetadata.fps, 0.01), 3),
                                 keypoints=keypoints,
-                                poseConfidence=round(avg_confidence, 3)
+                                poseConfidence=round(float(gate), 3),
                             )
                         )
             except Exception:

@@ -1,16 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { Role } from "@prisma/client";
+import { Queue } from "bullmq";
 import { prisma } from "@/prisma/client";
 import { uploadToStorage } from "@/src/lib/storage";
 import { getAuthUser } from "@/lib/get-auth-user";
-import { runGamificationPipeline } from "@/lib/gamification/run-pipeline";
-import { shouldAwardPointsForShadowBatting } from "@/lib/gamification/settings";
-import { classifyShotWithGemini, scoreBiomechanicsWithGemini } from "@/src/lib/llm/gemini";
+
+const queueConnection = {
+  url: process.env.REDIS_URL ?? "redis://localhost:6379",
+};
 
 /**
  * Shadow Batting upload endpoint.
- * Accepts webcam-recorded video, stores it, and performs immediate analysis with Gemini.
+ * Stores the recording and enqueues the same video-processing → analysis pipeline as dashboard uploads
+ * (FFmpeg probe → frame extract → MediaPipe → Gemini).
  */
 export async function POST(request: NextRequest) {
   try {
@@ -72,7 +75,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Upload video to storage (allow local fallback if storage is unavailable)
     const uploadId = randomUUID();
     let storagePath = `shadow-batting/${userId}/${uploadId}/${file.name}`;
     let storageWarning: string | null = null;
@@ -87,198 +89,52 @@ export async function POST(request: NextRequest) {
       console.warn("Shadow batting storage fallback:", storageWarning);
     }
 
-    // Create video record
-    const video = await prisma.video.create({
-      data: {
-        userId,
-        filename: file.name,
-        originalFormat: file.name.split(".").pop() ?? "webm",
-        storagePath,
-        fileSizeBytes: BigInt(file.size),
-        durationSeconds: durationRaw ? parseFloat(durationRaw) : null,
-      },
-      select: {
-        id: true,
-        filename: true,
-        durationSeconds: true,
-      },
+    const durationSeconds = durationRaw ? parseFloat(durationRaw) : null;
+
+    const [video, analysis] = await prisma.$transaction(async (tx) => {
+      const createdVideo = await tx.video.create({
+        data: {
+          userId,
+          filename: file.name,
+          originalFormat: file.name.split(".").pop() ?? "webm",
+          storagePath,
+          fileSizeBytes: BigInt(file.size),
+          durationSeconds: Number.isFinite(durationSeconds ?? NaN) ? durationSeconds : null,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      const createdAnalysis = await tx.analysis.create({
+        data: {
+          videoId: createdVideo.id,
+          status: "QUEUED",
+          playerDeclaredShotType: shotTypeRaw,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      return [createdVideo, createdAnalysis] as const;
     });
 
-    // Create analysis record
-    const analysis = await prisma.analysis.create({
-      data: {
-        videoId: video.id,
-        status: "QUEUED",
-      },
-      select: {
-        id: true,
-      },
+    const videoQueue = new Queue("video-processing", {
+      connection: queueConnection,
     });
 
-    // Perform immediate analysis with Gemini
-    let coachingFeedback = "Great job! Keep practicing your technique.";
-    let scores: Record<string, number> = {};
-    let grade = "B+";
-
-    try {
-      // Update analysis status
-      await prisma.analysis.update({
-        where: { id: analysis.id },
-        data: { 
-          status: "SHOT_CLASSIFICATION",
-          startedAt: new Date(),
-        },
-      });
-
-      // Classify shot with Gemini
-      const classification = await classifyShotWithGemini({
-        videoId: video.id,
-        filename: video.filename,
-        durationSeconds: video.durationSeconds,
-        resolutionWidth: null,
-        resolutionHeight: null,
-      });
-
-      // Score biomechanics with Gemini
-      const scoring = await scoreBiomechanicsWithGemini({
-        shotType: classification.shotType,
-        durationSeconds: video.durationSeconds,
-      });
-
-      // Calculate grade
-      const avgScore = scoring.scores.reduce((a, b) => a + b, 0) / scoring.scores.length;
-      if (avgScore >= 90) grade = "A+";
-      else if (avgScore >= 85) grade = "A";
-      else if (avgScore >= 80) grade = "A-";
-      else if (avgScore >= 75) grade = "B+";
-      else if (avgScore >= 70) grade = "B";
-      else if (avgScore >= 65) grade = "B-";
-      else if (avgScore >= 60) grade = "C+";
-      else if (avgScore >= 55) grade = "C";
-      else grade = "C-";
-
-      // Build scores object
-      scores = {
-        backlift: scoring.scores[0] ?? 75,
-        weightTransfer: scoring.scores[1] ?? 75,
-        headPosition: scoring.scores[2] ?? 75,
-        followThrough: scoring.scores[3] ?? 75,
-        timing: scoring.scores[4] ?? 75,
-        balance: scoring.scores[5] ?? 75,
-        footwork: scoring.scores[6] ?? 75,
-        shotSelection: scoring.scores[7] ?? 75,
-      };
-
-      // Generate coaching feedback based on shot type and scores
-      const shotLabel = shotTypeRaw.replace(/_/g, " ").toLowerCase();
-      const strengths: string[] = [];
-      const improvements: string[] = [];
-
-      if (scores.weightTransfer >= 80) {
-        strengths.push("excellent weight transfer");
-      } else if (scores.weightTransfer < 70) {
-        improvements.push("focus on transferring your weight through the shot");
-      }
-
-      if (scores.balance >= 80) {
-        strengths.push("great balance throughout");
-      } else if (scores.balance < 70) {
-        improvements.push("work on maintaining balance at impact");
-      }
-
-      if (scores.timing >= 80) {
-        strengths.push("good timing");
-      } else if (scores.timing < 70) {
-        improvements.push("practice timing with a ball on a string");
-      }
-
-      if (strengths.length > 0 && improvements.length > 0) {
-        coachingFeedback = `Your ${shotLabel} shows ${strengths.join(" and ")}. To improve further, ${improvements.join(" and ")}.`;
-      } else if (strengths.length > 0) {
-        coachingFeedback = `Excellent ${shotLabel}! You demonstrate ${strengths.join(" and ")}. Keep up the great work!`;
-      } else if (improvements.length > 0) {
-        coachingFeedback = `Good effort on your ${shotLabel}. Focus on: ${improvements.join(", ")}.`;
-      }
-
-      // Update analysis with results
-      await prisma.analysis.update({
-        where: { id: analysis.id },
-        data: {
-          status: "COMPLETE",
-          shotType: classification.shotType,
-          shotConfidence: classification.confidence,
-          gradeOverall: avgScore,
-          gradeLetter: grade,
-          scoreBacklift: scores.backlift,
-          scoreWeightTransfer: scores.weightTransfer,
-          scoreHeadPosition: scores.headPosition,
-          scoreFollowThrough: scores.followThrough,
-          scoreTiming: scores.timing,
-          scoreBalance: scores.balance,
-          scoreFootwork: scores.footwork,
-          scoreShotSelection: scores.shotSelection,
-          coachingTips: [
-            {
-              type: strengths.length > 0 ? "strength" : "improvement",
-              title: strengths.length > 0 ? strengths[0] : improvements[0] ?? "Keep practicing",
-              description: coachingFeedback,
-            },
-          ],
-          rawGeminiResponse: {
-            classification: {
-              text: classification.rawResponseText,
-              shotType: classification.shotType,
-              confidence: classification.confidence,
-              reasons: classification.reasons,
-            },
-            scoring: {
-              text: scoring.rawResponseText,
-              scores: scoring.scores,
-            },
-          },
-          completedAt: new Date(),
-        },
-      });
-
-      // Gamification: award points/badges/league/card if shadow batting is allowed
-      if (await shouldAwardPointsForShadowBatting()) {
-        const completeAnalysis = await prisma.analysis.findUniqueOrThrow({
-          where: { id: analysis.id },
-        });
-        await runGamificationPipeline(userId, completeAnalysis);
-      }
-    } catch (error) {
-      console.error("Analysis error:", error);
-      
-      // Update analysis with error
-      await prisma.analysis.update({
-        where: { id: analysis.id },
-        data: {
-          status: "FAILED",
-          errorMessage: error instanceof Error ? error.message : "Analysis failed",
-        },
-      });
-
-      // Return fallback response
-      coachingFeedback = "Analysis completed with limited data. Keep practicing!";
-      scores = {
-        backlift: 75,
-        weightTransfer: 75,
-        headPosition: 75,
-        followThrough: 75,
-        timing: 75,
-        balance: 75,
-        footwork: 75,
-        shotSelection: 75,
-      };
-    }
+    await videoQueue.add("video.process", {
+      videoId: video.id,
+      userId,
+      analysisId: analysis.id,
+    });
 
     return NextResponse.json({
       id: video.id,
       analysisId: analysis.id,
-      coachingFeedback,
-      scores,
-      grade,
+      status: "QUEUED",
+      async: true,
       warning: storageWarning,
     });
   } catch (error) {

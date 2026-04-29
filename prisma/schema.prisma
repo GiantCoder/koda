@@ -45,6 +45,15 @@ enum ShotType {
   LATE_CUT
   FLICK
   SCOOP
+  FORWARD_DEFENCE
+  BACK_FOOT_DEFENCE
+  LEG_GLANCE
+  SQUARE_CUT
+  UPPER_CUT
+  LOFTED_DRIVE
+  PADDLE_SWEEP
+  RAMP
+  CHECK_DRIVE
   UNKNOWN
 }
 
@@ -236,6 +245,12 @@ model Analysis {
   scoreBalance         Float?
   scoreFootwork        Float?
   scoreShotSelection   Float?
+  /// Optional label from the player (e.g. shadow batting shot picker); used as a soft prior for LLM.
+  playerDeclaredShotType String?
+  /// Dashboard upload only: how many distinct strokes the user believes are in the clip (1+).
+  declaredShotCount       Int?
+  /// Upload flow: chronological shot-type hints per stroke (enum strings; may include UNKNOWN). Json string[].
+  playerDeclaredShotHints Json?
   poseDataPath         String?
   skeletonOverlayPath  String?
   coachingTips        Json?

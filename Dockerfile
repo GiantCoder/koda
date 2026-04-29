@@ -1,5 +1,6 @@
 FROM node:22-alpine AS base
-RUN apk add --no-cache libc6-compat curl
+# ffmpeg provides ffprobe — required by video/analysis workers for frame extraction
+RUN apk add --no-cache libc6-compat curl ffmpeg
 WORKDIR /app
 COPY package*.json ./
 # Retries and longer timeout to reduce ECONNRESET failures on flaky networks

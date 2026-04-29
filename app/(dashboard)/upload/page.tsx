@@ -8,6 +8,7 @@ import { Select } from "@/app/components/ui/Select";
 import { PreUploadChecklist } from "@/app/components/video/PreUploadChecklist";
 import { BestCameraAngleCard } from "@/app/components/video/BestCameraAngleCard";
 import { RecentUploadsList, type RecentUpload } from "@/app/components/video/RecentUploadsList";
+import { UploadShotHintsModal } from "@/app/components/video/UploadShotHintsModal";
 import { Progress } from "@/app/components/ui/Progress";
 import { useMockAuth } from "@/app/hooks/useMockAuth";
 import { buildMockAuthHeaders } from "@/app/lib/mock-auth-headers";
@@ -106,6 +107,7 @@ export default function UploadPage() {
   const [recentUploads, setRecentUploads] = useState<RecentUpload[]>([]);
   const [isRecentUploadsLoading, setIsRecentUploadsLoading] = useState(true);
   const [recentUploadsError, setRecentUploadsError] = useState<string | null>(null);
+  const [shotHintsModalOpen, setShotHintsModalOpen] = useState(false);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -246,67 +248,82 @@ export default function UploadPage() {
     document.getElementById("video-file-input")?.click();
   }, [isUploading]);
 
-  const handleUploadAndStartAnalysis = useCallback(async () => {
-    if (!file) return;
-
-    setSubmitError(null);
-    setIsUploading(true);
-    setUploadProgress(0);
-
-    const steps = [10, 25, 50, 75, 90, 100];
-    for (let i = 0; i < steps.length; i++) {
-      await new Promise((r) => setTimeout(r, 300));
-      setUploadProgress(steps[i]);
-    }
-
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("title", file.name);
-    if (assigneeUserId) {
-      formData.append("assigneeUserId", assigneeUserId);
-    }
-
-    try {
-      const res = await fetch("/api/video/upload", {
-        method: "POST",
-        headers: buildMockAuthHeaders(user),
-        body: formData,
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? "Upload failed");
-      }
-
-      const data = await res.json();
-      const optimisticRecentUpload: RecentUpload = {
-        id: data.id,
-        filename: file.name,
-        status: "processing",
-        timestamp: "Just now",
-        processingLabel: "Queued",
-      };
-      setRecentUploads((currentUploads) => [optimisticRecentUpload, ...currentUploads.filter((upload) => upload.id !== data.id)]);
-      setFile(null);
-      setIsUploading(false);
-      setUploadProgress(0);
-      void loadRecentUploads();
-
-      router.push(`/analysis/${data.id}/processing`);
-    } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : "Upload failed");
-      setIsUploading(false);
-      setUploadProgress(0);
-    }
-  }, [file, router, assigneeUserId, user]);
-
-  const formatChips = ["MP4", "MOV", "AVI", `MAX ${MAX_FILE_SIZE_BYTES / (1024 * 1024)}MB`];
   const assigneeOptions = assignablePlayers.map((player) => ({
     value: player.id,
     label: player.displayName,
   }));
   const needsParentSelection = role === "parent" && assignablePlayers.length > 1 && !assigneeUserId;
   const preventUpload = needsParentSelection;
+
+  const runUploadAfterShotHints = useCallback(
+    async (declaredShotCount: number, hints: string[]) => {
+      if (!file) return;
+
+      setShotHintsModalOpen(false);
+      setSubmitError(null);
+      setIsUploading(true);
+      setUploadProgress(0);
+
+      const steps = [10, 25, 50, 75, 90, 100];
+      for (let i = 0; i < steps.length; i++) {
+        await new Promise((r) => setTimeout(r, 300));
+        setUploadProgress(steps[i]);
+      }
+
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("title", file.name);
+      formData.append("declaredShotCount", String(declaredShotCount));
+      formData.append("playerDeclaredShotHints", JSON.stringify(hints));
+      if (assigneeUserId) {
+        formData.append("assigneeUserId", assigneeUserId);
+      }
+
+      try {
+        const res = await fetch("/api/video/upload", {
+          method: "POST",
+          headers: buildMockAuthHeaders(user),
+          body: formData,
+        });
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error ?? "Upload failed");
+        }
+
+        const data = await res.json();
+        const optimisticRecentUpload: RecentUpload = {
+          id: data.id,
+          filename: file.name,
+          status: "processing",
+          timestamp: "Just now",
+          processingLabel: "Queued",
+        };
+        setRecentUploads((currentUploads) => [
+          optimisticRecentUpload,
+          ...currentUploads.filter((upload) => upload.id !== data.id),
+        ]);
+        setFile(null);
+        setIsUploading(false);
+        setUploadProgress(0);
+        void loadRecentUploads();
+
+        router.push(`/analysis/${data.id}/processing`);
+      } catch (err) {
+        setSubmitError(err instanceof Error ? err.message : "Upload failed");
+        setIsUploading(false);
+        setUploadProgress(0);
+      }
+    },
+    [file, router, assigneeUserId, user, loadRecentUploads]
+  );
+
+  const openShotHintsModal = useCallback(() => {
+    if (!file || isUploading || preventUpload) return;
+    setShotHintsModalOpen(true);
+  }, [file, isUploading, preventUpload]);
+
+  const formatChips = ["MP4", "MOV", "AVI", `MAX ${MAX_FILE_SIZE_BYTES / (1024 * 1024)}MB`];
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -426,7 +443,7 @@ export default function UploadPage() {
                     Record
                   </Button>
                   <Button
-                    onClick={file ? handleUploadAndStartAnalysis : handleBrowse}
+                    onClick={file ? openShotHintsModal : handleBrowse}
                     disabled={isUploading || preventUpload}
                     className="gap-2 bg-[var(--primary)] hover:bg-[var(--primary-hover)]"
                   >
@@ -454,6 +471,14 @@ export default function UploadPage() {
           )}
 
           <PreUploadChecklist />
+
+          <UploadShotHintsModal
+            isOpen={shotHintsModalOpen}
+            onClose={() => setShotHintsModalOpen(false)}
+            onConfirm={(declaredShotCount, hints) => {
+              void runUploadAfterShotHints(declaredShotCount, hints);
+            }}
+          />
         </div>
 
         <div className="space-y-6">

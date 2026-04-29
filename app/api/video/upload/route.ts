@@ -4,6 +4,7 @@ import { Queue } from "bullmq";
 import { prisma } from "@/prisma/client";
 import { uploadToStorage } from "@/src/lib/storage";
 import { getAuthUser } from "@/lib/get-auth-user";
+import { parseDeclaredShotsFromUpload } from "@/src/lib/cricket/upload-declared-shots";
 
 /**
  * Upload endpoint used by the dashboard upload flow.
@@ -32,6 +33,11 @@ export async function POST(request: NextRequest) {
         { error: "No file provided" },
         { status: 400 }
       );
+    }
+
+    const declared = parseDeclaredShotsFromUpload(formData);
+    if (!declared.ok) {
+      return NextResponse.json({ error: declared.error }, { status: 400 });
     }
 
     const authUser = await getAuthUser(request);
@@ -151,6 +157,8 @@ export async function POST(request: NextRequest) {
         data: {
           videoId: createdVideo.id,
           status: "QUEUED",
+          declaredShotCount: declared.declaredShotCount,
+          playerDeclaredShotHints: declared.playerDeclaredShotHints,
         },
         select: {
           id: true,

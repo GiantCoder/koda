@@ -4,6 +4,8 @@ const shotTypeWeights: Record<string, number> = {
   OFF_DRIVE: 1.05,
   ON_DRIVE: 1.05,
   DEFENSIVE: 0.9,
+  FORWARD_DEFENCE: 0.9,
+  BACK_FOOT_DEFENCE: 0.9,
   UNKNOWN: 1.0,
 };
 
