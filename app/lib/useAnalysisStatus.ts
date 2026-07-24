@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 export type AnalysisStage =
   | "upload_complete"
   | "extracting_frames"
+  | "activity_classification"
   | "pose_analysis"
   | "shot_classification"
   | "generating_feedback"
@@ -22,6 +23,7 @@ export interface AnalysisStatus {
 const STAGE_ORDER: AnalysisStage[] = [
   "upload_complete",
   "extracting_frames",
+  "activity_classification",
   "pose_analysis",
   "shot_classification",
   "generating_feedback",
@@ -37,6 +39,7 @@ export function getStageLabel(stage: AnalysisStage): string {
   const labels: Record<AnalysisStage, string> = {
     upload_complete: "Upload Complete",
     extracting_frames: "Extracting Frames",
+    activity_classification: "Checking Video Content",
     pose_analysis: "Pose Analysis (MediaPipe)",
     shot_classification: "Shot Classification",
     generating_feedback: "Generating Coaching Feedback",

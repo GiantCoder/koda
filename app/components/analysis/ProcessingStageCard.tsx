@@ -141,6 +141,7 @@ interface ProcessingTimelineProps {
 const PIPELINE_STAGES: AnalysisStage[] = [
   "upload_complete",
   "extracting_frames",
+  "activity_classification",
   "pose_analysis",
   "shot_classification",
   "generating_feedback",

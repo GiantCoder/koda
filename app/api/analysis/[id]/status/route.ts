@@ -4,6 +4,7 @@ import { prisma } from "@/prisma/client";
 const STAGES = [
   "upload_complete",
   "extracting_frames",
+  "activity_classification",
   "pose_analysis",
   "shot_classification",
   "generating_feedback",
@@ -18,6 +19,8 @@ function mapDbStatusToStage(dbStatus: string): ApiStage {
       return "upload_complete";
     case "EXTRACTING_FRAMES":
       return "extracting_frames";
+    case "ACTIVITY_CLASSIFICATION":
+      return "activity_classification";
     case "POSE_ANALYSIS":
       return "pose_analysis";
     case "SHOT_CLASSIFICATION":
@@ -25,6 +28,8 @@ function mapDbStatusToStage(dbStatus: string): ApiStage {
     case "GENERATING_FEEDBACK":
       return "generating_feedback";
     case "COMPLETE":
+      return "complete";
+    case "UNSUPPORTED_CONTENT":
       return "complete";
     case "FAILED":
       return "failed";
@@ -39,6 +44,8 @@ function progressForStage(stage: ApiStage): number {
       return 10;
     case "extracting_frames":
       return 30;
+    case "activity_classification":
+      return 38;
     case "pose_analysis":
       return 50;
     case "shot_classification":

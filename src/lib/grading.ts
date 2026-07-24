@@ -6,6 +6,7 @@ const shotTypeWeights: Record<string, number> = {
   DEFENSIVE: 0.9,
   FORWARD_DEFENCE: 0.9,
   BACK_FOOT_DEFENCE: 0.9,
+  LEAVE: 0.85,
   UNKNOWN: 1.0,
 };
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/prisma/client";
 import { getAuthUser } from "@/lib/get-auth-user";
+import { canAccessVideo } from "@/src/lib/videos/access";
 import { z } from "zod";
 
 const idParamSchema = z.object({
@@ -72,11 +73,16 @@ export async function DELETE(
   const { id } = paramResult.data;
 
   const video = await prisma.video.findFirst({
-    where: { id, userId: user.id, isDeleted: false },
+    where: { id, isDeleted: false },
+    select: { id: true, userId: true },
   });
 
   if (!video) {
     return NextResponse.json({ error: "Video not found" }, { status: 404 });
+  }
+
+  if (!(await canAccessVideo(user, video.userId))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   await prisma.video.update({

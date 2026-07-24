@@ -3,6 +3,7 @@ import Redis from "ioredis";
 import { prisma } from "@/prisma/client";
 import { calculateGrade } from "@/src/lib/grading";
 import { classifyShotWithGemini, scoreBiomechanicsWithGemini } from "@/src/lib/llm/gemini";
+import { classifyActivityWithGemini } from "@/src/lib/llm/activityClassification";
 import { runGamificationPipeline } from "@/lib/gamification/run-pipeline";
 import { shouldAwardPointsForShadowBatting, shouldAwardPointsForUploads } from "@/lib/gamification/settings";
 import { downloadFromStorage, uploadToStorage } from "@/src/lib/storage";
@@ -16,7 +17,7 @@ import {
   MEDIAPIPE_FRAMES_PER_BATCH,
 } from "@/src/lib/analysis/mediapipe-client";
 import { logMediaPipeOutcome, logPoseSummaryForLlm } from "@/src/lib/analysis/pipeline-log";
-import { buildPoseSummaryForLlm } from "@/src/lib/analysis/pose-summary";
+import { buildPoseSummaryForLlm, assessPoseTrackingSubject } from "@/src/lib/analysis/pose-summary";
 import { buildCoachingFeedbackFromScores, shotTypeToLabel } from "@/src/lib/analysis/coaching-feedback";
 import type { PoseEstimateResponse } from "@/src/lib/analysis/mediapipe-types";
 
@@ -28,6 +29,22 @@ function jsonToStringArray(value: unknown): string[] | null {
     out.push(item);
   }
   return out;
+}
+
+const SHOT_CONFIDENCE_THRESHOLD = 0.5;
+
+function buildRejectionReason(activityType: string, reasons: string[]): string {
+  const activity =
+    activityType === "BOWLING"
+      ? "bowling-only practice with no batter visible"
+      : activityType === "FIELDING"
+        ? "fielding"
+        : activityType === "GYM"
+          ? "gym or fitness work"
+          : "non-batting activity";
+  const baseMessage = `This video appears to show ${activity}, not batting technique.`;
+  const detail = reasons[0] ? ` ${reasons[0]}` : "";
+  return `${baseMessage}${detail} Please upload a video of a batting shot or practice.`;
 }
 
 interface AnalysisJobData {
@@ -66,6 +83,7 @@ export const analysisWorker = new Worker<AnalysisJobData>(
     const pipelineStart = Date.now();
     let tempPath: string | null = null;
     let poseSummary: string | null = null;
+    let poseTracksForegroundBowlersRunUp = false;
     let posePayload: PoseEstimateResponse | null = null;
     let mediapipeWarning: string | null = null;
 
@@ -110,9 +128,9 @@ export const analysisWorker = new Worker<AnalysisJobData>(
       tempPath = await writeTempVideoFile(buffer, ext);
 
       const { framesBase64, sampleFps, width, height } = await extractFramesAsJpegBase64(tempPath, {
-        targetFps: 5,
-        maxFrames: 40,
-        scaleWidth: 480,
+        targetFps: 8,
+        maxFrames: 56,
+        scaleWidth: 640,
       });
 
       if (framesBase64.length === 0) {
@@ -122,6 +140,60 @@ export const analysisWorker = new Worker<AnalysisJobData>(
       console.log(
         `[analysisWorker] ${analysisId}: extracted ${framesBase64.length} frames @${sampleFps}fps ${width}x${height}`
       );
+
+      // ── ACTIVITY GATE ──────────────────────────────────────────────────────
+      await prisma.analysis.update({
+        where: { id: analysisId },
+        data: {
+          status: "ACTIVITY_CLASSIFICATION",
+        } as Parameters<typeof prisma.analysis.update>[0]["data"],
+      });
+      await publishStage(analysisId, {
+        stage: "ACTIVITY_CLASSIFICATION",
+        progress: 25,
+        message: "Checking video content...",
+      });
+
+      const activityResult = await classifyActivityWithGemini({
+        framesBase64,
+        analysisId,
+        filename: row.video.filename,
+      });
+
+      await prisma.analysis.update({
+        where: { id: analysisId },
+        data: {
+          activityType: activityResult.activityType,
+          activityConfidence: activityResult.confidence,
+        } as Parameters<typeof prisma.analysis.update>[0]["data"],
+      });
+
+      if (!activityResult.isBatting) {
+        const rejectionReason = buildRejectionReason(
+          activityResult.activityType,
+          activityResult.reasons
+        );
+        await prisma.analysis.update({
+          where: { id: analysisId },
+          data: {
+            status: "UNSUPPORTED_CONTENT",
+            rejectionReason,
+            completedAt: new Date(),
+          } as Parameters<typeof prisma.analysis.update>[0]["data"],
+        });
+        await publishStage(analysisId, {
+          type: "unsupported",
+          activityType: activityResult.activityType,
+          confidence: activityResult.confidence,
+          rejectionReason,
+          redirectUrl: `/analysis/${videoId}`,
+        });
+        console.log(
+          `[analysisWorker] ${analysisId}: UNSUPPORTED_CONTENT — ${activityResult.activityType} (confidence ${activityResult.confidence})`
+        );
+        return;
+      }
+      // ── END ACTIVITY GATE ──────────────────────────────────────────────────
 
       await prisma.analysis.update({
         where: { id: analysisId },
@@ -143,6 +215,23 @@ export const analysisWorker = new Worker<AnalysisJobData>(
           analysisId,
         });
         poseSummary = buildPoseSummaryForLlm(posePayload);
+        const poseSubject = assessPoseTrackingSubject(posePayload);
+        poseTracksForegroundBowlersRunUp = poseSubject.likelyForegroundBowlersRunUp;
+        if (poseSubject.likelyForegroundBowlersRunUp) {
+          console.log(
+            JSON.stringify(
+              {
+                tag: "analysisPipeline.poseSubject",
+                analysisId,
+                likelyForegroundBowlersRunUp: true,
+                noseXSpan: poseSubject.noseXSpan,
+                reason: poseSubject.reason,
+              },
+              null,
+              2
+            )
+          );
+        }
         logMediaPipeOutcome(analysisId, posePayload, {
           framesSentToService: framesBase64.length,
           videoMeta: { width, height, fps: sampleFps },
@@ -188,11 +277,58 @@ export const analysisWorker = new Worker<AnalysisJobData>(
         resolutionWidth: row.video.resolutionWidth,
         resolutionHeight: row.video.resolutionHeight,
         poseSummary,
+        poseTracksForegroundBowlersRunUp,
+        framesBase64,
         playerDeclaredShotType: declared,
         declaredShotCount,
         playerDeclaredShotHints: declaredHints,
         analysisId,
       });
+
+      if (
+        classification.noBatsman ||
+        classification.shotType === "UNKNOWN" ||
+        classification.confidence < SHOT_CONFIDENCE_THRESHOLD
+      ) {
+        const noGradeReason = classification.noBatsman
+          ? "No batsman was visible in the video during shot classification."
+          : classification.shotType === "UNKNOWN"
+            ? "The shot type could not be determined from the available footage."
+            : `Shot classification confidence was too low (${Math.round(classification.confidence * 100)}%) to produce a reliable grade.`;
+
+        await prisma.analysis.update({
+          where: { id: analysisId },
+          data: {
+            status: "UNSUPPORTED_CONTENT",
+            shotType: "UNKNOWN" as any,
+            shotConfidence: classification.confidence,
+            rejectionReason: noGradeReason,
+            rawGeminiResponse: {
+              classification: {
+                text: classification.rawResponseText,
+                shotType: classification.shotType,
+                confidence: classification.confidence,
+                noBatsman: classification.noBatsman,
+                reasons: classification.reasons,
+              },
+              activityGate: {
+                activityType: activityResult.activityType,
+                confidence: activityResult.confidence,
+              },
+            } as any,
+            completedAt: new Date(),
+          } as Parameters<typeof prisma.analysis.update>[0]["data"],
+        });
+        await publishStage(analysisId, {
+          type: "unsupported",
+          rejectionReason: noGradeReason,
+          redirectUrl: `/analysis/${videoId}`,
+        });
+        console.log(
+          `[analysisWorker] ${analysisId}: UNSUPPORTED_CONTENT (low-confidence classification) — ${noGradeReason}`
+        );
+        return;
+      }
 
       await prisma.analysis.update({
         where: { id: analysisId },
@@ -210,6 +346,7 @@ export const analysisWorker = new Worker<AnalysisJobData>(
         declaredShotCount,
         durationSeconds: row.video.durationSeconds,
         poseSummary,
+        poseTracksForegroundBowlersRunUp,
         analysisId,
       });
 

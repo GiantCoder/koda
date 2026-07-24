@@ -176,6 +176,7 @@ const baseNavItems = [
   { href: "/messages", label: "Messages", icon: MessageIcon },
   { href: "/notifications", label: "Notifications", icon: BellIcon },
   { href: "/upload", label: "Upload", icon: UploadIcon },
+  { href: "/uploads", label: "My Uploads", icon: UploadIcon },
   { href: "/saved", label: "Saved", icon: BookmarkIcon },
   { href: "/shadow-batting", label: "Shadow Batting", icon: TargetIcon },
   { href: "/player-card", label: "Player Card", icon: IdCardIcon },

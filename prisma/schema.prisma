@@ -23,11 +23,13 @@ enum ConsentStatus {
 enum AnalysisStatus {
   QUEUED
   EXTRACTING_FRAMES
+  ACTIVITY_CLASSIFICATION
   POSE_ANALYSIS
   SHOT_CLASSIFICATION
   GENERATING_FEEDBACK
   COMPLETE
   FAILED
+  UNSUPPORTED_CONTENT
 }
 
 enum ShotType {
@@ -54,6 +56,7 @@ enum ShotType {
   PADDLE_SWEEP
   RAMP
   CHECK_DRIVE
+  LEAVE
   UNKNOWN
 }
 
@@ -251,6 +254,12 @@ model Analysis {
   declaredShotCount       Int?
   /// Upload flow: chronological shot-type hints per stroke (enum strings; may include UNKNOWN). Json string[].
   playerDeclaredShotHints Json?
+  /// Activity detected by the vision gate (BATTING | BOWLING | FIELDING | GYM | UNCLEAR)
+  activityType        String?
+  /// Confidence score from activity gate (0.0–1.0)
+  activityConfidence  Float?
+  /// Human-readable reason shown on the UI when activityType !== BATTING
+  rejectionReason     String?        @db.Text
   poseDataPath         String?
   skeletonOverlayPath  String?
   coachingTips        Json?

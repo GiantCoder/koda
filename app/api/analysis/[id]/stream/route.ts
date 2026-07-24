@@ -56,12 +56,21 @@ export async function GET(
   const redisUrl = process.env.REDIS_URL ?? "redis://localhost:6379";
   const subscriber = new Redis(redisUrl);
   const channel = `analysis:${id}`;
+  const dbStatus = analysis.status as string;
+  const rejectionReason = (analysis as { rejectionReason?: string | null }).rejectionReason;
   const initialEvent =
     analysis.status === "COMPLETE"
       ? { type: "complete", analysisId: id, redirectUrl: `/analysis/${analysis.videoId}` }
-      : analysis.status === "FAILED"
-        ? { type: "error", analysisId: id, message: analysis.errorMessage ?? "Analysis failed" }
-        : { stage: analysis.status, progress: 10, message: "Analysis queued" };
+      : dbStatus === "UNSUPPORTED_CONTENT"
+        ? {
+            type: "unsupported",
+            analysisId: id,
+            redirectUrl: `/analysis/${analysis.videoId}`,
+            rejectionReason,
+          }
+        : analysis.status === "FAILED"
+          ? { type: "error", analysisId: id, message: analysis.errorMessage ?? "Analysis failed" }
+          : { stage: analysis.status, progress: 10, message: "Analysis queued" };
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -94,7 +103,7 @@ export async function GET(
         controller.enqueue(encoder.encode(`event: stage\ndata: ${message}\n\n`));
         try {
           const payload = JSON.parse(message) as { type?: string };
-          if (payload.type === "complete" || payload.type === "error") {
+          if (payload.type === "complete" || payload.type === "error" || payload.type === "unsupported") {
             void closeStream();
           }
         } catch {

@@ -1,5 +1,8 @@
 import { logGeminiRequest } from "@/src/lib/analysis/pipeline-log";
+import { cropFramesToFarEndBand } from "@/src/lib/analysis/frame-crop";
+import { sampleFramesForShotClassification } from "@/src/lib/analysis/frame-selection";
 import { isValidShotType, type ShotTypeValue } from "@/src/lib/cricket/shot-types";
+import { detectLeaveWithGemini, leaveDetectionThreshold } from "./leaveDetection";
 import { generateContentTextWithRetryAndFallback } from "./gemini-retry";
 import { shotClassificationPrompt } from "./prompts/shotClassification";
 
@@ -11,6 +14,7 @@ interface ShotClassificationResult {
   shotTypesOrdered: ShotType[];
   confidence: number;
   reasons: string[];
+  noBatsman: boolean;
   rawResponseText: string;
 }
 
@@ -72,6 +76,21 @@ function buildUploadDeclaredShotsContext(
   return `\nUpload clip context: user expects about ${declaredShotCount} distinct strokes in chronological order:\n${lines.join("\n")}\n`;
 }
 
+function buildPoseBlockForClassification(
+  poseSummary: string | null | undefined,
+  poseTracksForegroundBowlersRunUp: boolean
+): string {
+  if (poseTracksForegroundBowlersRunUp) {
+    return `Pose landmark timeline: NOT AVAILABLE — MediaPipe tracked the foreground bowler's run-up, not the distant batter. Classify using the cropped far-end batter frames only; do not use pose heuristics.`;
+  }
+
+  if (poseSummary && poseSummary.trim().length > 0) {
+    return `Pose landmark timeline (MediaPipe — verify subject is the batter, not the bowler):\n${poseSummary.trim()}`;
+  }
+
+  return "Pose landmark timeline: NOT AVAILABLE — classify from video frames only.";
+}
+
 export async function classifyShotWithGemini(input: {
   videoId: string;
   filename: string;
@@ -80,6 +99,10 @@ export async function classifyShotWithGemini(input: {
   resolutionHeight?: number | null;
   /** MediaPipe-derived landmark summary; when absent, classification uses metadata only. */
   poseSummary?: string | null;
+  /** Sampled JPEG frames for multimodal classification. */
+  framesBase64?: string[] | null;
+  /** When true, pose timeline is bowler run-up — ignored for classification. */
+  poseTracksForegroundBowlersRunUp?: boolean;
   /** Shadow batting: single shot hint from the player. */
   playerDeclaredShotType?: string | null;
   /** Dashboard upload: declared stroke count + per-stroke hints. */
@@ -88,10 +111,11 @@ export async function classifyShotWithGemini(input: {
   /** Worker log correlation for pipeline debugging. */
   analysisId?: string;
 }): Promise<ShotClassificationResult> {
-  const poseBlock =
-    input.poseSummary && input.poseSummary.trim().length > 0
-      ? `Pose landmark timeline (MediaPipe):\n${input.poseSummary.trim()}`
-      : "Pose landmark timeline: NOT AVAILABLE — infer from metadata only and use low confidence.";
+  const netsBehindBowler = Boolean(input.poseTracksForegroundBowlersRunUp);
+  const poseBlock = buildPoseBlockForClassification(
+    input.poseSummary,
+    netsBehindBowler
+  );
 
   const declared =
     input.playerDeclaredShotType && input.playerDeclaredShotType.trim().length > 0
@@ -100,6 +124,77 @@ export async function classifyShotWithGemini(input: {
 
   const uploadCtx = buildUploadDeclaredShotsContext(input.declaredShotCount, input.playerDeclaredShotHints);
 
+  const singleDeliveryCtx =
+    input.declaredShotCount === 1 || (input.durationSeconds != null && input.durationSeconds <= 6)
+      ? "\nThis clip is a single delivery — shotTypesOrdered must contain exactly one token.\n"
+      : "";
+
+  let classificationFrames = input.framesBase64 ?? [];
+  if (netsBehindBowler && classificationFrames.length > 0) {
+    classificationFrames = await cropFramesToFarEndBand(classificationFrames);
+
+    const leaveResult = await detectLeaveWithGemini({
+      framesBase64: classificationFrames,
+      analysisId: input.analysisId,
+      durationSeconds: input.durationSeconds,
+    });
+
+    if (
+      leaveResult.outcome === "LEAVE" &&
+      leaveResult.confidence >= leaveDetectionThreshold()
+    ) {
+      const reasons = leaveResult.reasons.length
+        ? leaveResult.reasons
+        : ["Batter let the ball pass without playing at it (leave detection gate)."];
+
+      if (input.analysisId) {
+        console.log(
+          JSON.stringify(
+            {
+              tag: "analysisPipeline.gemini.response",
+              analysisId: input.analysisId,
+              phase: "classification",
+              shotType: "LEAVE",
+              shotTypesOrdered: ["LEAVE"],
+              confidence: leaveResult.confidence,
+              noBatsman: false,
+              reasons,
+              viaLeaveGate: true,
+              rawResponseCharLength: leaveResult.rawResponseText.length,
+            },
+            null,
+            2
+          )
+        );
+      }
+
+      return {
+        shotType: "LEAVE",
+        shotTypesOrdered: ["LEAVE"],
+        confidence: leaveResult.confidence,
+        reasons,
+        noBatsman: false,
+        rawResponseText: leaveResult.rawResponseText,
+      };
+    }
+  }
+
+  const sampledForClassify =
+    classificationFrames.length > 0
+      ? sampleFramesForShotClassification(classificationFrames, {
+          durationSeconds: input.durationSeconds,
+          netsBehindBowler,
+        })
+      : [];
+
+  const frameNote = netsBehindBowler
+    ? "cropped to far-end batter band; bowler removed from frame"
+    : "tail-weighted for short clips — later frames show batter response";
+
+  const imageParts = sampledForClassify.map((b64) => ({
+    inlineData: { mimeType: "image/jpeg" as const, data: b64 },
+  }));
+
   const prompt = `${shotClassificationPrompt}
 
 Context:
@@ -107,7 +202,8 @@ Context:
 - filename: ${input.filename}
 - durationSeconds: ${input.durationSeconds ?? "unknown"}
 - resolution: ${input.resolutionWidth ?? "unknown"}x${input.resolutionHeight ?? "unknown"}
-- ${declared}${uploadCtx}
+- ${declared}${uploadCtx}${singleDeliveryCtx}
+- framesForClassification: ${sampledForClassify.length} (${frameNote})
 
 ${poseBlock}
 
@@ -119,11 +215,14 @@ Return JSON only, no markdown code fences.`;
       declaredShotCount: input.declaredShotCount ?? null,
       playerDeclaredShotHints: input.playerDeclaredShotHints ?? null,
       hasPoseSummary: Boolean(input.poseSummary?.trim()),
+      poseTracksForegroundBowlersRunUp: netsBehindBowler,
+      croppedFarEndBand: netsBehindBowler,
+      framesProvided: imageParts.length,
     });
   }
 
   const rawResponseText = await generateContentTextWithRetryAndFallback("classification", modelNameForTask("classification"), {
-    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    contents: [{ role: "user", parts: [...imageParts, { text: prompt }] }],
     generationConfig: {
       responseMimeType: "application/json",
     },
@@ -134,6 +233,7 @@ Return JSON only, no markdown code fences.`;
     shotTypesOrdered?: unknown;
     confidence?: number;
     reasons?: string[];
+    noBatsman?: boolean;
   };
 
   const ordered: ShotType[] = [];
@@ -154,6 +254,13 @@ Return JSON only, no markdown code fences.`;
     ordered.push(normalizedShotType);
   }
 
+  // Single-delivery clips: never keep a spurious multi-stroke list from the model.
+  const singleDelivery =
+    input.declaredShotCount === 1 || (input.durationSeconds != null && input.durationSeconds <= 6);
+  if (singleDelivery && ordered.length > 1) {
+    ordered.splice(1);
+  }
+
   const confidence =
     typeof parsed.confidence === "number" && Number.isFinite(parsed.confidence)
       ? Math.max(0, Math.min(1, parsed.confidence))
@@ -162,6 +269,8 @@ Return JSON only, no markdown code fences.`;
   const reasons = Array.isArray(parsed.reasons)
     ? parsed.reasons.filter((item): item is string => typeof item === "string").slice(0, 5)
     : [];
+
+  const noBatsman = typeof parsed.noBatsman === "boolean" ? parsed.noBatsman : false;
 
   if (input.analysisId) {
     console.log(
@@ -173,6 +282,7 @@ Return JSON only, no markdown code fences.`;
           shotType: normalizedShotType,
           shotTypesOrdered: ordered,
           confidence,
+          noBatsman,
           reasons,
           rawResponseCharLength: rawResponseText.length,
         },
@@ -187,6 +297,7 @@ Return JSON only, no markdown code fences.`;
     shotTypesOrdered: ordered,
     confidence,
     reasons,
+    noBatsman,
     rawResponseText,
   };
 }
@@ -198,12 +309,15 @@ export async function scoreBiomechanicsWithGemini(input: {
   declaredShotCount?: number | null;
   durationSeconds?: number | null;
   poseSummary?: string | null;
+  poseTracksForegroundBowlersRunUp?: boolean;
   analysisId?: string;
 }): Promise<BiometricScoringResult> {
-  const poseBlock =
-    input.poseSummary && input.poseSummary.trim().length > 0
+  const poseUnreliable = Boolean(input.poseTracksForegroundBowlersRunUp);
+  const poseBlock = poseUnreliable
+    ? "Pose data: UNRELIABLE — tracked the foreground bowler, not the batter. Score conservatively from shot type context only; use 45–60 range unless clip metadata strongly supports higher."
+    : input.poseSummary && input.poseSummary.trim().length > 0
       ? `Pose / joint data (use this as primary evidence for technique scores):\n${input.poseSummary.trim()}`
-      : "Pose data: NOT AVAILABLE — estimate conservatively from shot type and duration; prefer mid-range scores (65–78) with moderate variance.";
+      : "Pose data: NOT AVAILABLE — return conservative scores (40–55) to reflect the absence of pose evidence; do not fabricate plausible-looking grades.";
 
   const multi =
     input.shotTypesOrdered && input.shotTypesOrdered.length > 1
@@ -212,12 +326,17 @@ export async function scoreBiomechanicsWithGemini(input: {
         ? `\nThe player indicated multiple strokes in this clip; sampled poses may blend actions — score conservatively and holistically.\n`
         : "";
 
+  const leaveNote =
+    input.shotType === "LEAVE"
+      ? `\nThis is a LEAVE — the batter deliberately let the ball pass. Score head stillness, judgement (not playing at the ball), balance while withdrawing, and bat kept away from the ball line. Do not penalise for lack of bat-ball contact or drive follow-through.\n`
+      : "";
+
   const prompt = `You are a cricket biomechanics analyst.
 Score the batter using the pose timeline when present; it reflects body positions across sampled frames.
 
 Shot type (primary / first in time): ${input.shotType}
 Duration seconds: ${input.durationSeconds ?? "unknown"}
-${multi}
+${leaveNote}${multi}
 ${poseBlock}
 
 Return JSON only in this exact shape:
@@ -231,7 +350,8 @@ Each score must be an integer from 0 to 100.`;
       shotType: input.shotType,
       shotTypesOrdered: input.shotTypesOrdered ?? null,
       declaredShotCount: input.declaredShotCount ?? null,
-      hasPoseSummary: Boolean(input.poseSummary?.trim()),
+      hasPoseSummary: Boolean(input.poseSummary?.trim()) && !poseUnreliable,
+      poseTracksForegroundBowlersRunUp: poseUnreliable,
     });
   }
 
@@ -250,7 +370,7 @@ Each score must be an integer from 0 to 100.`;
     .map((value) => (typeof value === "number" ? clampScore(value) : 0));
 
   while (normalizedScores.length < 8) {
-    normalizedScores.push(75);
+    normalizedScores.push(0);
   }
 
   if (input.analysisId) {

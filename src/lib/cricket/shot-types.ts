@@ -26,6 +26,7 @@ export const SHOT_TYPE_VALUES = [
   "PADDLE_SWEEP",
   "RAMP",
   "CHECK_DRIVE",
+  "LEAVE",
   "UNKNOWN",
 ] as const;
 
@@ -55,6 +56,7 @@ const LABELS: Record<ShotTypeValue, string> = {
   PADDLE_SWEEP: "Paddle Sweep",
   RAMP: "Ramp",
   CHECK_DRIVE: "Check Drive",
+  LEAVE: "Leave",
   UNKNOWN: "Unknown",
 };
 
@@ -86,6 +88,7 @@ const UI_ORDER: Exclude<ShotTypeValue, "UNKNOWN">[] = [
   "PADDLE_SWEEP",
   "RAMP",
   "CHECK_DRIVE",
+  "LEAVE",
 ];
 
 export const SHOT_TYPE_OPTIONS = UI_ORDER.map((value) => ({

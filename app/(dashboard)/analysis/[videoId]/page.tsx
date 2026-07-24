@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent } from "@/app/components/ui/Card";
@@ -14,6 +14,11 @@ import { ToastContainer } from "@/app/components/ui/Toast";
 import { useMockAuth } from "@/app/hooks/useMockAuth";
 import { useToast } from "@/app/hooks/useToast";
 import { buildMockAuthHeaders } from "@/app/lib/mock-auth-headers";
+import {
+  VideoSkeletonOverlay,
+  useOverlayStatusText,
+} from "@/app/components/video/VideoSkeletonOverlay";
+import type { PoseEstimateResponse } from "@/src/lib/analysis/mediapipe-types";
 
 interface AnalysisResult {
   id: string;
@@ -32,6 +37,9 @@ interface AnalysisResult {
   scoreFootwork: number | null;
   scoreShotSelection: number | null;
   coachingTips: unknown;
+  activityType?: string | null;
+  activityConfidence?: number | null;
+  rejectionReason?: string | null;
   video?: { cdnUrl: string | null; durationSeconds: number | null; resolutionWidth: number | null; resolutionHeight: number | null };
 }
 
@@ -134,6 +142,11 @@ export default function AnalysisResultsPage() {
   const [error, setError] = useState<string | null>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isOverlayEnabled, setIsOverlayEnabled] = useState(true);
+  const [poseData, setPoseData] = useState<PoseEstimateResponse | null>(null);
+  const [poseDataError, setPoseDataError] = useState<string | null>(null);
+  const [isPoseLoading, setIsPoseLoading] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
 
   const fetchAnalysis = useCallback(async () => {
     if (!videoId) return;
@@ -159,6 +172,47 @@ export default function AnalysisResultsPage() {
     void fetchAnalysis();
   }, [fetchAnalysis]);
 
+  useEffect(() => {
+    if (!analysis) return;
+    if (poseData || isPoseLoading) return;
+
+    let cancelled = false;
+    const loadPoseData = async () => {
+      setIsPoseLoading(true);
+      setPoseDataError(null);
+      try {
+        const response = await fetch(`/api/analysis/${analysis.id}/pose`);
+        if (!response.ok) {
+          const body = (await response.json().catch(() => ({}))) as {
+            error?: string;
+          };
+          throw new Error(body.error ?? `Failed to fetch pose data (${response.status})`);
+        }
+        const payload = (await response.json()) as PoseEstimateResponse;
+        if (!cancelled) {
+          setPoseData(payload);
+        }
+      } catch (loadError) {
+        if (!cancelled) {
+          setPoseDataError(
+            loadError instanceof Error
+              ? loadError.message
+              : "Failed to fetch pose data"
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setIsPoseLoading(false);
+        }
+      }
+    };
+    void loadPoseData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [analysis, poseData, isPoseLoading]);
+
   const handleDelete = useCallback(async () => {
     if (!analysis || !user) return;
     setIsDeleting(true);
@@ -181,6 +235,13 @@ export default function AnalysisResultsPage() {
       setIsDeleting(false);
     }
   }, [analysis, user, showToast, router]);
+
+  const overlayStatusText = useOverlayStatusText(
+    isOverlayEnabled,
+    isPoseLoading,
+    poseDataError,
+    poseData
+  );
 
   if (!videoId) {
     return (
@@ -220,6 +281,67 @@ export default function AnalysisResultsPage() {
                 <Button variant="secondary">Upload Another</Button>
               </Link>
             </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (analysis.status === "UNSUPPORTED_CONTENT") {
+    return (
+      <div className="mx-auto max-w-4xl">
+        <div className="mb-6 flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+          <Link href="/dashboard" className="hover:text-[var(--primary)]">
+            Home
+          </Link>
+          <span>/</span>
+          <span className="text-[var(--text-primary)]">Analysis</span>
+        </div>
+
+        <Card>
+          <CardContent className="py-10 text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[var(--warning)]/15">
+              <svg className="h-8 w-8 text-[var(--warning)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M9.5 4.5l10 10-5 5-10-10 5-5z M4.5 19.5l3-3"
+                />
+              </svg>
+            </div>
+
+            <h2 className="text-xl font-semibold text-[var(--text-primary)]">No batting detected</h2>
+
+            <p className="mx-auto mt-3 max-w-md text-sm text-[var(--text-secondary)]">
+              {analysis.rejectionReason ??
+                "This video doesn't appear to show batting technique. Koda analyses batting shots only — please upload a clip of a batting stroke or practice session."}
+            </p>
+
+            {analysis.activityType &&
+              analysis.activityType !== "BATTING" &&
+              analysis.activityType !== "UNCLEAR" && (
+                <p className="mt-2 text-xs text-[var(--text-secondary)]">
+                  Detected activity:{" "}
+                  <span className="font-medium capitalize">{analysis.activityType.toLowerCase()}</span>
+                  {analysis.activityConfidence != null &&
+                    ` (${Math.round(analysis.activityConfidence * 100)}% confidence)`}
+                </p>
+              )}
+
+            <div className="mt-8 flex flex-wrap justify-center gap-3">
+              <Link href="/upload">
+                <Button>Upload a Batting Video</Button>
+              </Link>
+              <Link href="/dashboard">
+                <Button variant="secondary">Back to Dashboard</Button>
+              </Link>
+            </div>
+
+            <p className="mt-6 text-xs text-[var(--text-secondary)]">
+              Bowling analysis is coming soon. If you believe this is an error, try re-uploading with a clearer
+              angle showing the batter.
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -310,6 +432,7 @@ export default function AnalysisResultsPage() {
               <div className="relative aspect-video w-full bg-black">
                 {analysis.video ? (
                   <video
+                    ref={videoRef}
                     src={previewSrc}
                     controls
                     className="h-full w-full object-contain"
@@ -320,9 +443,30 @@ export default function AnalysisResultsPage() {
                     <p className="text-[var(--text-secondary)]">Video preview unavailable</p>
                   </div>
                 )}
+                <VideoSkeletonOverlay
+                  videoRef={videoRef}
+                  poseData={poseData}
+                  enabled={isOverlayEnabled && !poseDataError}
+                  showBbox
+                />
                 <div className="absolute right-3 top-3 flex items-center gap-2 rounded-lg bg-black/60 px-3 py-2">
-                  <span className="text-xs text-white">Skeleton Overlay</span>
-                  <div className="h-5 w-10 rounded-full bg-[var(--surface-secondary)]" role="switch" aria-checked="false" />
+                  <span className="text-xs text-white">Skeleton + Bbox</span>
+                  <button
+                    type="button"
+                    className={`relative h-5 w-10 rounded-full transition-colors ${
+                      isOverlayEnabled ? "bg-emerald-500" : "bg-[var(--surface-secondary)]"
+                    }`}
+                    role="switch"
+                    aria-checked={isOverlayEnabled}
+                    aria-label="Toggle skeleton overlay"
+                    onClick={() => setIsOverlayEnabled((current) => !current)}
+                  >
+                    <span
+                      className={`absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${
+                        isOverlayEnabled ? "translate-x-5" : "translate-x-0"
+                      }`}
+                    />
+                  </button>
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 p-4">
@@ -335,6 +479,11 @@ export default function AnalysisResultsPage() {
                 <span className="rounded-full bg-[var(--surface-secondary)] px-3 py-1 text-xs text-[var(--text-secondary)]">
                   {resolution}
                 </span>
+                {overlayStatusText ? (
+                  <span className="rounded-full bg-[var(--surface-secondary)] px-3 py-1 text-xs text-[var(--text-secondary)]">
+                    {overlayStatusText}
+                  </span>
+                ) : null}
               </div>
             </CardContent>
           </Card>

@@ -1,17 +1,36 @@
 "use client";
 
-import React, { useCallback, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
 import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
+import { LoadingSpinner } from "@/app/components/common/LoadingSpinner";
 import { useAnalysisStatus } from "@/app/lib/useAnalysisStatus";
 import { ProcessingTimeline } from "@/app/components/analysis/ProcessingStageCard";
+import {
+  VideoSkeletonOverlay,
+  useOverlayStatusText,
+} from "@/app/components/video/VideoSkeletonOverlay";
+import type { PoseEstimateResponse } from "@/src/lib/analysis/mediapipe-types";
+
+const POSE_READY_STAGES = new Set([
+  "shot_classification",
+  "generating_feedback",
+  "complete",
+]);
 
 export default function AnalysisProcessingPage() {
   const params = useParams();
   const router = useRouter();
   const videoId = typeof params.videoId === "string" ? params.videoId : null;
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  const [analysisId, setAnalysisId] = useState<string | null>(null);
+  const [isOverlayEnabled, setIsOverlayEnabled] = useState(true);
+  const [poseData, setPoseData] = useState<PoseEstimateResponse | null>(null);
+  const [poseDataError, setPoseDataError] = useState<string | null>(null);
+  const [isPoseLoading, setIsPoseLoading] = useState(false);
 
   const { status, error, retry } = useAnalysisStatus({
     videoId,
@@ -22,9 +41,69 @@ export default function AnalysisProcessingPage() {
     },
   });
 
+  useEffect(() => {
+    if (!videoId) return;
+    let cancelled = false;
+    async function loadAnalysisId() {
+      try {
+        const res = await fetch(`/api/analysis/video/${videoId}`);
+        if (!res.ok) return;
+        const data = (await res.json()) as { id?: string };
+        if (!cancelled && data.id) {
+          setAnalysisId(data.id);
+        }
+      } catch {
+        // Optional — overlay loads once analysisId is known from status polling
+      }
+    }
+    void loadAnalysisId();
+    return () => {
+      cancelled = true;
+    };
+  }, [videoId]);
+
+  useEffect(() => {
+    if (!status?.stage || !POSE_READY_STAGES.has(status.stage)) return;
+    if (!analysisId || poseData || isPoseLoading) return;
+
+    let cancelled = false;
+    const loadPose = async () => {
+      setIsPoseLoading(true);
+      setPoseDataError(null);
+      try {
+        const response = await fetch(`/api/analysis/${analysisId}/pose`);
+        if (!response.ok) {
+          const body = (await response.json().catch(() => ({}))) as { error?: string };
+          throw new Error(body.error ?? `Failed to fetch pose data (${response.status})`);
+        }
+        const payload = (await response.json()) as PoseEstimateResponse;
+        if (!cancelled) setPoseData(payload);
+      } catch (loadError) {
+        if (!cancelled) {
+          setPoseDataError(
+            loadError instanceof Error ? loadError.message : "Failed to fetch pose data"
+          );
+        }
+      } finally {
+        if (!cancelled) setIsPoseLoading(false);
+      }
+    };
+    void loadPose();
+    return () => {
+      cancelled = true;
+    };
+  }, [status?.stage, analysisId, poseData, isPoseLoading]);
+
   const handleCancel = useCallback(() => {
     router.push("/upload");
   }, [router]);
+
+  const overlayStatusText = useOverlayStatusText(
+    isOverlayEnabled,
+    isPoseLoading,
+    poseDataError,
+    poseData
+  );
 
   if (!videoId) {
     return (
@@ -74,17 +153,74 @@ export default function AnalysisProcessingPage() {
   const estimatedMins = displayStatus.estimatedSecondsRemaining
     ? Math.ceil(displayStatus.estimatedSecondsRemaining / 60)
     : null;
+  const previewSrc = `/api/videos/${videoId}/stream`;
 
   return (
-    <div className="mx-auto max-w-2xl">
+    <div className="mx-auto max-w-3xl">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-[var(--text-primary)]">
           Analysis in Progress
         </h1>
         <p className="mt-1 text-[var(--text-secondary)]">
-          Your video is being processed. This usually takes a few minutes.
+          Your video is being processed in the background. You can leave and check back from Upload → Recent Uploads.
         </p>
       </div>
+
+      <Card className="mb-6">
+        <CardContent className="p-0">
+          <div className="relative aspect-video w-full bg-black">
+            <video
+              ref={videoRef}
+              src={previewSrc}
+              controls
+              className="h-full w-full object-contain"
+              preload="metadata"
+            />
+            <VideoSkeletonOverlay
+              videoRef={videoRef}
+              poseData={poseData}
+              enabled={isOverlayEnabled && Boolean(poseData)}
+              showBbox
+            />
+            <div className="absolute right-3 top-3 flex items-center gap-2 rounded-lg bg-black/60 px-3 py-2">
+              <span className="text-xs text-white">Skeleton + Bbox</span>
+              <button
+                type="button"
+                className={`relative h-5 w-10 rounded-full transition-colors ${
+                  isOverlayEnabled ? "bg-emerald-500" : "bg-[var(--surface-secondary)]"
+                }`}
+                role="switch"
+                aria-checked={isOverlayEnabled}
+                aria-label="Toggle skeleton overlay"
+                onClick={() => setIsOverlayEnabled((current) => !current)}
+              >
+                <span
+                  className={`absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${
+                    isOverlayEnabled ? "translate-x-5" : "translate-x-0"
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 p-4">
+            {overlayStatusText ? (
+              <span className="rounded-full bg-[var(--surface-secondary)] px-3 py-1 text-xs text-[var(--text-secondary)]">
+                {overlayStatusText}
+              </span>
+            ) : (
+              <span className="rounded-full bg-[var(--surface-secondary)] px-3 py-1 text-xs text-[var(--text-secondary)]">
+                Skeleton overlay available after pose analysis
+              </span>
+            )}
+            {isPoseLoading && (
+              <span className="inline-flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+                <LoadingSpinner size="sm" />
+                Loading pose data…
+              </span>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>Pipeline Status</CardHeader>
@@ -117,10 +253,10 @@ export default function AnalysisProcessingPage() {
           {!isComplete && !isFailed && (
             <div className="mt-6 flex justify-between">
               <Button variant="ghost" onClick={handleCancel}>
-                Cancel
+                Back to Upload
               </Button>
               <p className="text-sm text-[var(--text-secondary)]">
-                You can leave this page; we&apos;ll notify you when it&apos;s done.
+                Processing continues if you leave this page.
               </p>
             </div>
           )}

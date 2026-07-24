@@ -70,6 +70,12 @@ export function logMediaPipeOutcome(
     batches: ctx.batchCount,
     videoMeta: ctx.videoMeta,
     landmarkFramesReturned: landmarks.length,
+    landmarkFrameIndicesSample: landmarks.length > 0
+      ? landmarks
+          .filter((_, i) => i === 0 || i === landmarks.length - 1 || i % Math.max(1, Math.floor(landmarks.length / 6)) === 0)
+          .slice(0, 8)
+          .map((l) => l.frameIndex)
+      : [],
     processingMsService: pose.processingMs,
     batsmanBbox: pose.batsman_bbox ?? null,
     poseConfidence: {
@@ -134,7 +140,7 @@ export function logPoseSummaryForLlm(analysisId: string, poseSummary: string | n
 /** Log full prompt sent to Gemini (truncated unless KODA_ANALYSIS_LOG_FULL_PROMPTS=1). */
 export function logGeminiRequest(
   analysisId: string,
-  phase: "classification" | "scoring",
+  phase: "classification" | "scoring" | "leave_detection" | "activity_gate",
   modelName: string,
   prompt: string,
   extra?: Record<string, unknown>

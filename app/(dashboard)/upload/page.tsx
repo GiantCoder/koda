@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 import { Select } from "@/app/components/ui/Select";
@@ -18,26 +18,17 @@ import {
   ACCEPTED_EXTENSIONS,
   MAX_FILE_SIZE_BYTES,
 } from "@/app/lib/video-validators";
+import { STAGE_LABELS } from "@/app/lib/uploads-display";
 
 interface RecentVideoApiItem {
   id: string;
   filename: string;
   uploadedAt: string;
-  processingState: "analyzed" | "processing" | "failed";
+  processingState: "analyzed" | "processing" | "failed" | "unsupported";
   analysis: {
     status: string;
   } | null;
 }
-
-const STAGE_LABELS: Record<string, string> = {
-  QUEUED: "Queued",
-  EXTRACTING_FRAMES: "Extracting frames",
-  POSE_ANALYSIS: "Pose analysis",
-  SHOT_CLASSIFICATION: "Shot classification",
-  GENERATING_FEEDBACK: "Generating feedback",
-  COMPLETE: "Complete",
-  FAILED: "Failed",
-};
 
 function toRelativeTimestamp(value: string): string {
   const parsedDate = new Date(value);
@@ -93,7 +84,6 @@ function LockIcon() {
 }
 
 export default function UploadPage() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const { user, role } = useMockAuth();
   const [file, setFile] = useState<File | null>(null);
@@ -108,6 +98,8 @@ export default function UploadPage() {
   const [isRecentUploadsLoading, setIsRecentUploadsLoading] = useState(true);
   const [recentUploadsError, setRecentUploadsError] = useState<string | null>(null);
   const [shotHintsModalOpen, setShotHintsModalOpen] = useState(false);
+  const [uploadSuccessMessage, setUploadSuccessMessage] = useState<string | null>(null);
+  const [uploadActivity, setUploadActivity] = useState<"batting" | "other">("batting");
 
   React.useEffect(() => {
     let cancelled = false;
@@ -253,7 +245,43 @@ export default function UploadPage() {
     label: player.displayName,
   }));
   const needsParentSelection = role === "parent" && assignablePlayers.length > 1 && !assigneeUserId;
-  const preventUpload = needsParentSelection;
+  const preventUpload = uploadActivity === "other" || needsParentSelection;
+
+  const uploadVideoWithProgress = useCallback(
+    (formData: FormData): Promise<{ id: string }> =>
+      new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", "/api/video/upload");
+        const headers = buildMockAuthHeaders(user);
+        Object.entries(headers).forEach(([key, value]) => {
+          xhr.setRequestHeader(key, value);
+        });
+        xhr.upload.onprogress = (event) => {
+          if (!event.lengthComputable) return;
+          const pct = Math.round((event.loaded / event.total) * 100);
+          setUploadProgress(Math.min(99, pct));
+        };
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              resolve(JSON.parse(xhr.responseText) as { id: string });
+            } catch {
+              reject(new Error("Invalid upload response"));
+            }
+            return;
+          }
+          try {
+            const data = JSON.parse(xhr.responseText) as { error?: string };
+            reject(new Error(data.error ?? "Upload failed"));
+          } catch {
+            reject(new Error("Upload failed"));
+          }
+        };
+        xhr.onerror = () => reject(new Error("Upload failed"));
+        xhr.send(formData);
+      }),
+    [user]
+  );
 
   const runUploadAfterShotHints = useCallback(
     async (declaredShotCount: number, hints: string[]) => {
@@ -261,14 +289,9 @@ export default function UploadPage() {
 
       setShotHintsModalOpen(false);
       setSubmitError(null);
+      setUploadSuccessMessage(null);
       setIsUploading(true);
       setUploadProgress(0);
-
-      const steps = [10, 25, 50, 75, 90, 100];
-      for (let i = 0; i < steps.length; i++) {
-        await new Promise((r) => setTimeout(r, 300));
-        setUploadProgress(steps[i]);
-      }
 
       const formData = new FormData();
       formData.append("file", file);
@@ -280,18 +303,9 @@ export default function UploadPage() {
       }
 
       try {
-        const res = await fetch("/api/video/upload", {
-          method: "POST",
-          headers: buildMockAuthHeaders(user),
-          body: formData,
-        });
+        const data = await uploadVideoWithProgress(formData);
+        setUploadProgress(100);
 
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.error ?? "Upload failed");
-        }
-
-        const data = await res.json();
         const optimisticRecentUpload: RecentUpload = {
           id: data.id,
           filename: file.name,
@@ -304,18 +318,18 @@ export default function UploadPage() {
           ...currentUploads.filter((upload) => upload.id !== data.id),
         ]);
         setFile(null);
-        setIsUploading(false);
-        setUploadProgress(0);
+        setUploadSuccessMessage(
+          "Upload complete. Analysis is running in the background — check Recent Uploads for status."
+        );
         void loadRecentUploads();
-
-        router.push(`/analysis/${data.id}/processing`);
       } catch (err) {
         setSubmitError(err instanceof Error ? err.message : "Upload failed");
+      } finally {
         setIsUploading(false);
         setUploadProgress(0);
       }
     },
-    [file, router, assigneeUserId, user, loadRecentUploads]
+    [file, assigneeUserId, loadRecentUploads, uploadVideoWithProgress]
   );
 
   const openShotHintsModal = useCallback(() => {
@@ -341,6 +355,31 @@ export default function UploadPage() {
           <Card>
             <CardHeader>Video Upload</CardHeader>
             <CardContent className="space-y-4">
+              <div className="rounded-lg border border-[var(--surface-secondary)] bg-[var(--surface-secondary)]/40 p-4">
+                <p className="mb-3 text-sm font-medium text-[var(--text-primary)]">What are you practising?</p>
+                <div className="flex gap-3">
+                  {(["batting", "other"] as const).map((activity) => (
+                    <button
+                      key={activity}
+                      type="button"
+                      onClick={() => setUploadActivity(activity)}
+                      className={`flex-1 rounded-lg border-2 py-3 text-sm font-medium transition-colors ${
+                        uploadActivity === activity
+                          ? "border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]"
+                          : "border-[var(--surface-secondary)] text-[var(--text-secondary)] hover:border-[var(--primary)]/50"
+                      }`}
+                    >
+                      {activity === "batting" ? "Batting" : "Other (bowling, fielding…)"}
+                    </button>
+                  ))}
+                </div>
+                {uploadActivity === "other" && (
+                  <p className="mt-3 rounded-md bg-[var(--warning)]/10 px-3 py-2 text-xs text-[var(--warning)]">
+                    Koda currently analyses batting technique only. Bowling and fielding analysis is coming soon.
+                  </p>
+                )}
+              </div>
+
               <div
                 onDrop={handleDrop}
                 onDragOver={handleDragOver}
@@ -454,6 +493,22 @@ export default function UploadPage() {
             </CardContent>
           </Card>
 
+          {uploadSuccessMessage && (
+            <div
+              className="rounded-lg border border-[var(--success)]/50 bg-[var(--success)]/10 p-4"
+              role="status"
+            >
+              <p className="text-sm text-[var(--text-primary)]">{uploadSuccessMessage}</p>
+              <Button
+                variant="secondary"
+                className="mt-2"
+                onClick={() => setUploadSuccessMessage(null)}
+              >
+                Dismiss
+              </Button>
+            </div>
+          )}
+
           {submitError && (
             <div
               className="rounded-lg border border-[var(--danger)] bg-[var(--danger)]/10 p-4"
@@ -485,6 +540,8 @@ export default function UploadPage() {
           <BestCameraAngleCard />
           <RecentUploadsList
             uploads={recentUploads}
+            user={user}
+            onUploadsChanged={() => void loadRecentUploads()}
             emptyMessage={
               isRecentUploadsLoading
                 ? "Loading recent uploads..."
