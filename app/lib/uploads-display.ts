@@ -40,13 +40,14 @@ export function processingStateFromAnalysisStatus(
 
 export function formatUploadStatusLabel(
   state: UploadProcessingState,
-  analysisStatus?: string | null
+  analysisStatus?: string | null,
+  activityType?: string | null
 ): string {
   if (state === "analyzed") return "Analyzed";
-  if (state === "unsupported") return "Not batting";
+  if (state === "unsupported") return "Not supported";
   if (state === "failed") return "Failed";
-  if (analysisStatus && STAGE_LABELS[analysisStatus]) {
-    return "Processing (" + STAGE_LABELS[analysisStatus] + ")";
+  if (analysisStatus) {
+    return "Processing (" + stageLabelForAnalysis(analysisStatus, activityType) + ")";
   }
   return "Processing";
 }
