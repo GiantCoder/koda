@@ -19,6 +19,7 @@ import {
   useOverlayStatusText,
 } from "@/app/components/video/VideoSkeletonOverlay";
 import type { PoseEstimateResponse } from "@/src/lib/analysis/mediapipe-types";
+import { formatBowlingDeliveryLabel } from "@/src/lib/cricket/bowling-types";
 
 interface AnalysisResult {
   id: string;
@@ -36,6 +37,16 @@ interface AnalysisResult {
   scoreBalance: number | null;
   scoreFootwork: number | null;
   scoreShotSelection: number | null;
+  bowlingArm?: string | null;
+  bowlingType?: string | null;
+  deliveryType?: string | null;
+  deliveryConfidence?: number | null;
+  scoreRunUpRhythm?: number | null;
+  scoreLoadUp?: number | null;
+  scoreBowlingArmAction?: number | null;
+  scoreDeliveryStride?: number | null;
+  scoreReleasePoint?: number | null;
+  scoreAlignment?: number | null;
   coachingTips: unknown;
   activityType?: string | null;
   activityConfidence?: number | null;
@@ -46,6 +57,14 @@ interface AnalysisResult {
       confidence?: number;
       reasons?: string[];
       noBatsman?: boolean;
+    };
+    bowlingClassification?: {
+      bowlingArm?: string;
+      bowlingType?: string;
+      deliveryType?: string;
+      confidence?: number;
+      reasons?: string[];
+      noBowlerVisible?: boolean;
     };
     activityGate?: {
       activityType?: string;
@@ -101,6 +120,35 @@ function parseCoachingTips(raw: unknown): CoachingTip[] {
 
 function deriveTags(analysis: AnalysisResult): ShotTag[] {
   const tags: ShotTag[] = [];
+  const isBowling = analysis.activityType === "BOWLING";
+
+  if (isBowling) {
+    if (analysis.deliveryType) {
+      tags.push({ label: formatShotType(analysis.deliveryType), type: "neutral" });
+    }
+    const bowlingScores = [
+      { k: "RunUpRhythm", v: analysis.scoreRunUpRhythm },
+      { k: "LoadUp", v: analysis.scoreLoadUp },
+      { k: "BowlingArm", v: analysis.scoreBowlingArmAction },
+      { k: "ReleasePoint", v: analysis.scoreReleasePoint },
+      { k: "Balance", v: analysis.scoreBalance },
+    ];
+    bowlingScores.forEach(({ k, v }) => {
+      if (v != null) {
+        tags.push({
+          label: k,
+          type: v >= 85 ? "strength" : v < 70 ? "improvement" : "neutral",
+        });
+      }
+    });
+    return tags.length > 0
+      ? tags
+      : [
+          { label: "Bowling", type: "neutral" },
+          { label: "Technique", type: "neutral" },
+        ];
+  }
+
   if (analysis.shotType) {
     tags.push({ label: formatShotType(analysis.shotType), type: "neutral" });
   }
@@ -128,6 +176,22 @@ function deriveTags(analysis: AnalysisResult): ShotTag[] {
 }
 
 function deriveRadarData(analysis: AnalysisResult): RadarDataPoint[] {
+  if (analysis.activityType === "BOWLING") {
+    const dims = [
+      { key: "Run-Up Rhythm", val: analysis.scoreRunUpRhythm },
+      { key: "Load-Up", val: analysis.scoreLoadUp },
+      { key: "Bowling Arm Action", val: analysis.scoreBowlingArmAction },
+      { key: "Delivery Stride", val: analysis.scoreDeliveryStride },
+      { key: "Release Point", val: analysis.scoreReleasePoint },
+      { key: "Follow-Through", val: analysis.scoreFollowThrough },
+      { key: "Alignment", val: analysis.scoreAlignment },
+      { key: "Balance", val: analysis.scoreBalance },
+    ];
+    return dims
+      .filter((d) => d.val != null)
+      .map((d) => ({ dimension: d.key, value: d.val as number, fullMark: 100 }));
+  }
+
   const dims = [
     { key: "Head Position", val: analysis.scoreHeadPosition },
     { key: "Weight Transfer", val: analysis.scoreWeightTransfer },
@@ -327,11 +391,11 @@ export default function AnalysisResultsPage() {
               </svg>
             </div>
 
-            <h2 className="text-xl font-semibold text-[var(--text-primary)]">No batting detected</h2>
+            <h2 className="text-xl font-semibold text-[var(--text-primary)]">No supported activity detected</h2>
 
             <p className="mx-auto mt-3 max-w-md text-sm text-[var(--text-secondary)]">
               {analysis.rejectionReason ??
-                "This video doesn't appear to show batting technique. Koda analyses batting shots only — please upload a clip of a batting stroke or practice session."}
+                "Koda analyses batting and bowling technique. Please upload a clip showing a batter or a bowler delivering the ball."}
             </p>
 
             {analysis.activityType &&
@@ -347,56 +411,87 @@ export default function AnalysisResultsPage() {
 
             <div className="mt-8 flex flex-wrap justify-center gap-3">
               <Link href="/upload">
-                <Button>Upload a Batting Video</Button>
+                <Button>Upload Another Video</Button>
               </Link>
               <Link href="/dashboard">
                 <Button variant="secondary">Back to Dashboard</Button>
               </Link>
             </div>
-
-            <p className="mt-6 text-xs text-[var(--text-secondary)]">
-              Bowling analysis is coming soon. If you believe this is an error, try re-uploading with a clearer
-              angle showing the batter.
-            </p>
           </CardContent>
         </Card>
       </div>
     );
   }
 
+  const isBowling = analysis.activityType === "BOWLING";
   const overall = analysis.gradeOverall ?? 0;
   const gradeLetter = analysis.gradeLetter ?? gradeFromScore(overall);
-  const metrics = [
-    { label: "Backlift", value: analysis.scoreBacklift ?? 0 },
-    { label: "Weight Transfer", value: analysis.scoreWeightTransfer ?? 0 },
-    { label: "Head Position", value: analysis.scoreHeadPosition ?? 0 },
-    { label: "Follow-Through", value: analysis.scoreFollowThrough ?? 0 },
-    { label: "Timing", value: analysis.scoreTiming ?? 0 },
-  ].filter((m) => m.value > 0);
+  const metrics = isBowling
+    ? [
+        { label: "Run-Up Rhythm", value: analysis.scoreRunUpRhythm ?? 0 },
+        { label: "Load-Up", value: analysis.scoreLoadUp ?? 0 },
+        { label: "Bowling Arm Action", value: analysis.scoreBowlingArmAction ?? 0 },
+        { label: "Delivery Stride", value: analysis.scoreDeliveryStride ?? 0 },
+        { label: "Release Point", value: analysis.scoreReleasePoint ?? 0 },
+        { label: "Follow-Through", value: analysis.scoreFollowThrough ?? 0 },
+        { label: "Alignment", value: analysis.scoreAlignment ?? 0 },
+        { label: "Balance", value: analysis.scoreBalance ?? 0 },
+      ].filter((m) => m.value > 0)
+    : [
+        { label: "Backlift", value: analysis.scoreBacklift ?? 0 },
+        { label: "Weight Transfer", value: analysis.scoreWeightTransfer ?? 0 },
+        { label: "Head Position", value: analysis.scoreHeadPosition ?? 0 },
+        { label: "Follow-Through", value: analysis.scoreFollowThrough ?? 0 },
+        { label: "Timing", value: analysis.scoreTiming ?? 0 },
+      ].filter((m) => m.value > 0);
 
   const tips = parseCoachingTips(analysis.coachingTips);
-  const defaultTips: CoachingTip[] = tips.length > 0 ? tips : [
-    { title: "Excellent Front Foot Movement", body: "Your weight transfer onto the front foot was well timed.", type: "strength" },
-    { title: "Watch Your Head Position", body: "Try to keep your head more still over the ball for better balance.", type: "improvement" },
-    { title: "Practice Recommendation", body: "Focus on drills that emphasize keeping the head still during front-foot drives.", type: "recommendation" },
-  ];
+  const defaultTips: CoachingTip[] = tips.length > 0 ? tips : isBowling
+    ? [
+        { title: "Solid Run-Up", body: "Your approach into the crease looked controlled.", type: "strength" },
+        { title: "Release Consistency", body: "Focus on releasing at a repeatable height and line.", type: "improvement" },
+        { title: "Practice Recommendation", body: "Film a few more deliveries from side-on to refine arm path feedback.", type: "recommendation" },
+      ]
+    : [
+        { title: "Excellent Front Foot Movement", body: "Your weight transfer onto the front foot was well timed.", type: "strength" },
+        { title: "Watch Your Head Position", body: "Try to keep your head more still over the ball for better balance.", type: "improvement" },
+        { title: "Practice Recommendation", body: "Focus on drills that emphasize keeping the head still during front-foot drives.", type: "recommendation" },
+      ];
 
   const tags = deriveTags(analysis);
   const radarData = deriveRadarData(analysis);
-  const defaultRadar: RadarDataPoint[] = radarData.length > 0 ? radarData : [
-    { dimension: "Head Position", value: analysis.scoreHeadPosition ?? 76 },
-    { dimension: "Weight Transfer", value: analysis.scoreWeightTransfer ?? 88 },
-    { dimension: "Backlift", value: analysis.scoreBacklift ?? 92 },
-    { dimension: "Shot Selection", value: analysis.scoreShotSelection ?? 85 },
-    { dimension: "Footwork", value: analysis.scoreFootwork ?? 82 },
-    { dimension: "Balance", value: analysis.scoreBalance ?? 90 },
-    { dimension: "Timing", value: analysis.scoreTiming ?? 85 },
-    { dimension: "Follow-Through", value: analysis.scoreFollowThrough ?? 90 },
-  ];
+  const defaultRadar: RadarDataPoint[] = radarData.length > 0 ? radarData : isBowling
+    ? [
+        { dimension: "Run-Up Rhythm", value: analysis.scoreRunUpRhythm ?? 76 },
+        { dimension: "Load-Up", value: analysis.scoreLoadUp ?? 80 },
+        { dimension: "Bowling Arm Action", value: analysis.scoreBowlingArmAction ?? 82 },
+        { dimension: "Delivery Stride", value: analysis.scoreDeliveryStride ?? 78 },
+        { dimension: "Release Point", value: analysis.scoreReleasePoint ?? 75 },
+        { dimension: "Follow-Through", value: analysis.scoreFollowThrough ?? 80 },
+        { dimension: "Alignment", value: analysis.scoreAlignment ?? 77 },
+        { dimension: "Balance", value: analysis.scoreBalance ?? 85 },
+      ]
+    : [
+        { dimension: "Head Position", value: analysis.scoreHeadPosition ?? 76 },
+        { dimension: "Weight Transfer", value: analysis.scoreWeightTransfer ?? 88 },
+        { dimension: "Backlift", value: analysis.scoreBacklift ?? 92 },
+        { dimension: "Shot Selection", value: analysis.scoreShotSelection ?? 85 },
+        { dimension: "Footwork", value: analysis.scoreFootwork ?? 82 },
+        { dimension: "Balance", value: analysis.scoreBalance ?? 90 },
+        { dimension: "Timing", value: analysis.scoreTiming ?? 85 },
+        { dimension: "Follow-Through", value: analysis.scoreFollowThrough ?? 90 },
+      ];
 
-  const shotLabel = analysis.shotType
-    ? `${formatShotType(analysis.shotType)} — ${Math.round((analysis.shotConfidence ?? 0) * 100)}% confidence`
-    : "Shot classified";
+  const shotLabel = isBowling
+    ? formatBowlingDeliveryLabel({
+        bowlingArm: analysis.bowlingArm,
+        bowlingType: analysis.bowlingType,
+        deliveryType: analysis.deliveryType,
+        deliveryConfidence: analysis.deliveryConfidence,
+      })
+    : analysis.shotType
+      ? `${formatShotType(analysis.shotType)} — ${Math.round((analysis.shotConfidence ?? 0) * 100)}% confidence`
+      : "Shot classified";
 
   const resolution = analysis.video?.resolutionWidth && analysis.video?.resolutionHeight
     ? `${analysis.video.resolutionWidth}p`
@@ -413,7 +508,7 @@ export default function AnalysisResultsPage() {
           <span>/</span>
           <Link href="/progress" className="hover:text-[var(--primary)]">Analysis</Link>
           <span>/</span>
-          <span className="text-[var(--text-primary)]">Shot Review</span>
+          <span className="text-[var(--text-primary)]">{isBowling ? "Bowling Review" : "Shot Review"}</span>
         </div>
         <Button
           variant="secondary"
@@ -426,7 +521,7 @@ export default function AnalysisResultsPage() {
 
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-[var(--text-primary)]">
-          Shot Analysis Results
+          {isBowling ? "Bowling Analysis Results" : "Shot Analysis Results"}
         </h1>
         <p className="mt-1 text-[var(--text-secondary)]">
           Analyzed on {new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}

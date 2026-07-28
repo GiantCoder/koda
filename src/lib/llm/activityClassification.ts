@@ -11,6 +11,11 @@ export interface ActivityClassificationResult {
   hasBatterWithBat: boolean;
   confidence: number;
   isBatting: boolean;
+  /** True when a bowler's full (or near-full) action is visible and analysable. */
+  bowlerActionVisible: boolean;
+  /** Confidence that a bowling action is clearly visible (independent of batting confidence). */
+  bowlingConfidence: number;
+  isBowling: boolean;
   reasons: string[];
   rawResponseText: string;
   /** Activity gate could not parse model output — pipeline continues to shot classification. */
@@ -21,39 +26,52 @@ const ACTIVITY_CONFIDENCE_THRESHOLD = parseFloat(
   process.env.KODA_ACTIVITY_CONFIDENCE_THRESHOLD ?? "0.65"
 );
 
-const ACTIVITY_PROMPT = `You are a cricket video content classifier for a batting-technique analysis product.
+const ACTIVITY_PROMPT = `You are a cricket video content classifier for a technique analysis product.
 
-Your job is to decide whether this clip is suitable for BATTING analysis — i.e. whether a batter with a bat is visible and could be analysed.
+Your job is to decide whether this clip is suitable for BATTING analysis and/or BOWLING analysis.
 
 Look carefully at ALL frames provided:
 
-1. BATTER PRESENCE (most important):
+1. BATTER PRESENCE (for batting suitability):
    - Is a batter visible in ANY frame — at the striker's end, in nets, wearing pads/helmet, holding a bat, or in a batting stance?
    - The batter may be in the background, smaller, or at the far end of the pitch. Still count them.
    - Nets practice often shows BOTH a bowler (foreground) AND a batter (background). If a batter with a bat is visible, set hasBatterWithBat: true even while a bowler is delivering.
 
-2. ACTIVITY TYPE (secondary — for logging only):
+2. ACTIVITY TYPE:
    - BOWLING = bowling-only practice with NO batter visible (solo bowler, no batsman in frame)
    - BATTING = batter practising or facing deliveries (includes nets with bowler + batter)
-   - FIELDING / GYM / UNCLEAR = not batting content
+   - FIELDING / GYM / UNCLEAR = neither batting nor bowling content
 
-CRITICAL — do NOT reject nets footage:
+3. BOWLER ACTION VISIBILITY (for bowling suitability):
+   - Is a bowler's full bowling action visible — run-up, delivery stride, arm action, and release — with enough clarity to assess technique?
+   - This can be true even when no batter is visible (solo bowling practice, run-throughs at a bowling machine end, etc).
+   - Do NOT require a batter to be present for bowlerActionVisible to be true.
+
+CRITICAL — do NOT reject nets footage for batting:
 - A bowler delivering to a visible batter is BATTING-suitable content (hasBatterWithBat: true).
 - Only set hasBatterWithBat: false when no person with a bat is visible in any frame.
 
 Respond with JSON only, no markdown fences. Example shape:
 {
-  "activityType": "BATTING",
-  "hasBatterWithBat": true,
-  "confidence": 0.95,
-  "reasons": ["Batter with pads visible at the far end of the nets"]
+  "activityType": "BOWLING",
+  "hasBatterWithBat": false,
+  "confidence": 0.92,
+  "bowlerActionVisible": true,
+  "bowlingConfidence": 0.88,
+  "reasons": ["Right-arm bowler's full run-up and delivery visible, no batter in frame"]
 }
 
-Confidence guide (for hasBatterWithBat):
+Confidence guide (for hasBatterWithBat / confidence):
 - 0.9+ : Batter with bat clearly visible (pads, stance, or shot)
 - 0.7–0.9 : Batter likely present but small, distant, or partially obscured
 - 0.5–0.7 : Uncertain — poor quality or very brief glimpse
-- < 0.5 : No batter with bat visible`;
+- < 0.5 : No batter with bat visible
+
+Confidence guide (for bowlingConfidence):
+- 0.9+ : Full run-up through release and follow-through clearly visible
+- 0.7–0.9 : Delivery action visible but run-up partially cut off or angle imperfect
+- 0.5–0.7 : Uncertain — brief glimpse, poor angle, or motion blur
+- < 0.5 : No clear bowling action visible`;
 
 /** Evenly sample frames, always including first, middle, and last for short clips. */
 function sampleFramesForActivityGate(frames: string[], count: number): string[] {
@@ -76,6 +94,8 @@ interface ParsedActivityPayload {
   activityType?: string;
   hasBatterWithBat?: boolean;
   confidence?: number;
+  bowlerActionVisible?: boolean;
+  bowlingConfidence?: number;
   reasons?: string[];
 }
 
@@ -189,6 +209,16 @@ Frames provided: ${sampledFrames.length} (sampled across full clip, including fi
       ? parsed.hasBatterWithBat
       : activityType === "BATTING";
 
+  const bowlingConfidence =
+    typeof parsed.bowlingConfidence === "number" && Number.isFinite(parsed.bowlingConfidence)
+      ? Math.max(0, Math.min(1, parsed.bowlingConfidence))
+      : 0;
+
+  const bowlerActionVisible =
+    typeof parsed.bowlerActionVisible === "boolean"
+      ? parsed.bowlerActionVisible
+      : activityType === "BOWLING";
+
   const reasons = Array.isArray(parsed.reasons)
     ? parsed.reasons.filter((r): r is string => typeof r === "string").slice(0, 3)
     : [];
@@ -196,6 +226,11 @@ Frames provided: ${sampledFrames.length} (sampled across full clip, including fi
   const isBatting = deferredToShotClassification
     ? true
     : hasBatterWithBat && confidence >= ACTIVITY_CONFIDENCE_THRESHOLD;
+
+  const isBowling =
+    !deferredToShotClassification &&
+    bowlerActionVisible &&
+    bowlingConfidence >= ACTIVITY_CONFIDENCE_THRESHOLD;
 
   console.log(
     JSON.stringify(
@@ -206,6 +241,9 @@ Frames provided: ${sampledFrames.length} (sampled across full clip, including fi
         hasBatterWithBat,
         confidence,
         isBatting,
+        bowlerActionVisible,
+        bowlingConfidence,
+        isBowling,
         deferredToShotClassification,
         reasons,
       },
@@ -219,6 +257,9 @@ Frames provided: ${sampledFrames.length} (sampled across full clip, including fi
     hasBatterWithBat,
     confidence,
     isBatting,
+    bowlerActionVisible,
+    bowlingConfidence,
+    isBowling,
     reasons,
     rawResponseText,
     deferredToShotClassification,

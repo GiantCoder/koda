@@ -248,6 +248,19 @@ model Analysis {
   scoreBalance         Float?
   scoreFootwork        Float?
   scoreShotSelection   Float?
+  /// Bowling arm, when activityType == BOWLING (e.g. "RIGHT_ARM" | "LEFT_ARM")
+  bowlingArm            String?
+  /// Bowling type, when activityType == BOWLING (e.g. "PACE" | "SPIN")
+  bowlingType           String?
+  /// Best-effort delivery variation classification (e.g. "GOOD_LENGTH", "YORKER", "OFF_BREAK"); low confidence expected
+  deliveryType          String?
+  deliveryConfidence    Float?
+  scoreRunUpRhythm      Float?
+  scoreLoadUp           Float?
+  scoreBowlingArmAction Float?
+  scoreDeliveryStride   Float?
+  scoreReleasePoint     Float?
+  scoreAlignment        Float?
   /// Optional label from the player (e.g. shadow batting shot picker); used as a soft prior for LLM.
   playerDeclaredShotType String?
   /// Dashboard upload only: how many distinct strokes the user believes are in the clip (1+).

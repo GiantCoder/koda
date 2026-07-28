@@ -101,7 +101,11 @@ export default function UploadPage() {
   const [recentUploadsError, setRecentUploadsError] = useState<string | null>(null);
   const [shotHintsModalOpen, setShotHintsModalOpen] = useState(false);
   const [uploadSuccessMessage, setUploadSuccessMessage] = useState<string | null>(null);
-  const [uploadActivity, setUploadActivity] = useState<"batting" | "other">("batting");
+  const [uploadActivity, setUploadActivity] = useState<"batting" | "bowling" | "other">("batting");
+  const bowlingEnabled = process.env.NEXT_PUBLIC_KODA_ENABLE_BOWLING_ANALYSIS === "true";
+  const activityOptions = bowlingEnabled
+    ? (["batting", "bowling", "other"] as const)
+    : (["batting", "other"] as const);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -343,8 +347,12 @@ export default function UploadPage() {
 
   const openShotHintsModal = useCallback(() => {
     if (!file || isUploading || preventUpload) return;
+    if (uploadActivity === "bowling") {
+      void runUploadAfterShotHints(1, ["UNKNOWN"]);
+      return;
+    }
     setShotHintsModalOpen(true);
-  }, [file, isUploading, preventUpload]);
+  }, [file, isUploading, preventUpload, uploadActivity, runUploadAfterShotHints]);
 
   const formatChips = ["MP4", "MOV", "AVI", `MAX ${MAX_FILE_SIZE_BYTES / (1024 * 1024)}MB`];
 
@@ -355,7 +363,9 @@ export default function UploadPage() {
           Upload Video for Analysis
         </h1>
         <p className="mt-2 text-[var(--text-secondary)]">
-          Upload your cricket batting video to get detailed technique analysis and personalized feedback.
+          {bowlingEnabled
+            ? "Upload your cricket batting or bowling video to get detailed technique analysis and personalized feedback."
+            : "Upload your cricket batting video to get detailed technique analysis and personalized feedback."}
         </p>
       </div>
 
@@ -368,7 +378,7 @@ export default function UploadPage() {
               <div className="rounded-lg border border-[var(--surface-secondary)] bg-[var(--surface-secondary)]/40 p-4">
                 <p className="mb-3 text-sm font-medium text-[var(--text-primary)]">What are you practising?</p>
                 <div className="flex gap-3">
-                  {(["batting", "other"] as const).map((activity) => (
+                  {activityOptions.map((activity) => (
                     <button
                       key={activity}
                       type="button"
@@ -379,13 +389,21 @@ export default function UploadPage() {
                           : "border-[var(--surface-secondary)] text-[var(--text-secondary)] hover:border-[var(--primary)]/50"
                       }`}
                     >
-                      {activity === "batting" ? "Batting" : "Other (bowling, fielding…)"}
+                      {activity === "batting"
+                        ? "Batting"
+                        : activity === "bowling"
+                          ? "Bowling"
+                          : bowlingEnabled
+                            ? "Fielding (coming soon)"
+                            : "Other (bowling, fielding…)"}
                     </button>
                   ))}
                 </div>
                 {uploadActivity === "other" && (
                   <p className="mt-3 rounded-md bg-[var(--warning)]/10 px-3 py-2 text-xs text-[var(--warning)]">
-                    Koda currently analyses batting technique only. Bowling and fielding analysis is coming soon.
+                    {bowlingEnabled
+                      ? "Fielding analysis is coming soon. Please upload a batting or bowling clip for now."
+                      : "Koda currently analyses batting technique only. Bowling and fielding analysis is coming soon."}
                   </p>
                 )}
               </div>

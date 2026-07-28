@@ -140,7 +140,13 @@ export function logPoseSummaryForLlm(analysisId: string, poseSummary: string | n
 /** Log full prompt sent to Gemini (truncated unless KODA_ANALYSIS_LOG_FULL_PROMPTS=1). */
 export function logGeminiRequest(
   analysisId: string,
-  phase: "classification" | "scoring" | "leave_detection" | "activity_gate",
+  phase:
+    | "classification"
+    | "scoring"
+    | "leave_detection"
+    | "activity_gate"
+    | "bowling_classification"
+    | "bowling_scoring",
   modelName: string,
   prompt: string,
   extra?: Record<string, unknown>

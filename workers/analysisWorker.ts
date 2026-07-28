@@ -4,6 +4,7 @@ import { prisma } from "@/prisma/client";
 import { calculateGrade } from "@/src/lib/grading";
 import { classifyShotWithGemini, scoreBiomechanicsWithGemini } from "@/src/lib/llm/gemini";
 import { classifyActivityWithGemini } from "@/src/lib/llm/activityClassification";
+import { isBowlingAnalysisEnabled } from "@/src/lib/features/bowling";
 import { runGamificationPipeline } from "@/lib/gamification/run-pipeline";
 import { shouldAwardPointsForShadowBatting, shouldAwardPointsForUploads } from "@/lib/gamification/settings";
 import { downloadFromStorage, uploadToStorage } from "@/src/lib/storage";
@@ -20,6 +21,7 @@ import { logMediaPipeOutcome, logPoseSummaryForLlm } from "@/src/lib/analysis/pi
 import { buildPoseSummaryForLlm, assessPoseTrackingSubject, extractBatterFramesFromMixedPose, remapPoseFromFarEndRoi, looksLikeDistantBatter } from "@/src/lib/analysis/pose-summary";
 import { cropFramesToFarEndBatterRoi, FAR_END_BATTER_ROI_ATTEMPTS, maskForegroundSubjectInFrames } from "@/src/lib/analysis/frame-crop";
 import { buildCoachingFeedbackFromScores, shotTypeToLabel } from "@/src/lib/analysis/coaching-feedback";
+import { runBowlingAnalysisBranch } from "@/src/lib/analysis/bowling-pipeline";
 import type { PoseEstimateResponse } from "@/src/lib/analysis/mediapipe-types";
 
 function jsonToStringArray(value: unknown): string[] | null {
@@ -35,6 +37,18 @@ function jsonToStringArray(value: unknown): string[] | null {
 const SHOT_CONFIDENCE_THRESHOLD = 0.5;
 
 function buildRejectionReason(activityType: string, reasons: string[]): string {
+  const bowlingEnabled = isBowlingAnalysisEnabled();
+  if (bowlingEnabled) {
+    const activity =
+      activityType === "FIELDING"
+        ? "fielding"
+        : activityType === "GYM"
+          ? "gym or fitness work"
+          : "unsupported activity";
+    const baseMessage = `This video appears to show ${activity}, not batting or bowling technique.`;
+    const detail = reasons[0] ? ` ${reasons[0]}` : "";
+    return `${baseMessage}${detail} Please upload a clip showing a batter or a bowler delivering the ball.`;
+  }
   const activity =
     activityType === "BOWLING"
       ? "bowling-only practice with no batter visible"
@@ -171,7 +185,11 @@ export const analysisWorker = new Worker<AnalysisJobData>(
         } as Parameters<typeof prisma.analysis.update>[0]["data"],
       });
 
-      if (!activityResult.isBatting) {
+      const bowlingEnabled = isBowlingAnalysisEnabled();
+      const takeBowlingPath =
+        bowlingEnabled && activityResult.isBowling && !activityResult.isBatting;
+
+      if (!activityResult.isBatting && !takeBowlingPath) {
         const rejectionReason = buildRejectionReason(
           activityResult.activityType,
           activityResult.reasons
@@ -197,6 +215,43 @@ export const analysisWorker = new Worker<AnalysisJobData>(
         return;
       }
       // ── END ACTIVITY GATE ──────────────────────────────────────────────────
+
+      // ── BOWLING BRANCH ─────────────────────────────────────────────────────
+      // Foreground bowler IS the subject — do NOT run batting masking / far-end ROI recovery.
+      if (takeBowlingPath) {
+        const bowlingOutcome = await runBowlingAnalysisBranch({
+          analysisId,
+          videoId,
+          framesBase64,
+          width,
+          height,
+          sampleFps,
+          filename: row.video.filename,
+          durationSeconds: row.video.durationSeconds,
+          activityResult,
+          pipelineStart,
+          tempPath,
+          prisma,
+          publishStage,
+        });
+        tempPath = null;
+
+        if (bowlingOutcome.status === "COMPLETE" && (await shouldAwardPointsForUploads())) {
+          const analysis = await prisma.analysis.findUniqueOrThrow({
+            where: { id: analysisId },
+            include: { video: { select: { storagePath: true } } },
+          });
+          await runGamificationPipeline(userId, analysis);
+        }
+
+        console.log(
+          `[analysisWorker] ${analysisId}: BOWLING ${bowlingOutcome.status}${
+            bowlingOutcome.status === "COMPLETE" ? ` in ${bowlingOutcome.processingMs}ms` : ""
+          }`
+        );
+        return;
+      }
+      // ── END BOWLING BRANCH ─────────────────────────────────────────────────
 
       await prisma.analysis.update({
         where: { id: analysisId },
