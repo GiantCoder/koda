@@ -228,6 +228,7 @@ export default function AnalysisProcessingPage() {
           <ProcessingTimeline
             currentStage={displayStatus.stage}
             error={displayStatus.error}
+            activityType={displayStatus.activityType}
           />
 
           {!isComplete && !isFailed && estimatedMins !== null && (

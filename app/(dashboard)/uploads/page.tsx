@@ -14,7 +14,7 @@ import { useMockAuth } from "@/app/hooks/useMockAuth";
 import { useToast } from "@/app/hooks/useToast";
 import { buildMockAuthHeaders } from "@/app/lib/mock-auth-headers";
 import {
-  STAGE_LABELS,
+  stageLabelForAnalysis,
   formatDuration,
   formatFileSize,
   formatResolution,
@@ -40,6 +40,7 @@ interface VideoListItem {
     shotType: string | null;
     gradeLetter: string | null;
     gradeOverall: number | null;
+    activityType?: string | null;
   } | null;
 }
 
@@ -403,7 +404,10 @@ export default function UploadsPage() {
                   {videos.map((video) => {
                     const statusDetail =
                       video.processingState === "processing" && video.analysis?.status
-                        ? STAGE_LABELS[video.analysis.status] ?? video.analysis.status
+                        ? stageLabelForAnalysis(
+                            video.analysis.status,
+                            video.analysis.activityType
+                          )
                         : null;
                     return (
                       <tr

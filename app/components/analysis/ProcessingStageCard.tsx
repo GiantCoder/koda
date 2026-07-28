@@ -136,6 +136,7 @@ export function ProcessingStageCard({
 interface ProcessingTimelineProps {
   currentStage: AnalysisStage;
   error?: string;
+  activityType?: string | null;
 }
 
 const PIPELINE_STAGES: AnalysisStage[] = [
@@ -147,7 +148,11 @@ const PIPELINE_STAGES: AnalysisStage[] = [
   "generating_feedback",
 ];
 
-export function ProcessingTimeline({ currentStage, error }: ProcessingTimelineProps) {
+export function ProcessingTimeline({
+  currentStage,
+  error,
+  activityType,
+}: ProcessingTimelineProps) {
   const currentIndex = getStageIndex(currentStage);
   const hasFailed = currentStage === "failed" || !!error;
   const isComplete = currentStage === "complete";
@@ -163,7 +168,7 @@ export function ProcessingTimeline({ currentStage, error }: ProcessingTimelinePr
           <ProcessingStageCard
             key={stage}
             stage={stage}
-            label={getStageLabel(stage)}
+            label={getStageLabel(stage, activityType)}
             isComplete={stageComplete}
             isActive={stageActive}
             isFailed={stageFailed}

@@ -18,7 +18,7 @@ import {
   ACCEPTED_EXTENSIONS,
   MAX_FILE_SIZE_BYTES,
 } from "@/app/lib/video-validators";
-import { STAGE_LABELS } from "@/app/lib/uploads-display";
+import { stageLabelForAnalysis } from "@/app/lib/uploads-display";
 
 interface RecentVideoApiItem {
   id: string;
@@ -28,6 +28,7 @@ interface RecentVideoApiItem {
   analysis: {
     status: string;
     gradeLetter?: string | null;
+    activityType?: string | null;
   } | null;
 }
 
@@ -56,7 +57,10 @@ function mapVideoToRecentUpload(video: RecentVideoApiItem): RecentUpload {
     filename: video.filename,
     status: video.processingState,
     timestamp: toRelativeTimestamp(video.uploadedAt),
-    processingLabel: video.analysis?.status ? STAGE_LABELS[video.analysis.status] : "Queued",
+    processingLabel: stageLabelForAnalysis(
+      video.analysis?.status,
+      video.analysis?.activityType
+    ),
     gradeLetter: video.analysis?.gradeLetter ?? null,
   };
 }

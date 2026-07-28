@@ -93,6 +93,7 @@ export async function GET(
       progress,
       estimatedSecondsRemaining,
       error: mappedStage === "failed" ? persistedAnalysis.errorMessage : null,
+      activityType: persistedAnalysis.activityType ?? null,
     });
   }
 

@@ -12,6 +12,23 @@ export const STAGE_LABELS: Record<string, string> = {
   UNSUPPORTED_CONTENT: "Not supported",
 };
 
+const BOWLING_STAGE_LABELS: Record<string, string> = {
+  ...STAGE_LABELS,
+  POSE_ANALYSIS: "Bowling pose analysis",
+  SHOT_CLASSIFICATION: "Bowling action classification",
+  GENERATING_FEEDBACK: "Scoring bowling biomechanics",
+};
+
+/** Stage label for upload lists / recent uploads; bowling-aware when activityType is known. */
+export function stageLabelForAnalysis(
+  status: string | null | undefined,
+  activityType?: string | null
+): string {
+  if (!status) return "Queued";
+  const labels = activityType === "BOWLING" ? BOWLING_STAGE_LABELS : STAGE_LABELS;
+  return labels[status] ?? status;
+}
+
 export function processingStateFromAnalysisStatus(
   status: string | null | undefined
 ): UploadProcessingState {

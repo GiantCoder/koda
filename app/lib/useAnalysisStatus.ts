@@ -18,6 +18,8 @@ export interface AnalysisStatus {
   progress: number;
   estimatedSecondsRemaining?: number;
   error?: string;
+  /** Set after the activity gate; used for bowling-aware stage labels. */
+  activityType?: string | null;
 }
 
 const STAGE_ORDER: AnalysisStage[] = [
@@ -35,14 +37,24 @@ export function getStageIndex(stage: AnalysisStage): number {
   return idx >= 0 ? idx : 0;
 }
 
-export function getStageLabel(stage: AnalysisStage): string {
+export function getStageLabel(
+  stage: AnalysisStage,
+  activityType?: string | null
+): string {
+  const isBowling = activityType === "BOWLING";
   const labels: Record<AnalysisStage, string> = {
     upload_complete: "Upload Complete",
     extracting_frames: "Extracting Frames",
     activity_classification: "Checking Video Content",
-    pose_analysis: "Pose Analysis (MediaPipe)",
-    shot_classification: "Shot Classification",
-    generating_feedback: "Generating Coaching Feedback",
+    pose_analysis: isBowling
+      ? "Bowling Pose Analysis (MediaPipe)"
+      : "Pose Analysis (MediaPipe)",
+    shot_classification: isBowling
+      ? "Bowling Action Classification"
+      : "Shot Classification",
+    generating_feedback: isBowling
+      ? "Scoring Bowling Biomechanics"
+      : "Generating Coaching Feedback",
     complete: "Complete",
     failed: "Failed",
   };
@@ -99,6 +111,7 @@ export function useAnalysisStatus({
         progress: data.progress ?? 0,
         estimatedSecondsRemaining: data.estimatedSecondsRemaining,
         error: data.error,
+        activityType: data.activityType ?? null,
       };
       setStatus(next);
       if (next.stage === "complete") onCompleteRef.current?.(next);
@@ -151,6 +164,7 @@ export function useAnalysisStatus({
           progress: data.progress ?? 0,
           estimatedSecondsRemaining: data.estimatedSecondsRemaining,
           error: data.error,
+          activityType: data.activityType ?? null,
         };
         setStatus(next);
         if (next.stage === "complete") {

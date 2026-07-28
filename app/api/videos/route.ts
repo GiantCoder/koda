@@ -30,6 +30,7 @@ function mapVideoRow(v: {
     shotType: string | null;
     gradeLetter: string | null;
     gradeOverall: number | null;
+    activityType: string | null;
   } | null;
 }) {
   const processingState = processingStateFromAnalysisStatus(v.analysis?.status);
@@ -55,6 +56,7 @@ function mapVideoRow(v: {
           shotType: v.analysis.shotType,
           gradeLetter: v.analysis.gradeLetter,
           gradeOverall: v.analysis.gradeOverall,
+          activityType: v.analysis.activityType,
         }
       : null,
     processingState,
@@ -149,6 +151,7 @@ export async function GET(request: NextRequest) {
           shotType: true,
           gradeLetter: true,
           gradeOverall: true,
+          activityType: true,
         },
       },
     },
