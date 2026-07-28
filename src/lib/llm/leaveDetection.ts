@@ -1,4 +1,5 @@
 import { logGeminiRequest } from "@/src/lib/analysis/pipeline-log";
+import { parseJsonObject } from "@/src/lib/llm/json-parse";
 import { generateContentTextWithRetryAndFallback } from "./gemini-retry";
 
 const DEFAULT_GEMINI_ANALYSIS_MODEL = "gemini-3.1-pro-preview";
@@ -33,27 +34,22 @@ PLAYED — batter attempts to hit or block the ball:
 - Clear batting stroke with intent to contact the ball
 - Bat-ball contact or obvious playing motion at the ball
 
+IMPORTANT — Forward defence vs Leave:
+- A FORWARD_DEFENCE is classified as PLAYED, not LEAVE.
+- Forward defence visual: front foot stride toward the bowler, bat brought DOWN toward the pitch/ball line, body weight moving forward. The bat may be relatively still at the moment of contact — this is PLAYED.
+- Do NOT classify as LEAVE just because the bat movement is small or slow. A defensive block involves minimal swing but clear bat-ball line interception.
+- If you see ANY front foot stride toward the ball combined with bat at waist/chest height: return PLAYED.
+
 UNCLEAR — cannot tell from these frames.
 
 Do NOT infer a cut, drive, or pull unless you see the bat moving AT the ball to hit it.
 
-Return JSON only:
+Return JSON only, no markdown fences. Example shape:
 {
-  "outcome": "LEAVE" | "PLAYED" | "UNCLEAR",
-  "confidence": 0.0,
-  "reasons": ["one short sentence citing what the distant batter's bat and body do"]
+  "outcome": "LEAVE",
+  "confidence": 0.95,
+  "reasons": ["Bat held high and away; no swing toward the ball"]
 }`;
-
-function extractJsonObject(text: string): string {
-  const trimmed = text.trim();
-  if (trimmed.startsWith("{") && trimmed.endsWith("}")) return trimmed;
-  const start = trimmed.indexOf("{");
-  const end = trimmed.lastIndexOf("}");
-  if (start === -1 || end === -1 || end <= start) {
-    throw new Error("No JSON object found in leave detection response");
-  }
-  return trimmed.slice(start, end + 1);
-}
 
 /** Focused leave-vs-played check on cropped far-end frames (nets / behind-bowler). */
 export async function detectLeaveWithGemini(input: {
@@ -89,26 +85,42 @@ Context:
     }
   );
 
-  const parsed = JSON.parse(extractJsonObject(rawResponseText)) as {
+  let parsed: {
     outcome?: string;
     confidence?: number;
     reasons?: string[];
-  };
+  } | null = null;
 
-  const outcomeRaw = parsed.outcome?.toUpperCase();
+  try {
+    parsed = parseJsonObject(rawResponseText);
+  } catch (error) {
+    console.warn(
+      JSON.stringify({
+        tag: "analysisPipeline.leaveDetection.parseError",
+        analysisId: input.analysisId ?? null,
+        rawPreview: rawResponseText.slice(0, 500),
+        rawCharLength: rawResponseText.length,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    );
+  }
+
+  const outcomeRaw = parsed?.outcome?.toUpperCase();
   const outcome: LeaveDetectionOutcome =
     outcomeRaw === "LEAVE" || outcomeRaw === "PLAYED" || outcomeRaw === "UNCLEAR"
       ? outcomeRaw
       : "UNCLEAR";
 
   const confidence =
-    typeof parsed.confidence === "number" && Number.isFinite(parsed.confidence)
+    typeof parsed?.confidence === "number" && Number.isFinite(parsed.confidence)
       ? Math.max(0, Math.min(1, parsed.confidence))
       : 0;
 
-  const reasons = Array.isArray(parsed.reasons)
+  const reasons = Array.isArray(parsed?.reasons)
     ? parsed.reasons.filter((r): r is string => typeof r === "string").slice(0, 3)
-    : [];
+    : parsed
+      ? []
+      : ["Failed to parse leave detection response"];
 
   if (input.analysisId) {
     console.log(

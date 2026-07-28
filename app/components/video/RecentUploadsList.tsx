@@ -52,6 +52,22 @@ export interface RecentUpload {
   timestamp: string;
   processingLabel?: string;
   analysisStatus?: string | null;
+  /** Present when analysis completed with a grade. */
+  gradeLetter?: string | null;
+}
+
+function gradeBadgeClass(letter: string): string {
+  const upper = letter.toUpperCase();
+  if (upper.startsWith("A")) {
+    return "bg-[var(--success)]/20 text-[var(--success)] ring-[var(--success)]/30";
+  }
+  if (upper.startsWith("B")) {
+    return "bg-amber-500/20 text-amber-300 ring-amber-500/30";
+  }
+  if (upper.startsWith("C")) {
+    return "bg-[var(--warning)]/20 text-[var(--warning)] ring-[var(--warning)]/30";
+  }
+  return "bg-[var(--surface)] text-[var(--text-secondary)] ring-[var(--surface-secondary)]";
 }
 
 interface RecentUploadsListProps {
@@ -148,6 +164,14 @@ export function RecentUploadsList({
                     </div>
                   </button>
                   <div className="flex shrink-0 items-center gap-1">
+                    {upload.status === "analyzed" && upload.gradeLetter && (
+                      <span
+                        className={`mr-1 inline-flex min-w-[1.75rem] items-center justify-center rounded-md px-1.5 py-0.5 text-xs font-bold ring-1 ring-inset ${gradeBadgeClass(upload.gradeLetter)}`}
+                        aria-label={`Grade ${upload.gradeLetter}`}
+                      >
+                        {upload.gradeLetter}
+                      </span>
+                    )}
                     {upload.status === "processing" && (
                       <span
                         className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-[var(--surface-secondary)] border-t-[var(--primary)]"

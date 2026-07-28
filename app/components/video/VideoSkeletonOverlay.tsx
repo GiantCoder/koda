@@ -126,7 +126,7 @@ export function VideoSkeletonOverlay({
         ctx.setLineDash([]);
         ctx.font = "11px system-ui, sans-serif";
         ctx.fillStyle = "rgba(250, 204, 21, 0.95)";
-        ctx.fillText("Batsman ROI", bx + 4, Math.max(12, by - 4));
+        ctx.fillText("Tracked subject", bx + 4, Math.max(12, by - 4));
       }
 
       const frame = findNearestPoseFrame(poseData.landmarks, videoEl.currentTime);
@@ -142,7 +142,6 @@ export function VideoSkeletonOverlay({
 
       ctx.lineWidth = 2;
       ctx.strokeStyle = "rgba(16, 185, 129, 0.95)";
-      ctx.fillStyle = "rgba(34, 211, 238, 0.95)";
 
       for (const [from, to] of POSE_CONNECTIONS) {
         const fromPoint = frame.keypoints[from];
@@ -157,13 +156,100 @@ export function VideoSkeletonOverlay({
         ctx.stroke();
       }
 
-      Object.values(frame.keypoints).forEach((kp) => {
+      // Joint group colours for visual clarity
+      const JOINT_COLOURS: Record<string, string> = {
+        nose: "rgba(255, 255, 255, 0.9)", // head: white
+        leftEye: "rgba(255, 255, 255, 0.7)",
+        rightEye: "rgba(255, 255, 255, 0.7)",
+        leftEar: "rgba(255, 255, 255, 0.7)",
+        rightEar: "rgba(255, 255, 255, 0.7)",
+        leftShoulder: "rgba(250, 204, 21, 0.9)", // torso: yellow
+        rightShoulder: "rgba(250, 204, 21, 0.9)",
+        leftHip: "rgba(250, 204, 21, 0.9)",
+        rightHip: "rgba(250, 204, 21, 0.9)",
+        leftElbow: "rgba(251, 146, 60, 0.95)", // arms: orange
+        rightElbow: "rgba(251, 146, 60, 0.95)",
+        leftWrist: "rgba(251, 146, 60, 0.95)",
+        rightWrist: "rgba(251, 146, 60, 0.95)",
+      };
+      const DEFAULT_JOINT_COLOUR = "rgba(34, 211, 238, 0.85)"; // legs/feet: cyan
+
+      Object.entries(frame.keypoints).forEach(([name, kp]) => {
         if (kp.visibility < 0.25) return;
         const p = mapPoint(kp);
+        const radius = name === "leftWrist" || name === "rightWrist" ? 5 : 3.5;
         ctx.beginPath();
-        ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+        ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+        ctx.fillStyle = JOINT_COLOURS[name] ?? DEFAULT_JOINT_COLOUR;
         ctx.fill();
       });
+
+      // Draw wrist velocity vectors (orange arrows showing direction of wrist movement)
+      const WRIST_JOINTS = ["leftWrist", "rightWrist"] as const;
+      const nextFrame = findNearestPoseFrame(poseData.landmarks, videoEl.currentTime + 0.15);
+      if (nextFrame) {
+        for (const joint of WRIST_JOINTS) {
+          const currKp = frame.keypoints[joint];
+          const nextKp = nextFrame.keypoints[joint];
+          if (!currKp || !nextKp) continue;
+          if (currKp.visibility < 0.25 || nextKp.visibility < 0.25) continue;
+
+          const p1 = mapPoint(currKp);
+          const p2 = mapPoint(nextKp);
+          const dx = p2.x - p1.x;
+          const dy = p2.y - p1.y;
+          const magnitude = Math.sqrt(dx * dx + dy * dy);
+
+          // Only draw if there is meaningful movement (> 3px)
+          if (magnitude < 3) continue;
+
+          const angle = Math.atan2(dy, dx);
+          // Scale arrow — amplify small movements for visibility, cap very large ones
+          const displayLen = Math.min(40, Math.max(12, magnitude * 2.5));
+          const arrowX = p1.x + Math.cos(angle) * displayLen;
+          const arrowY = p1.y + Math.sin(angle) * displayLen;
+
+          ctx.save();
+          ctx.strokeStyle = "rgba(251, 146, 60, 0.95)"; // orange
+          ctx.fillStyle = "rgba(251, 146, 60, 0.95)";
+          ctx.lineWidth = 2.5;
+
+          // Arrow shaft
+          ctx.beginPath();
+          ctx.moveTo(p1.x, p1.y);
+          ctx.lineTo(arrowX, arrowY);
+          ctx.stroke();
+
+          // Arrowhead
+          const headLen = 8;
+          ctx.beginPath();
+          ctx.moveTo(arrowX, arrowY);
+          ctx.lineTo(
+            arrowX - headLen * Math.cos(angle - 0.45),
+            arrowY - headLen * Math.sin(angle - 0.45)
+          );
+          ctx.lineTo(
+            arrowX - headLen * Math.cos(angle + 0.45),
+            arrowY - headLen * Math.sin(angle + 0.45)
+          );
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+
+      // Confidence and frame info HUD
+      ctx.save();
+      ctx.font = "11px system-ui, monospace, sans-serif";
+      ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
+      ctx.fillRect(4, displayHeight - 28, 180, 22);
+      ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
+      ctx.fillText(
+        `pose conf: ${(frame.poseConfidence * 100).toFixed(0)}%  frame: ${frame.frameIndex}  t: ${frame.timestamp.toFixed(2)}s`,
+        8,
+        displayHeight - 12
+      );
+      ctx.restore();
 
       rafId = window.requestAnimationFrame(drawFrame);
     };
@@ -197,7 +283,7 @@ export function useOverlayStatusText(
     if (isLoading) return "Loading pose overlay…";
     if (error) return error;
     if (!poseData || poseData.landmarks.length === 0) {
-      return "Pose overlay unavailable for this analysis.";
+      return "Pose overlay unavailable — foreground coach/bowler was masked; distant batter too small to track.";
     }
     return `Pose overlay: ${poseData.landmarks.length} frames`;
   }, [enabled, isLoading, error, poseData]);

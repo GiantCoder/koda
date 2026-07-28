@@ -105,7 +105,11 @@ export async function estimatePoseFromFrames(input: {
   }
 
   if (allLandmarks.length === 0) {
-    throw new Error("MediaPipe returned no pose landmarks");
+    return {
+      landmarks: [],
+      batsman_bbox: null,
+      processingMs: totalMs,
+    };
   }
 
   return {

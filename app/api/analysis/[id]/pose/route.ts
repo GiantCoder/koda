@@ -15,7 +15,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const user = await getAuthUser(request);
-  if (!user) {
+  // Match /api/analysis/video/[videoId]: allow unauthenticated reads in local non-production
+  // so the skeleton overlay can load during coach/mock-auth demos.
+  if (!user && process.env.NODE_ENV === "production") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -39,7 +41,7 @@ export async function GET(
     return NextResponse.json({ error: "Analysis not found" }, { status: 404 });
   }
 
-  if (!canViewUser(user.id, user.role, analysis.video.userId)) {
+  if (user && !canViewUser(user.id, user.role, analysis.video.userId)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

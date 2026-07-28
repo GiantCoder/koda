@@ -1,8 +1,9 @@
 import { logGeminiRequest } from "@/src/lib/analysis/pipeline-log";
-import { cropFramesToFarEndBand } from "@/src/lib/analysis/frame-crop";
+import { cropFramesToFarEndBatterRoi, CLASSIFICATION_FAR_END_ROI } from "@/src/lib/analysis/frame-crop";
 import { sampleFramesForShotClassification } from "@/src/lib/analysis/frame-selection";
 import { isValidShotType, type ShotTypeValue } from "@/src/lib/cricket/shot-types";
-import { detectLeaveWithGemini, leaveDetectionThreshold } from "./leaveDetection";
+import { parseJsonObject } from "@/src/lib/llm/json-parse";
+import { detectLeaveWithGemini } from "./leaveDetection";
 import { generateContentTextWithRetryAndFallback } from "./gemini-retry";
 import { shotClassificationPrompt } from "./prompts/shotClassification";
 
@@ -31,20 +32,6 @@ export function modelNameForTask(task: "classification" | "scoring"): string {
   return task === "classification"
     ? process.env.GEMINI_CLASSIFICATION_MODEL ?? fallback
     : process.env.GEMINI_SCORING_MODEL ?? fallback;
-}
-
-function extractJsonObject(text: string): string {
-  const trimmed = text.trim();
-  if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
-    return trimmed;
-  }
-
-  const start = trimmed.indexOf("{");
-  const end = trimmed.lastIndexOf("}");
-  if (start === -1 || end === -1 || end <= start) {
-    throw new Error("No JSON object found in model response");
-  }
-  return trimmed.slice(start, end + 1);
 }
 
 function clampScore(value: number): number {
@@ -81,7 +68,10 @@ function buildPoseBlockForClassification(
   poseTracksForegroundBowlersRunUp: boolean
 ): string {
   if (poseTracksForegroundBowlersRunUp) {
-    return `Pose landmark timeline: NOT AVAILABLE — MediaPipe tracked the foreground bowler's run-up, not the distant batter. Classify using the cropped far-end batter frames only; do not use pose heuristics.`;
+    if (poseSummary && poseSummary.trim().length > 0) {
+      return `Pose landmark timeline (RECOVERED BATTER FRAMES — stationary frames extracted from mixed pose; bowler run-up frames removed. Use these with moderate confidence for foot position and wrist height cues):\n${poseSummary.trim()}`;
+    }
+    return `Pose landmark timeline: NOT AVAILABLE — MediaPipe tracked the foreground bowler's run-up and no stable batter frames could be recovered. Classify using the cropped far-end frames only.`;
   }
 
   if (poseSummary && poseSummary.trim().length > 0) {
@@ -89,6 +79,108 @@ function buildPoseBlockForClassification(
   }
 
   return "Pose landmark timeline: NOT AVAILABLE — classify from video frames only.";
+}
+
+function buildLeaveGateContext(leaveResult: {
+  outcome: string;
+  confidence: number;
+  reasons: string[];
+}): string {
+  const pct = Math.round(leaveResult.confidence * 100);
+  if (leaveResult.outcome === "LEAVE") {
+    return `\nLeave gate signal (soft prior — do NOT treat as final decision):
+- leave_gate_outcome: LEAVE (${pct}% confidence)
+- leave_gate_reasons: ${leaveResult.reasons[0] ?? "bat held away from ball"}
+- IMPORTANT: A FORWARD_DEFENCE can look identical to a LEAVE at far-end resolution. Only confirm LEAVE if you can clearly see NO bat movement toward the ball's line. If there is any doubt, or if front_foot_fwd pose cue is present, prefer FORWARD_DEFENCE over LEAVE.\n`;
+  }
+  if (leaveResult.outcome === "PLAYED") {
+    return `\nLeave gate signal (soft prior): leave_gate_outcome: PLAYED (${pct}% confidence) — batter appeared to play at the ball.\n`;
+  }
+  return `\nLeave gate signal (soft prior): leave_gate_outcome: UNCLEAR (${pct}% confidence) — could not determine leave vs played.\n`;
+}
+
+/**
+ * Deterministic LEAVE → FORWARD_DEFENCE correction when pose cues contradict a leave.
+ * Gemini often ignores front_foot_fwd on low-res nets frames; pose is more reliable here.
+ */
+function overrideLeaveUsingPoseCues(input: {
+  shotType: ShotType;
+  ordered: ShotType[];
+  confidence: number;
+  reasons: string[];
+  poseSummary?: string | null;
+  analysisId?: string;
+}): {
+  shotType: ShotType;
+  ordered: ShotType[];
+  confidence: number;
+  reasons: string[];
+} {
+  const { shotType, ordered, confidence, reasons, poseSummary, analysisId } = input;
+  if (shotType !== "LEAVE" || !poseSummary) {
+    return { shotType, ordered, confidence, reasons };
+  }
+
+  const frontFootCount = (poseSummary.match(/front_foot_fwd/g) ?? []).length;
+  const hasDefensiveHands =
+    poseSummary.includes("hands_together_mid") || poseSummary.includes("both_wrists_low");
+
+  // Need a clear stride cue; prefer stride + defensive hands, else ≥2 front_foot frames
+  if (frontFootCount < 1) {
+    return { shotType, ordered, confidence, reasons };
+  }
+  if (!hasDefensiveHands && frontFootCount < 2) {
+    return { shotType, ordered, confidence, reasons };
+  }
+
+  const overriddenReasons = [
+    `Pose cue override: front_foot_fwd×${frontFootCount}${
+      hasDefensiveHands ? " with defensive hand cues" : ""
+    } contradicts LEAVE — classified as FORWARD_DEFENCE.`,
+    ...reasons,
+  ].slice(0, 5);
+
+  if (analysisId) {
+    console.log(
+      JSON.stringify(
+        {
+          tag: "analysisPipeline.poseCueOverride",
+          analysisId,
+          from: "LEAVE",
+          to: "FORWARD_DEFENCE",
+          frontFootCount,
+          hasDefensiveHands,
+        },
+        null,
+        2
+      )
+    );
+  }
+
+  return {
+    shotType: "FORWARD_DEFENCE",
+    ordered: ["FORWARD_DEFENCE"],
+    confidence: Math.max(0.7, Math.min(confidence, 0.88)),
+    reasons: overriddenReasons,
+  };
+}
+
+/** True when the user named a real stroke other than LEAVE — leave gate is unnecessary. */
+function userHintSkipsLeaveDetection(input: {
+  playerDeclaredShotType?: string | null;
+  playerDeclaredShotHints?: string[] | null;
+}): boolean {
+  const hints: string[] = [];
+  const single = input.playerDeclaredShotType?.trim();
+  if (single) hints.push(single.toUpperCase());
+  for (const hint of input.playerDeclaredShotHints ?? []) {
+    if (typeof hint === "string" && hint.trim()) {
+      hints.push(hint.trim().toUpperCase());
+    }
+  }
+  return hints.some(
+    (hint) => hint !== "UNKNOWN" && hint !== "LEAVE" && isValidShotType(hint)
+  );
 }
 
 export async function classifyShotWithGemini(input: {
@@ -129,38 +221,44 @@ export async function classifyShotWithGemini(input: {
       ? "\nThis clip is a single delivery — shotTypesOrdered must contain exactly one token.\n"
       : "";
 
+  let leaveGateCtx = "";
   let classificationFrames = input.framesBase64 ?? [];
   if (netsBehindBowler && classificationFrames.length > 0) {
-    classificationFrames = await cropFramesToFarEndBand(classificationFrames);
+    classificationFrames = await cropFramesToFarEndBatterRoi(
+      classificationFrames,
+      CLASSIFICATION_FAR_END_ROI
+    );
 
-    const leaveResult = await detectLeaveWithGemini({
-      framesBase64: classificationFrames,
-      analysisId: input.analysisId,
-      durationSeconds: input.durationSeconds,
-    });
+    const skipLeaveGate = userHintSkipsLeaveDetection(input);
+    if (skipLeaveGate && input.analysisId) {
+      console.log(
+        JSON.stringify({
+          tag: "analysisPipeline.leaveDetection.skipped",
+          analysisId: input.analysisId,
+          reason: "user_declared_non_leave_shot_hint",
+          playerDeclaredShotType: input.playerDeclaredShotType ?? null,
+          playerDeclaredShotHints: input.playerDeclaredShotHints ?? null,
+        })
+      );
+    }
 
-    if (
-      leaveResult.outcome === "LEAVE" &&
-      leaveResult.confidence >= leaveDetectionThreshold()
-    ) {
-      const reasons = leaveResult.reasons.length
-        ? leaveResult.reasons
-        : ["Batter let the ball pass without playing at it (leave detection gate)."];
+    if (!skipLeaveGate) {
+      const leaveResult = await detectLeaveWithGemini({
+        framesBase64: classificationFrames,
+        analysisId: input.analysisId,
+        durationSeconds: input.durationSeconds,
+      });
 
       if (input.analysisId) {
         console.log(
           JSON.stringify(
             {
-              tag: "analysisPipeline.gemini.response",
+              tag: "analysisPipeline.leaveGate",
               analysisId: input.analysisId,
-              phase: "classification",
-              shotType: "LEAVE",
-              shotTypesOrdered: ["LEAVE"],
+              outcome: leaveResult.outcome,
               confidence: leaveResult.confidence,
-              noBatsman: false,
-              reasons,
-              viaLeaveGate: true,
-              rawResponseCharLength: leaveResult.rawResponseText.length,
+              reasons: leaveResult.reasons,
+              nowUsedAsSoftPrior: true,
             },
             null,
             2
@@ -168,14 +266,7 @@ export async function classifyShotWithGemini(input: {
         );
       }
 
-      return {
-        shotType: "LEAVE",
-        shotTypesOrdered: ["LEAVE"],
-        confidence: leaveResult.confidence,
-        reasons,
-        noBatsman: false,
-        rawResponseText: leaveResult.rawResponseText,
-      };
+      leaveGateCtx = buildLeaveGateContext(leaveResult);
     }
   }
 
@@ -204,7 +295,7 @@ Context:
 - resolution: ${input.resolutionWidth ?? "unknown"}x${input.resolutionHeight ?? "unknown"}
 - ${declared}${uploadCtx}${singleDeliveryCtx}
 - framesForClassification: ${sampledForClassify.length} (${frameNote})
-
+${leaveGateCtx}
 ${poseBlock}
 
 Return JSON only, no markdown code fences.`;
@@ -227,14 +318,59 @@ Return JSON only, no markdown code fences.`;
       responseMimeType: "application/json",
     },
   });
-  const jsonText = extractJsonObject(rawResponseText);
-  const parsed = JSON.parse(jsonText) as {
+
+  let parsed: {
     shotType?: string;
     shotTypesOrdered?: unknown;
     confidence?: number;
     reasons?: string[];
     noBatsman?: boolean;
-  };
+  } | null = null;
+
+  try {
+    parsed = parseJsonObject(rawResponseText);
+  } catch (error) {
+    console.warn(
+      JSON.stringify({
+        tag: "analysisPipeline.classification.parseError",
+        analysisId: input.analysisId ?? null,
+        rawPreview: rawResponseText.slice(0, 500),
+        rawCharLength: rawResponseText.length,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    );
+  }
+
+  if (!parsed) {
+    if (input.analysisId) {
+      console.log(
+        JSON.stringify(
+          {
+            tag: "analysisPipeline.gemini.response",
+            analysisId: input.analysisId,
+            phase: "classification",
+            shotType: "UNKNOWN",
+            shotTypesOrdered: ["UNKNOWN"],
+            confidence: 0,
+            noBatsman: false,
+            reasons: ["Failed to parse classification response"],
+            rawResponseCharLength: rawResponseText.length,
+            poseCueOverrideApplied: false,
+          },
+          null,
+          2
+        )
+      );
+    }
+    return {
+      shotType: "UNKNOWN",
+      shotTypesOrdered: ["UNKNOWN"],
+      confidence: 0,
+      reasons: ["Failed to parse classification response"],
+      noBatsman: false,
+      rawResponseText,
+    };
+  }
 
   const ordered: ShotType[] = [];
   if (Array.isArray(parsed.shotTypesOrdered)) {
@@ -272,6 +408,15 @@ Return JSON only, no markdown code fences.`;
 
   const noBatsman = typeof parsed.noBatsman === "boolean" ? parsed.noBatsman : false;
 
+  const corrected = overrideLeaveUsingPoseCues({
+    shotType: normalizedShotType,
+    ordered,
+    confidence,
+    reasons,
+    poseSummary: input.poseSummary,
+    analysisId: input.analysisId,
+  });
+
   if (input.analysisId) {
     console.log(
       JSON.stringify(
@@ -279,12 +424,13 @@ Return JSON only, no markdown code fences.`;
           tag: "analysisPipeline.gemini.response",
           analysisId: input.analysisId,
           phase: "classification",
-          shotType: normalizedShotType,
-          shotTypesOrdered: ordered,
-          confidence,
+          shotType: corrected.shotType,
+          shotTypesOrdered: corrected.ordered,
+          confidence: corrected.confidence,
           noBatsman,
-          reasons,
+          reasons: corrected.reasons,
           rawResponseCharLength: rawResponseText.length,
+          poseCueOverrideApplied: corrected.shotType !== normalizedShotType,
         },
         null,
         2
@@ -293,10 +439,10 @@ Return JSON only, no markdown code fences.`;
   }
 
   return {
-    shotType: normalizedShotType,
-    shotTypesOrdered: ordered,
-    confidence,
-    reasons,
+    shotType: corrected.shotType,
+    shotTypesOrdered: corrected.ordered,
+    confidence: corrected.confidence,
+    reasons: corrected.reasons,
     noBatsman,
     rawResponseText,
   };
@@ -361,8 +507,7 @@ Each score must be an integer from 0 to 100.`;
       responseMimeType: "application/json",
     },
   });
-  const jsonText = extractJsonObject(rawResponseText);
-  const parsed = JSON.parse(jsonText) as { scores?: unknown[] };
+  const parsed = parseJsonObject<{ scores?: unknown[] }>(rawResponseText);
 
   const rawScores = Array.isArray(parsed.scores) ? parsed.scores : [];
   const normalizedScores = rawScores

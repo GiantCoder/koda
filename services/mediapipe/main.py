@@ -175,9 +175,8 @@ async def estimate_pose(request: PoseRequest):
                 continue
 
     processing_ms = int((time.time() - start_time) * 1000)
-    if not results_list:
-        raise HTTPException(status_code=422, detail="No valid pose data extracted from frames")
-
+    # Empty result is valid for cropped far-end ROIs that miss the subject —
+    # callers retry with alternate crops rather than treating this as a hard error.
     return PoseResponse(
         landmarks=results_list,
         batsman_bbox=batsman_bbox,

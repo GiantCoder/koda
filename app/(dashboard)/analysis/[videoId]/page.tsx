@@ -40,6 +40,18 @@ interface AnalysisResult {
   activityType?: string | null;
   activityConfidence?: number | null;
   rejectionReason?: string | null;
+  rawGeminiResponse?: {
+    classification?: {
+      shotType?: string;
+      confidence?: number;
+      reasons?: string[];
+      noBatsman?: boolean;
+    };
+    activityGate?: {
+      activityType?: string;
+      confidence?: number;
+    };
+  } | null;
   video?: { cdnUrl: string | null; durationSeconds: number | null; resolutionWidth: number | null; resolutionHeight: number | null };
 }
 
@@ -146,6 +158,7 @@ export default function AnalysisResultsPage() {
   const [poseData, setPoseData] = useState<PoseEstimateResponse | null>(null);
   const [poseDataError, setPoseDataError] = useState<string | null>(null);
   const [isPoseLoading, setIsPoseLoading] = useState(false);
+  const [showDebugPanel, setShowDebugPanel] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   const fetchAnalysis = useCallback(async () => {
@@ -173,15 +186,18 @@ export default function AnalysisResultsPage() {
   }, [fetchAnalysis]);
 
   useEffect(() => {
-    if (!analysis) return;
-    if (poseData || isPoseLoading) return;
+    if (!analysis?.id || !user) return;
 
     let cancelled = false;
+    setIsPoseLoading(true);
+    setPoseDataError(null);
+    setPoseData(null);
+
     const loadPoseData = async () => {
-      setIsPoseLoading(true);
-      setPoseDataError(null);
       try {
-        const response = await fetch(`/api/analysis/${analysis.id}/pose`);
+        const response = await fetch(`/api/analysis/${analysis.id}/pose`, {
+          headers: buildMockAuthHeaders(user),
+        });
         if (!response.ok) {
           const body = (await response.json().catch(() => ({}))) as {
             error?: string;
@@ -211,7 +227,7 @@ export default function AnalysisResultsPage() {
     return () => {
       cancelled = true;
     };
-  }, [analysis, poseData, isPoseLoading]);
+  }, [analysis?.id, user]);
 
   const handleDelete = useCallback(async () => {
     if (!analysis || !user) return;
@@ -490,6 +506,71 @@ export default function AnalysisResultsPage() {
 
           <CoachingTipsPanel tips={defaultTips} />
           <TagStrip tags={tags} />
+
+          {/* Debug panel — classification evidence from Gemini */}
+          {analysis.rawGeminiResponse?.classification && (
+            <Card>
+              <div
+                className="flex cursor-pointer items-center justify-between px-4 py-3"
+                onClick={() => setShowDebugPanel((v) => !v)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => e.key === "Enter" && setShowDebugPanel((v) => !v)}
+                aria-expanded={showDebugPanel}
+              >
+                <span className="text-sm font-medium text-[var(--text-secondary)]">
+                  Classification evidence
+                </span>
+                <svg
+                  className={`h-4 w-4 text-[var(--text-secondary)] transition-transform ${showDebugPanel ? "rotate-180" : ""}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+
+              {showDebugPanel && (
+                <CardContent className="border-t border-[var(--surface-secondary)] pt-3">
+                  <div className="space-y-2 text-xs text-[var(--text-secondary)]">
+                    <div className="flex gap-2">
+                      <span className="font-medium text-[var(--text-primary)]">Shot detected:</span>
+                      <span>{analysis.rawGeminiResponse.classification.shotType ?? "—"}</span>
+                      <span className="text-[var(--text-secondary)]">
+                        ({Math.round((analysis.rawGeminiResponse.classification.confidence ?? 0) * 100)}% confidence)
+                      </span>
+                    </div>
+
+                    {analysis.rawGeminiResponse.activityGate && (
+                      <div className="flex gap-2">
+                        <span className="font-medium text-[var(--text-primary)]">Activity gate:</span>
+                        <span>{analysis.rawGeminiResponse.activityGate.activityType ?? "—"}</span>
+                        <span>({Math.round((analysis.rawGeminiResponse.activityGate.confidence ?? 0) * 100)}%)</span>
+                      </div>
+                    )}
+
+                    {analysis.rawGeminiResponse.classification.reasons &&
+                      analysis.rawGeminiResponse.classification.reasons.length > 0 && (
+                        <div>
+                          <span className="font-medium text-[var(--text-primary)]">Reasons:</span>
+                          <ul className="mt-1 list-inside list-disc space-y-0.5 pl-2">
+                            {analysis.rawGeminiResponse.classification.reasons.map((r, i) => (
+                              <li key={i}>{r}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                    {analysis.rawGeminiResponse.classification.noBatsman && (
+                      <p className="text-[var(--warning)]">⚠ No batsman detected by classifier</p>
+                    )}
+                  </div>
+                </CardContent>
+              )}
+            </Card>
+          )}
+
           <TechniqueRadarChart data={defaultRadar} />
         </div>
 

@@ -27,6 +27,7 @@ interface RecentVideoApiItem {
   processingState: "analyzed" | "processing" | "failed" | "unsupported";
   analysis: {
     status: string;
+    gradeLetter?: string | null;
   } | null;
 }
 
@@ -56,6 +57,7 @@ function mapVideoToRecentUpload(video: RecentVideoApiItem): RecentUpload {
     status: video.processingState,
     timestamp: toRelativeTimestamp(video.uploadedAt),
     processingLabel: video.analysis?.status ? STAGE_LABELS[video.analysis.status] : "Queued",
+    gradeLetter: video.analysis?.gradeLetter ?? null,
   };
 }
 
@@ -240,6 +242,13 @@ export default function UploadPage() {
     document.getElementById("video-file-input")?.click();
   }, [isUploading]);
 
+  const handleClearFile = useCallback(() => {
+    if (isUploading) return;
+    setFile(null);
+    setValidationError("");
+    setSubmitError(null);
+  }, [isUploading]);
+
   const assigneeOptions = assignablePlayers.map((player) => ({
     value: player.id,
     label: player.displayName,
@@ -354,6 +363,7 @@ export default function UploadPage() {
         <div className="lg:col-span-2 space-y-6">
           <Card>
             <CardHeader>Video Upload</CardHeader>
+            <PreUploadChecklist />
             <CardContent className="space-y-4">
               <div className="rounded-lg border border-[var(--surface-secondary)] bg-[var(--surface-secondary)]/40 p-4">
                 <p className="mb-3 text-sm font-medium text-[var(--text-primary)]">What are you practising?</p>
@@ -438,6 +448,19 @@ export default function UploadPage() {
                       <div className="mt-6 w-full max-w-md">
                         <Progress value={uploadProgress} showLabel />
                       </div>
+                    )}
+                    {!isUploading && (
+                      <Button
+                        variant="ghost"
+                        className="mt-4 text-[var(--danger)] hover:bg-[var(--danger)]/10"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleClearFile();
+                        }}
+                        aria-label="Remove selected video"
+                      >
+                        Remove file
+                      </Button>
                     )}
                   </div>
                 )}
@@ -524,8 +547,6 @@ export default function UploadPage() {
               </Button>
             </div>
           )}
-
-          <PreUploadChecklist />
 
           <UploadShotHintsModal
             isOpen={shotHintsModalOpen}

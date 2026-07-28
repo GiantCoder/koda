@@ -17,7 +17,8 @@ import {
   MEDIAPIPE_FRAMES_PER_BATCH,
 } from "@/src/lib/analysis/mediapipe-client";
 import { logMediaPipeOutcome, logPoseSummaryForLlm } from "@/src/lib/analysis/pipeline-log";
-import { buildPoseSummaryForLlm, assessPoseTrackingSubject } from "@/src/lib/analysis/pose-summary";
+import { buildPoseSummaryForLlm, assessPoseTrackingSubject, extractBatterFramesFromMixedPose, remapPoseFromFarEndRoi, looksLikeDistantBatter } from "@/src/lib/analysis/pose-summary";
+import { cropFramesToFarEndBatterRoi, FAR_END_BATTER_ROI_ATTEMPTS, maskForegroundSubjectInFrames } from "@/src/lib/analysis/frame-crop";
 import { buildCoachingFeedbackFromScores, shotTypeToLabel } from "@/src/lib/analysis/coaching-feedback";
 import type { PoseEstimateResponse } from "@/src/lib/analysis/mediapipe-types";
 
@@ -84,6 +85,8 @@ export const analysisWorker = new Worker<AnalysisJobData>(
     let tempPath: string | null = null;
     let poseSummary: string | null = null;
     let poseTracksForegroundBowlersRunUp = false;
+    /** True when MediaPipe was re-run on the far-end crop and remapped to full-frame coords. */
+    let farEndBatterPoseRecovered = false;
     let posePayload: PoseEstimateResponse | null = null;
     let mediapipeWarning: string | null = null;
 
@@ -214,18 +217,206 @@ export const analysisWorker = new Worker<AnalysisJobData>(
           fps: sampleFps,
           analysisId,
         });
-        poseSummary = buildPoseSummaryForLlm(posePayload);
-        const poseSubject = assessPoseTrackingSubject(posePayload);
+        const poseSubject = assessPoseTrackingSubject(posePayload, { frameHeight: height });
         poseTracksForegroundBowlersRunUp = poseSubject.likelyForegroundBowlersRunUp;
+
         if (poseSubject.likelyForegroundBowlersRunUp) {
+          // Prefer masking the detected foreground subject, then fall back to far-end ROI crops.
+          const originalPose = posePayload;
+          let batterPoseRecovered = false;
+          const cropAttempts: Array<Record<string, unknown>> = [];
+
+          const tryAcceptRemapped = (
+            remapped: PoseEstimateResponse,
+            meta: Record<string, unknown>
+          ): boolean => {
+            const accepted = looksLikeDistantBatter(remapped, { frameHeight: height });
+            const remappedSubject = assessPoseTrackingSubject(remapped, {
+              frameHeight: height,
+            });
+            cropAttempts.push({
+              ...meta,
+              landmarks: remapped.landmarks.length,
+              accepted,
+              meanNoseY: remappedSubject.meanNoseY,
+              meanBodyHeightFrac: remappedSubject.meanBodyHeightFrac,
+              bbox: remapped.batsman_bbox ?? null,
+            });
+            if (!accepted) return false;
+            posePayload = remapped;
+            poseSummary = buildPoseSummaryForLlm(remapped);
+            batterPoseRecovered = true;
+            farEndBatterPoseRecovered = true;
+            console.log(
+              JSON.stringify(
+                {
+                  tag: "analysisPipeline.poseSubject",
+                  analysisId,
+                  likelyForegroundBowlersRunUp: true,
+                  noseXSpan: poseSubject.noseXSpan,
+                  meanBodyHeightFrac: poseSubject.meanBodyHeightFrac,
+                  meanNoseY: poseSubject.meanNoseY,
+                  reason: poseSubject.reason,
+                  farEndRepose: true,
+                  ...meta,
+                  batterFramesRecovered: remapped.landmarks.length,
+                  remappedMeanBodyHeightFrac: remappedSubject.meanBodyHeightFrac,
+                  remappedMeanNoseY: remappedSubject.meanNoseY,
+                  cropAttempts,
+                  totalFrames: framesBase64.length,
+                },
+                null,
+                2
+              )
+            );
+            return true;
+          };
+
+          // 1) Mask left/foreground bbox so MediaPipe cannot lock onto the coach.
+          const fgBox = originalPose.batsman_bbox;
+          if (
+            fgBox &&
+            typeof fgBox.x === "number" &&
+            typeof fgBox.y === "number" &&
+            typeof fgBox.w === "number" &&
+            typeof fgBox.h === "number"
+          ) {
+            try {
+              const maskedFrames = await maskForegroundSubjectInFrames(
+                framesBase64,
+                { x: fgBox.x, y: fgBox.y, w: fgBox.w, h: fgBox.h },
+                width,
+                height
+              );
+              const maskedPose = await estimatePoseFromFrames({
+                framesBase64: maskedFrames,
+                width,
+                height,
+                fps: sampleFps,
+                analysisId,
+              });
+              if (maskedPose.landmarks.length >= 3) {
+                tryAcceptRemapped(maskedPose, {
+                  strategy: "mask_foreground_bbox",
+                  maskBbox: fgBox,
+                });
+              } else {
+                cropAttempts.push({
+                  strategy: "mask_foreground_bbox",
+                  accepted: false,
+                  reason: "too_few_landmarks",
+                  landmarks: maskedPose.landmarks.length,
+                });
+              }
+            } catch (maskErr) {
+              cropAttempts.push({
+                strategy: "mask_foreground_bbox",
+                accepted: false,
+                reason: maskErr instanceof Error ? maskErr.message : String(maskErr),
+              });
+              console.warn(
+                `[analysisWorker] ${analysisId}: foreground mask re-pose failed:`,
+                maskErr instanceof Error ? maskErr.message : maskErr
+              );
+            }
+          }
+
+          // 2) Fall back to far-end ROI crops if masking did not yield a distant batter.
+          if (!batterPoseRecovered) {
+            for (const roi of FAR_END_BATTER_ROI_ATTEMPTS) {
+              try {
+                const farEndFrames = await cropFramesToFarEndBatterRoi(framesBase64, roi);
+                const croppedPose = await estimatePoseFromFrames({
+                  framesBase64: farEndFrames,
+                  width: Math.max(
+                    1,
+                    Math.floor(width * (1 - roi.leftTrimFraction - roi.rightTrimFraction))
+                  ),
+                  height: Math.max(1, Math.floor(height * roi.heightFraction)),
+                  fps: sampleFps,
+                  analysisId,
+                });
+                if (croppedPose.landmarks.length < 3) {
+                  cropAttempts.push({
+                    strategy: "far_end_roi",
+                    ...roi,
+                    landmarks: croppedPose.landmarks.length,
+                    accepted: false,
+                    reason: "too_few_landmarks",
+                  });
+                  continue;
+                }
+                const remapped = remapPoseFromFarEndRoi(croppedPose, {
+                  ...roi,
+                  fullFrameWidth: width,
+                  fullFrameHeight: height,
+                });
+                if (
+                  tryAcceptRemapped(remapped, {
+                    strategy: "far_end_roi",
+                    cropRoi: roi,
+                  })
+                ) {
+                  break;
+                }
+              } catch (farEndErr) {
+                cropAttempts.push({
+                  strategy: "far_end_roi",
+                  ...roi,
+                  accepted: false,
+                  reason: farEndErr instanceof Error ? farEndErr.message : String(farEndErr),
+                });
+                console.warn(
+                  `[analysisWorker] ${analysisId}: far-end re-pose attempt failed:`,
+                  farEndErr instanceof Error ? farEndErr.message : farEndErr
+                );
+              }
+            }
+          }
+
+          if (!batterPoseRecovered) {
+            // Do NOT keep coach/bowler landmarks for overlay OR for the LLM.
+            // Mixed-pose "batter frame" extraction still mostly tracks the coach on this camera;
+            // feeding it as pose cues causes LEAVE/FORWARD_DEFENCE confusion and false front_foot_fwd.
+            const batterOnlyPose = extractBatterFramesFromMixedPose(originalPose);
+            posePayload = {
+              landmarks: [],
+              batsman_bbox: null,
+              processingMs: originalPose.processingMs,
+            };
+            poseSummary = null;
+            console.log(
+              JSON.stringify(
+                {
+                  tag: "analysisPipeline.poseSubject",
+                  analysisId,
+                  likelyForegroundBowlersRunUp: true,
+                  noseXSpan: poseSubject.noseXSpan,
+                  meanBodyHeightFrac: poseSubject.meanBodyHeightFrac,
+                  meanNoseY: poseSubject.meanNoseY,
+                  reason: poseSubject.reason,
+                  farEndRepose: false,
+                  batterFramesRecovered: batterOnlyPose?.landmarks.length ?? 0,
+                  cropAttempts,
+                  overlayPoseCleared: true,
+                  poseSummaryCleared: true,
+                  totalFrames: framesBase64.length,
+                },
+                null,
+                2
+              )
+            );
+          }
+        } else {
+          poseSummary = buildPoseSummaryForLlm(posePayload);
           console.log(
             JSON.stringify(
               {
                 tag: "analysisPipeline.poseSubject",
                 analysisId,
-                likelyForegroundBowlersRunUp: true,
+                likelyForegroundBowlersRunUp: false,
                 noseXSpan: poseSubject.noseXSpan,
-                reason: poseSubject.reason,
+                meanBodyHeightFrac: poseSubject.meanBodyHeightFrac,
               },
               null,
               2
@@ -346,7 +537,9 @@ export const analysisWorker = new Worker<AnalysisJobData>(
         declaredShotCount,
         durationSeconds: row.video.durationSeconds,
         poseSummary,
-        poseTracksForegroundBowlersRunUp,
+        // Far-end re-pose yields real batter landmarks — treat as reliable for scoring.
+        poseTracksForegroundBowlersRunUp:
+          poseTracksForegroundBowlersRunUp && !farEndBatterPoseRecovered,
         analysisId,
       });
 
