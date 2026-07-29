@@ -251,7 +251,7 @@ export default function PlayerCardDisplay({
                     autoFocus
                     aria-label="Player name"
                   />
-                ) : (
+                ) : interactive ? (
                   <button
                     type="button"
                     onClick={() => {
@@ -263,6 +263,13 @@ export default function PlayerCardDisplay({
                   >
                     {card.displayName.toUpperCase()}
                   </button>
+                ) : (
+                  <span
+                    className="inline-block text-[26px] font-bold tracking-[4px]"
+                    style={{ fontFamily: "'Oswald', sans-serif", textShadow: `0 2px 16px ${theme.glow}` }}
+                  >
+                    {card.displayName.toUpperCase()}
+                  </span>
                 )}
               </div>
 

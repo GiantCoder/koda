@@ -1476,10 +1476,17 @@ export default function CoachRosterPage() {
                       </button>
                     )}
                   </div>
-                  <button
-                    type="button"
+                  <div
+                    role="link"
+                    tabIndex={0}
                     onClick={() => router.push(`/players/${entry.playerId}`)}
-                    className="block w-full text-left"
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        router.push(`/players/${entry.playerId}`);
+                      }
+                    }}
+                    className="block w-full cursor-pointer text-left"
                     aria-label={`View profile for ${entry.playerName}`}
                   >
                     <PlayerCardDisplay
@@ -1488,7 +1495,7 @@ export default function CoachRosterPage() {
                       compact
                       interactive={false}
                     />
-                  </button>
+                  </div>
                 </div>
               ))}
 

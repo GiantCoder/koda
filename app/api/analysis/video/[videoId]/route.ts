@@ -71,6 +71,7 @@ function buildMockAnalysis(videoId: string) {
     ],
     video: {
       cdnUrl: null,
+      filename: "Sample upload.mp4",
       durationSeconds: 12.4,
       resolutionWidth: 1920,
       resolutionHeight: 1080,
@@ -156,20 +157,21 @@ export async function GET(
     toJsonSafe({
       ...analysis,
       video: {
-        id: video.id,
-        cdnUrl: video.cdnUrl,
-        durationSeconds: video.durationSeconds,
-        resolutionWidth: video.resolutionWidth,
-        resolutionHeight: video.resolutionHeight,
-        tags: parseVideoTags(video.tags),
-        assignedPlayer: isPlayerAssignee
-          ? {
-              id: video.user.id,
-              displayName: video.user.displayName,
-              avatarUrl: video.user.avatarUrl,
-            }
-          : null,
-      },
-    })
+      id: video.id,
+      filename: video.filename,
+      cdnUrl: video.cdnUrl,
+      durationSeconds: video.durationSeconds,
+      resolutionWidth: video.resolutionWidth,
+      resolutionHeight: video.resolutionHeight,
+      tags: parseVideoTags(video.tags),
+      assignedPlayer: isPlayerAssignee
+        ? {
+            id: video.user.id,
+            displayName: video.user.displayName,
+            avatarUrl: video.user.avatarUrl,
+          }
+        : null,
+    },
+  })
   );
 }

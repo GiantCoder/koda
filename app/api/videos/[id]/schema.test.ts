@@ -23,6 +23,16 @@ describe("patchVideoSchema", () => {
     expect(parsed.success).toBe(true);
   });
 
+  it("accepts filename rename", () => {
+    const parsed = patchVideoSchema.safeParse({ filename: "Cover drive nets" });
+    expect(parsed.success).toBe(true);
+  });
+
+  it("rejects empty filename", () => {
+    const parsed = patchVideoSchema.safeParse({ filename: "   " });
+    expect(parsed.success).toBe(false);
+  });
+
   it("rejects empty patch", () => {
     const parsed = patchVideoSchema.safeParse({});
     expect(parsed.success).toBe(false);

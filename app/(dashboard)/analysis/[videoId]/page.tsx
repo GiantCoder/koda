@@ -80,6 +80,7 @@ interface AnalysisResult {
   } | null;
   video?: {
     id?: string;
+    filename?: string | null;
     cdnUrl: string | null;
     durationSeconds: number | null;
     resolutionWidth: number | null;
@@ -242,7 +243,13 @@ export default function AnalysisResultsPage() {
   const [selectedFrameTimestampMs, setSelectedFrameTimestampMs] = useState<number | null>(null);
   const [assignedPlayer, setAssignedPlayer] = useState<AssignablePlayer | null>(null);
   const [videoTags, setVideoTags] = useState<string[]>([]);
+  const [videoTitle, setVideoTitle] = useState("");
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
+  const [isSavingTitle, setIsSavingTitle] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const titleInputRef = useRef<HTMLInputElement | null>(null);
+  const skipTitleBlurSaveRef = useRef(false);
 
   const fetchAnalysis = useCallback(async () => {
     if (!videoId) return;
@@ -260,6 +267,12 @@ export default function AnalysisResultsPage() {
       setAnalysis(data);
       setAssignedPlayer(data?.video?.assignedPlayer ?? null);
       setVideoTags(Array.isArray(data?.video?.tags) ? data.video.tags : []);
+      const nextTitle =
+        typeof data?.video?.filename === "string" && data.video.filename.trim()
+          ? data.video.filename.trim()
+          : "";
+      setVideoTitle(nextTitle);
+      setTitleDraft(nextTitle);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load analysis");
       setAnalysis(null);
@@ -367,6 +380,63 @@ export default function AnalysisResultsPage() {
     },
     [analysis, user, showToast]
   );
+
+  useEffect(() => {
+    if (isEditingTitle) {
+      titleInputRef.current?.focus();
+      titleInputRef.current?.select();
+    }
+  }, [isEditingTitle]);
+
+  const handleSaveTitle = useCallback(async () => {
+    if (!analysis?.videoId || !user) return;
+    const next = titleDraft.trim();
+    if (!next) {
+      showToast("Name cannot be empty", "error");
+      setTitleDraft(videoTitle);
+      setIsEditingTitle(false);
+      return;
+    }
+    if (next === videoTitle) {
+      setIsEditingTitle(false);
+      return;
+    }
+    setIsSavingTitle(true);
+    try {
+      const res = await fetch(`/api/videos/${analysis.videoId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...buildMockAuthHeaders(user),
+        },
+        body: JSON.stringify({ filename: next }),
+      });
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error ?? "Failed to rename video");
+      }
+      const data = (await res.json()) as { filename?: string };
+      const saved = data.filename?.trim() || next;
+      setVideoTitle(saved);
+      setTitleDraft(saved);
+      setAnalysis((prev) =>
+        prev
+          ? {
+              ...prev,
+              video: prev.video ? { ...prev.video, filename: saved } : prev.video,
+            }
+          : prev
+      );
+      setIsEditingTitle(false);
+      showToast("Video renamed", "success");
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Failed to rename video", "error");
+      setTitleDraft(videoTitle);
+      setIsEditingTitle(false);
+    } finally {
+      setIsSavingTitle(false);
+    }
+  }, [analysis?.videoId, user, titleDraft, videoTitle, showToast]);
 
   const handleDelete = useCallback(async () => {
     if (!analysis || !user) return;
@@ -590,7 +660,9 @@ export default function AnalysisResultsPage() {
           <span>/</span>
           <Link href="/progress" className="hover:text-[var(--primary)]">Analysis</Link>
           <span>/</span>
-          <span className="text-[var(--text-primary)]">{isBowling ? "Bowling Review" : "Shot Review"}</span>
+          <span className="max-w-[240px] truncate text-[var(--text-primary)]">
+            {videoTitle || (isBowling ? "Bowling Review" : "Shot Review")}
+          </span>
         </div>
         <Button
           variant="secondary"
@@ -602,12 +674,81 @@ export default function AnalysisResultsPage() {
       </div>
 
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-[var(--text-primary)]">
-            {isBowling ? "Bowling Analysis Results" : "Shot Analysis Results"}
-          </h1>
+        <div className="min-w-0 flex-1">
+          {isEditingTitle ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                ref={titleInputRef}
+                type="text"
+                value={titleDraft}
+                maxLength={255}
+                disabled={isSavingTitle}
+                onChange={(e) => setTitleDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    void handleSaveTitle();
+                  }
+                  if (e.key === "Escape") {
+                    e.preventDefault();
+                    skipTitleBlurSaveRef.current = true;
+                    setTitleDraft(videoTitle);
+                    setIsEditingTitle(false);
+                  }
+                }}
+                onBlur={() => {
+                  if (skipTitleBlurSaveRef.current) {
+                    skipTitleBlurSaveRef.current = false;
+                    return;
+                  }
+                  void handleSaveTitle();
+                }}
+                className="w-full max-w-xl rounded-md border border-[var(--surface-secondary)] bg-[var(--surface)] px-3 py-2 text-2xl font-bold text-[var(--text-primary)] focus:border-[var(--primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+                aria-label="Video name"
+              />
+              {isSavingTitle ? (
+                <span className="text-xs text-[var(--text-secondary)]">Saving...</span>
+              ) : null}
+            </div>
+          ) : (
+            <div className="flex items-start gap-2">
+              <h1 className="text-2xl font-bold text-[var(--text-primary)]">
+                {videoTitle || (isBowling ? "Bowling Analysis Results" : "Shot Analysis Results")}
+              </h1>
+              {analysis.videoId ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTitleDraft(videoTitle);
+                    setIsEditingTitle(true);
+                  }}
+                  className="mt-1 rounded p-1.5 text-[var(--text-secondary)] hover:bg-[var(--surface-secondary)] hover:text-[var(--primary)]"
+                  aria-label="Edit video name"
+                  title="Edit video name"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                    />
+                  </svg>
+                </button>
+              ) : null}
+            </div>
+          )}
           <p className="mt-1 text-[var(--text-secondary)]">
-            Analyzed on {new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+            {isBowling ? "Bowling analysis" : "Shot analysis"}
+            {" · "}
+            Analyzed on{" "}
+            {new Date().toLocaleDateString("en-GB", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
           </p>
         </div>
         {(role === "coach" || role === "admin" || role === "parent") && analysis.videoId ? (

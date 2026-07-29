@@ -6,10 +6,18 @@ export const patchVideoSchema = z
     assigneeUserId: z.string().uuid().nullable().optional(),
     /** Replace the full tags list. */
     tags: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
+    /** Display / list name for the upload (replaces original filename). */
+    filename: z.string().trim().min(1).max(255).optional(),
   })
-  .refine((body) => body.assigneeUserId !== undefined || body.tags !== undefined, {
-    message: "Provide assigneeUserId and/or tags",
-  });
+  .refine(
+    (body) =>
+      body.assigneeUserId !== undefined ||
+      body.tags !== undefined ||
+      body.filename !== undefined,
+    {
+      message: "Provide assigneeUserId, tags, and/or filename",
+    }
+  );
 
 export type PatchVideoInput = z.infer<typeof patchVideoSchema>;
 

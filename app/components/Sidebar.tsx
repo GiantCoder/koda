@@ -196,13 +196,13 @@ export default function Sidebar() {
 
   return (
     <aside
-      className={`fixed left-0 top-0 z-40 flex h-screen flex-col border-r border-[#1e2330] bg-[#0F1117] transition-all duration-300 ${
+      className={`fixed left-0 top-0 z-40 flex h-screen flex-col border-r border-[var(--surface-secondary)] bg-[var(--background)] transition-all duration-300 ${
         isExpanded ? "w-56" : "w-20"
       }`}
       onMouseEnter={() => setIsExpanded(true)}
       onMouseLeave={() => setIsExpanded(false)}
     >
-      <div className="flex h-16 items-center justify-center border-b border-[#1e2330] px-4">
+      <div className="flex h-16 items-center justify-center border-b border-[var(--surface-secondary)] px-4">
         <Link href="/dashboard" className="flex items-center gap-3">
           <Image
             src="/koda.svg"
@@ -212,7 +212,7 @@ export default function Sidebar() {
             className="h-8 w-8 rounded-md object-cover"
           />
           {isExpanded && (
-            <span className="whitespace-nowrap text-lg font-bold text-white">
+            <span className="whitespace-nowrap text-lg font-bold text-[var(--text-primary)]">
               Koda Cricket
             </span>
           )}
@@ -230,7 +230,7 @@ export default function Sidebar() {
                   className={`flex items-center gap-3 rounded-lg px-3 py-3 transition-colors ${
                     isActive
                       ? "bg-[var(--primary)] text-white"
-                      : "text-[#9CA3AF] hover:bg-[#1A1D27] hover:text-white"
+                      : "text-[var(--text-secondary)] hover:bg-[var(--surface-secondary)] hover:text-[var(--text-primary)]"
                   }`}
                   title={!isExpanded ? label : undefined}
                 >
@@ -247,10 +247,10 @@ export default function Sidebar() {
         </ul>
       </nav>
 
-      <div className="border-t border-[#1e2330] p-4">
+      <div className="border-t border-[var(--surface-secondary)] p-4">
         <Link
           href="/profile"
-          className="flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-[#1A1D27]"
+          className="flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-[var(--surface-secondary)]"
         >
           {avatarUrl ? (
             <Image
@@ -268,10 +268,10 @@ export default function Sidebar() {
           )}
           {isExpanded && (
             <div className="overflow-hidden">
-              <p className="truncate text-sm font-medium text-white">
+              <p className="truncate text-sm font-medium text-[var(--text-primary)]">
                 {user?.firstName} {user?.lastName}
               </p>
-              <p className="truncate text-xs capitalize text-[#9CA3AF]">
+              <p className="truncate text-xs capitalize text-[var(--text-secondary)]">
                 {user?.role ?? "Coach"}
               </p>
             </div>

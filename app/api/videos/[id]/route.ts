@@ -188,7 +188,7 @@ export async function PATCH(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const data: { userId?: string; tags?: string[] } = {};
+  const data: { userId?: string; tags?: string[]; filename?: string } = {};
 
   if (parsed.data.assigneeUserId !== undefined) {
     if (parsed.data.assigneeUserId === null) {
@@ -207,12 +207,17 @@ export async function PATCH(
     data.tags = parsed.data.tags.map((t) => t.trim()).filter(Boolean);
   }
 
+  if (parsed.data.filename !== undefined) {
+    data.filename = parsed.data.filename.trim();
+  }
+
   const updated = await prisma.video.update({
     where: { id },
     data,
     select: {
       id: true,
       userId: true,
+      filename: true,
       tags: true,
       user: {
         select: {
@@ -230,6 +235,7 @@ export async function PATCH(
   return NextResponse.json({
     id: updated.id,
     userId: updated.userId,
+    filename: updated.filename,
     tags: parseVideoTags(updated.tags),
     assignedPlayer: isPlayerAssignee
       ? {

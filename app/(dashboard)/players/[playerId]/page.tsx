@@ -239,7 +239,10 @@ export default function PlayerProfilePage() {
         day: "2-digit",
         month: "short",
       });
-      const val = typeof p.gradeOverall === "number" ? p.gradeOverall : null;
+      const val =
+        typeof p.gradeOverall === "number"
+          ? Math.round(p.gradeOverall * 10) / 10
+          : null;
       return {
         date: dateLabel,
         batting: p.category === "batting" ? val : null,
@@ -250,11 +253,12 @@ export default function PlayerProfilePage() {
     });
   }, [trend]);
 
-  const [chartCategory, setChartCategory] = useState<"all" | VideoCategory>("all");
-  const [legendsOn, setLegendsOn] = useState(true);
-
-  const visibleCategories: VideoCategory[] =
-    chartCategory === "all" ? (["batting", "bowling", "fielding", "keeping"] as const).slice(0) as VideoCategory[] : [chartCategory];
+  const visibleCategories: VideoCategory[] = [
+    "batting",
+    "bowling",
+    "fielding",
+    "keeping",
+  ];
 
   const canManageAvatar = role === "coach" || role === "admin" || role === "parent";
 
@@ -520,33 +524,8 @@ export default function PlayerProfilePage() {
 
       <div className="mt-6">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between border-b border-[var(--surface-secondary)]">
+          <CardHeader className="border-b border-[var(--surface-secondary)]">
             <span>Grades Over Time</span>
-            <div className="flex items-center gap-3">
-              <div className="w-44">
-                <Select
-                  label="Chart Category"
-                  value={chartCategory}
-                  onChange={(e) => setChartCategory(e.target.value as "all" | VideoCategory)}
-                  options={[
-                    { value: "all", label: "All categories" },
-                    { value: "batting", label: "Batting" },
-                    { value: "bowling", label: "Bowling" },
-                    { value: "fielding", label: "Fielding" },
-                    { value: "keeping", label: "Keeping" },
-                  ]}
-                />
-              </div>
-              <label className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
-                <input
-                  type="checkbox"
-                  checked={legendsOn}
-                  onChange={(e) => setLegendsOn(e.target.checked)}
-                  className="h-4 w-4 accent-[var(--primary)]"
-                />
-                Legends
-              </label>
-            </div>
           </CardHeader>
           <CardContent className="p-0">
             {trend.length === 0 ? (
@@ -566,6 +545,10 @@ export default function PlayerProfilePage() {
                     />
                     <YAxis stroke="var(--text-secondary)" style={{ fontSize: "12px" }} domain={[0, 100]} />
                     <Tooltip
+                      formatter={(value) => {
+                        const n = typeof value === "number" ? value : Number(value);
+                        return Number.isFinite(n) ? n.toFixed(1) : "—";
+                      }}
                       contentStyle={{
                         backgroundColor: "var(--surface)",
                         border: "1px solid var(--surface-secondary)",
@@ -573,7 +556,7 @@ export default function PlayerProfilePage() {
                         color: "var(--text-primary)",
                       }}
                     />
-                    {legendsOn ? <Legend /> : null}
+                    <Legend />
                     {visibleCategories.map((cat) => (
                       <Line
                         key={cat}

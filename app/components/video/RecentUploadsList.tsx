@@ -45,6 +45,79 @@ function TrashIcon({ className = "h-4 w-4" }: { className?: string }) {
   );
 }
 
+/** Cricket bat */
+function BatIcon({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={1.75}
+        d="M5.5 20.5l3-3M8 18l9.2-9.2a2.2 2.2 0 013.1 3.1L11.1 21.2a2.8 2.8 0 01-2.4.8L5.5 21l.8-3.2A2.8 2.8 0 018 18z"
+      />
+      <path strokeLinecap="round" strokeWidth={1.75} d="M16.5 7.5l1.8-1.8" />
+    </svg>
+  );
+}
+
+/** Cricket ball */
+function BallIcon({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
+      <circle cx="12" cy="12" r="8" strokeWidth={1.75} />
+      <path
+        strokeLinecap="round"
+        strokeWidth={1.75}
+        d="M9 5.5c1.2 2.2 1.2 4.8 0 7M15 11.5c-1.2 2.2-1.2 4.8 0 7"
+      />
+    </svg>
+  );
+}
+
+/** Catching / fielding hand */
+function FieldingIcon({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={1.75}
+        d="M8 13V8.5a1.5 1.5 0 013 0V12m0 0V7.5a1.5 1.5 0 013 0V12m0 0V8.5a1.5 1.5 0 013 0V14c0 3-1.8 5.5-5 5.5S9 17 9 14v-1"
+      />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={1.75}
+        d="M8 13c-1.2-.4-2-.8-2.5-1.5-.8-1.1-.2-2.5 1-2.8.6-.2 1.3 0 1.8.5"
+      />
+      <circle cx="17.5" cy="6.5" r="1.25" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+/** Wicket-keeping gloves */
+function GlovesIcon({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={1.75}
+        d="M8 11V7.5a1.5 1.5 0 013 0V11m0 0V6.5a1.5 1.5 0 013 0V11m0 0V7.8a1.5 1.5 0 013 0V13.5c0 3.2-2 5.5-5.5 5.5S7 16.7 7 13.5V12"
+      />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={1.75}
+        d="M7 12c-1.5-.3-2.5-1.2-2.5-2.4 0-1.3 1-2.1 2.2-2.1.6 0 1.1.2 1.5.6"
+      />
+      <path strokeLinecap="round" strokeWidth={1.75} d="M9.5 19h5" />
+    </svg>
+  );
+}
+
+export type VideoActivityCategory = "batting" | "bowling" | "fielding" | "keeping";
+
 export interface RecentUpload {
   id: string;
   filename: string;
@@ -54,6 +127,48 @@ export interface RecentUpload {
   analysisStatus?: string | null;
   /** Present when analysis completed with a grade. */
   gradeLetter?: string | null;
+  /** Analysis activity gate result, e.g. BATTING | BOWLING | FIELDING. */
+  activityType?: string | null;
+}
+
+function categoryFromActivity(activityType?: string | null): VideoActivityCategory {
+  if (activityType === "BOWLING") return "bowling";
+  if (activityType === "FIELDING") return "fielding";
+  if (activityType === "KEEPING") return "keeping";
+  return "batting";
+}
+
+function CategoryIcon({
+  category,
+  className = "h-4 w-4",
+}: {
+  category: VideoActivityCategory;
+  className?: string;
+}) {
+  switch (category) {
+    case "bowling":
+      return <BallIcon className={className} />;
+    case "fielding":
+      return <FieldingIcon className={className} />;
+    case "keeping":
+      return <GlovesIcon className={className} />;
+    case "batting":
+    default:
+      return <BatIcon className={className} />;
+  }
+}
+
+function categoryLabel(category: VideoActivityCategory): string {
+  switch (category) {
+    case "bowling":
+      return "Bowling";
+    case "fielding":
+      return "Fielding";
+    case "keeping":
+      return "Keeping";
+    default:
+      return "Batting";
+  }
 }
 
 function gradeBadgeClass(letter: string): string {
@@ -165,12 +280,24 @@ export function RecentUploadsList({
                   </button>
                   <div className="flex shrink-0 items-center gap-1">
                     {upload.status === "analyzed" && upload.gradeLetter && (
-                      <span
-                        className={`mr-1 inline-flex min-w-[1.75rem] items-center justify-center rounded-md px-1.5 py-0.5 text-xs font-bold ring-1 ring-inset ${gradeBadgeClass(upload.gradeLetter)}`}
-                        aria-label={`Grade ${upload.gradeLetter}`}
-                      >
-                        {upload.gradeLetter}
-                      </span>
+                      <>
+                        <span
+                          className="mr-0.5 inline-flex text-[var(--text-secondary)]"
+                          title={categoryLabel(categoryFromActivity(upload.activityType))}
+                          aria-label={categoryLabel(categoryFromActivity(upload.activityType))}
+                        >
+                          <CategoryIcon
+                            category={categoryFromActivity(upload.activityType)}
+                            className="h-4 w-4"
+                          />
+                        </span>
+                        <span
+                          className={`mr-1 inline-flex min-w-[1.75rem] items-center justify-center rounded-md px-1.5 py-0.5 text-xs font-bold ring-1 ring-inset ${gradeBadgeClass(upload.gradeLetter)}`}
+                          aria-label={`Grade ${upload.gradeLetter}`}
+                        >
+                          {upload.gradeLetter}
+                        </span>
+                      </>
                     )}
                     {upload.status === "processing" && (
                       <span

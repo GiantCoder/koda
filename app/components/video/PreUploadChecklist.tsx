@@ -3,6 +3,9 @@ const CHECKLIST_ITEMS = [
   "Good lighting conditions",
   "Minimal background clutter",
   "At least 10 seconds of footage",
+  "Side-on view of batting stance",
+  "Clear view of foot movement",
+  "Captures full shot execution",
 ];
 
 function CheckmarkIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
@@ -37,7 +40,7 @@ export function PreUploadChecklist() {
             key={item}
             className="flex items-center gap-1.5 text-xs text-[var(--text-primary)]"
           >
-            <span className="text-white">
+            <span className="text-[var(--success)]">
               <CheckmarkIcon />
             </span>
             <span>{item}</span>

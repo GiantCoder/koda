@@ -1,7 +1,19 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Button } from "@/app/components/ui/Button";
+
+interface AvatarItem {
+  id: string;
+  name: string;
+  url: string;
+}
+
+interface AvatarCategory {
+  key: string;
+  label: string;
+  avatars: AvatarItem[];
+}
 
 interface AvatarGalleryModalProps {
   isOpen: boolean;
@@ -9,38 +21,6 @@ interface AvatarGalleryModalProps {
   onSelect: (avatarUrl: string) => void;
   currentAvatarUrl?: string;
 }
-
-// Predefined avatar gallery organized by category
-const AVATAR_GALLERY = {
-  male: [
-    "/images/avatars/male/avatar-male-1.svg",
-    "/images/avatars/male/avatar-male-2.svg",
-    "/images/avatars/male/avatar-male-3.svg",
-    "/images/avatars/male/avatar-male-4.svg",
-    "/images/avatars/male/avatar-male-5.svg",
-    "/images/avatars/male/avatar-male-6.svg",
-    "/images/avatars/male/avatar-male-7.svg",
-    "/images/avatars/male/avatar-male-8.svg",
-  ],
-  female: [
-    "/images/avatars/female/avatar-female-1.svg",
-    "/images/avatars/female/avatar-female-2.svg",
-    "/images/avatars/female/avatar-female-3.svg",
-    "/images/avatars/female/avatar-female-4.svg",
-    "/images/avatars/female/avatar-female-5.svg",
-    "/images/avatars/female/avatar-female-6.svg",
-    "/images/avatars/female/avatar-female-7.svg",
-    "/images/avatars/female/avatar-female-8.svg",
-  ],
-  sports: [
-    "/images/avatars/sports/cricket-player-1.svg",
-    "/images/avatars/sports/cricket-player-2.svg",
-    "/images/avatars/sports/cricket-player-3.svg",
-    "/images/avatars/sports/cricket-player-4.svg",
-    "/images/avatars/sports/cricket-player-5.svg",
-    "/images/avatars/sports/cricket-player-6.svg",
-  ],
-};
 
 export function AvatarGalleryModal({
   isOpen,
@@ -55,7 +35,43 @@ export function AvatarGalleryModal({
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [uploadPreview, setUploadPreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [avatarCategories, setAvatarCategories] = useState<AvatarCategory[]>([]);
+  const [isLoadingAvatars, setIsLoadingAvatars] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setSelectedAvatarUrl(currentAvatarUrl || null);
+    setActiveTab("gallery");
+    setUploadedFile(null);
+    setUploadPreview(null);
+    setLoadError(null);
+
+    let cancelled = false;
+    setIsLoadingAvatars(true);
+    fetch("/api/avatars")
+      .then((response) => response.json())
+      .then((payload: { categories?: AvatarCategory[]; error?: string }) => {
+        if (cancelled) return;
+        setAvatarCategories(payload.categories ?? []);
+        if (payload.error && !(payload.categories?.length)) {
+          setLoadError(payload.error);
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setAvatarCategories([]);
+        setLoadError("Failed to load avatars");
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingAvatars(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, currentAvatarUrl]);
 
   if (!isOpen) return null;
 
@@ -69,14 +85,12 @@ export function AvatarGalleryModal({
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
     const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
     if (!allowedTypes.includes(file.type)) {
       alert("Invalid file type. Only JPG, PNG, WebP, and GIF are allowed.");
       return;
     }
 
-    // Validate file size (5MB max)
     const maxSize = 5 * 1024 * 1024;
     if (file.size > maxSize) {
       alert("File size exceeds 5MB limit");
@@ -84,8 +98,7 @@ export function AvatarGalleryModal({
     }
 
     setUploadedFile(file);
-    
-    // Create preview
+
     const reader = new FileReader();
     reader.onloadend = () => {
       setUploadPreview(reader.result as string);
@@ -117,7 +130,7 @@ export function AvatarGalleryModal({
           throw new Error(error.error || "Failed to upload avatar");
         }
 
-        const data = await response.json() as { url: string };
+        const data = (await response.json()) as { url: string };
         onSelect(data.url);
         onClose();
       } catch (error) {
@@ -140,7 +153,6 @@ export function AvatarGalleryModal({
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
       <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-[var(--surface)]">
-        {/* Header */}
         <div className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--surface-secondary)] px-5 py-4">
           <h3 className="text-lg font-semibold text-[var(--text-primary)]">
             Select or Upload Avatar
@@ -148,6 +160,8 @@ export function AvatarGalleryModal({
           <button
             onClick={onClose}
             className="text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
+            type="button"
+            aria-label="Close"
           >
             <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -155,10 +169,10 @@ export function AvatarGalleryModal({
           </button>
         </div>
 
-        {/* Tabs */}
         <div className="border-b border-[var(--border)] bg-[var(--surface-secondary)]">
           <div className="flex px-5">
             <button
+              type="button"
               onClick={() => setActiveTab("gallery")}
               className={`border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
                 activeTab === "gallery"
@@ -169,6 +183,7 @@ export function AvatarGalleryModal({
               Gallery
             </button>
             <button
+              type="button"
               onClick={() => setActiveTab("custom")}
               className={`border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
                 activeTab === "custom"
@@ -181,50 +196,63 @@ export function AvatarGalleryModal({
           </div>
         </div>
 
-        {/* Content */}
         <div className="flex-1 overflow-y-auto p-5">
           {activeTab === "gallery" && (
             <div className="space-y-6">
-              {Object.entries(AVATAR_GALLERY).map(([category, avatars]) => (
-                <div key={category}>
-                  <h4 className="mb-3 border-b border-[var(--border)] pb-2 text-sm font-semibold uppercase text-[var(--text-secondary)]">
-                    {category.replace("_", " ")}
-                  </h4>
-                  <div className="grid grid-cols-4 gap-3 sm:grid-cols-6 md:grid-cols-8">
-                    {avatars.map((avatarUrl) => {
-                      const isSelected = selectedAvatarUrl === avatarUrl;
-                      return (
-                        <button
-                          key={avatarUrl}
-                          onClick={() => handleAvatarSelect(avatarUrl)}
-                          className={`relative aspect-square overflow-hidden rounded-lg border-2 transition-all ${
-                            isSelected
-                              ? "border-[var(--primary)] ring-2 ring-[var(--primary)]/30"
-                              : "border-[var(--border)] hover:border-[var(--primary)]"
-                          }`}
-                        >
-                          <img
-                            src={avatarUrl}
-                            alt={`Avatar ${category}`}
-                            className="h-full w-full object-cover"
-                          />
-                          {isSelected && (
-                            <div className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--primary)] text-white">
-                              <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
-                                <path
-                                  fillRule="evenodd"
-                                  d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                  clipRule="evenodd"
-                                />
-                              </svg>
-                            </div>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
+              {isLoadingAvatars ? (
+                <div className="flex min-h-[180px] items-center justify-center gap-3 text-sm text-[var(--text-secondary)]">
+                  <span className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--surface-secondary)] border-t-[var(--primary)]" />
+                  Loading avatars...
                 </div>
-              ))}
+              ) : loadError ? (
+                <p className="text-sm text-[var(--danger)]">{loadError}</p>
+              ) : avatarCategories.length === 0 ? (
+                <p className="text-sm text-[var(--text-secondary)]">
+                  No avatars found. Add images under public/avatars.
+                </p>
+              ) : (
+                avatarCategories.map((category) => (
+                  <div key={category.key}>
+                    <h4 className="mb-3 border-b border-[var(--border)] pb-2 text-sm font-semibold uppercase text-[var(--text-secondary)]">
+                      {category.label}
+                    </h4>
+                    <div className="grid grid-cols-4 gap-3 sm:grid-cols-6 md:grid-cols-8">
+                      {category.avatars.map((avatar) => {
+                        const isSelected = selectedAvatarUrl === avatar.url;
+                        return (
+                          <button
+                            key={avatar.id}
+                            type="button"
+                            onClick={() => handleAvatarSelect(avatar.url)}
+                            className={`relative aspect-square overflow-hidden rounded-lg border-2 transition-all ${
+                              isSelected
+                                ? "border-[var(--primary)] ring-2 ring-[var(--primary)]/30"
+                                : "border-[var(--border)] hover:border-[var(--primary)]"
+                            }`}
+                          >
+                            <img
+                              src={avatar.url}
+                              alt={avatar.name}
+                              className="h-full w-full object-cover"
+                            />
+                            {isSelected && (
+                              <div className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--primary)] text-white">
+                                <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                                  <path
+                                    fillRule="evenodd"
+                                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                    clipRule="evenodd"
+                                  />
+                                </svg>
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           )}
 
@@ -272,6 +300,7 @@ export function AvatarGalleryModal({
                         className="h-48 w-48 rounded-full object-cover ring-4 ring-[var(--border)]"
                       />
                       <button
+                        type="button"
                         onClick={handleRemoveUpload}
                         className="absolute -right-2 -top-2 flex h-8 w-8 items-center justify-center rounded-full bg-[var(--danger)] text-white shadow-lg transition-transform hover:scale-110"
                       >
@@ -300,7 +329,6 @@ export function AvatarGalleryModal({
           )}
         </div>
 
-        {/* Footer */}
         <div className="flex justify-end gap-2 border-t border-[var(--border)] bg-[var(--surface-secondary)] px-5 py-4">
           <Button variant="secondary" onClick={onClose} disabled={isUploading}>
             Cancel

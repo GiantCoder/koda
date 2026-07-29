@@ -1,5 +1,15 @@
 import { z } from "zod";
 
+/** Absolute URL or site-relative gallery path under /avatars/... */
+const avatarUrlSchema = z
+  .string()
+  .refine(
+    (value) =>
+      value.startsWith("/avatars/") ||
+      /^https?:\/\//i.test(value),
+    { message: "Must be a URL or /avatars/ path" }
+  );
+
 export const createTeamPlayerSchema = z.object({
   displayName: z.string().min(1).max(120),
   email: z.string().email().optional(),
@@ -12,7 +22,7 @@ export const updateTeamPlayerSchema = z.object({
   displayName: z.string().min(1).max(120).optional(),
   firstName: z.string().max(120).optional().nullable(),
   lastName: z.string().max(120).optional().nullable(),
-  avatarUrl: z.string().url().optional().nullable(),
+  avatarUrl: avatarUrlSchema.optional().nullable(),
   dateOfBirth: z.string().datetime().optional().nullable(),
   battingStyle: z.string().max(120).optional().nullable(),
   bowlingStyle: z.string().max(120).optional().nullable(),

@@ -6,7 +6,6 @@ import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 import { Select } from "@/app/components/ui/Select";
 import { PreUploadChecklist } from "@/app/components/video/PreUploadChecklist";
-import { BestCameraAngleCard } from "@/app/components/video/BestCameraAngleCard";
 import { RecentUploadsList, type RecentUpload } from "@/app/components/video/RecentUploadsList";
 import { UploadShotHintsModal } from "@/app/components/video/UploadShotHintsModal";
 import { Progress } from "@/app/components/ui/Progress";
@@ -62,6 +61,7 @@ function mapVideoToRecentUpload(video: RecentVideoApiItem): RecentUpload {
       video.analysis?.activityType
     ),
     gradeLetter: video.analysis?.gradeLetter ?? null,
+    activityType: video.analysis?.activityType ?? null,
   };
 }
 
@@ -580,7 +580,6 @@ export default function UploadPage() {
         </div>
 
         <div className="space-y-6">
-          <BestCameraAngleCard />
           <RecentUploadsList
             uploads={recentUploads}
             user={user}
