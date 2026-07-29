@@ -950,15 +950,29 @@ export default function AnalysisResultsPage() {
 
         <div className="space-y-6">
           <ShotGradeCard
+            title={isBowling ? "Delivery Quality" : "Shot Quality"}
             gradeLetter={gradeLetter}
             starRating={starRatingFromScore(overall)}
-            metrics={metrics.length > 0 ? metrics : [
-              { label: "Backlift", value: 92 },
-              { label: "Weight Transfer", value: 88 },
-              { label: "Head Position", value: 76 },
-              { label: "Follow-Through", value: 90 },
-              { label: "Timing", value: 85 },
-            ]}
+            metrics={
+              metrics.length > 0
+                ? metrics
+                : isBowling
+                  ? [
+                      { label: "Run-Up Rhythm", value: 76 },
+                      { label: "Load-Up", value: 80 },
+                      { label: "Bowling Arm Action", value: 82 },
+                      { label: "Delivery Stride", value: 78 },
+                      { label: "Release Point", value: 75 },
+                      { label: "Follow-Through", value: 80 },
+                    ]
+                  : [
+                      { label: "Backlift", value: 92 },
+                      { label: "Weight Transfer", value: 88 },
+                      { label: "Head Position", value: 76 },
+                      { label: "Follow-Through", value: 90 },
+                      { label: "Timing", value: 85 },
+                    ]
+            }
             overallScore={overall || 86.2}
           />
         </div>

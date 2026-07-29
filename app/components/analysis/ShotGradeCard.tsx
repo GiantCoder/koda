@@ -15,6 +15,8 @@ interface ShotGradeCardProps {
   maxStars?: number;
   metrics: MetricScore[];
   overallScore: number;
+  /** Defaults to "Shot Quality"; use e.g. "Delivery Quality" for bowling. */
+  title?: string;
 }
 
 function getGradeColor(letter: string): string {
@@ -37,6 +39,7 @@ export function ShotGradeCard({
   maxStars = 5,
   metrics,
   overallScore,
+  title = "Shot Quality",
 }: ShotGradeCardProps) {
   const gradeColor = getGradeColor(gradeLetter);
 
@@ -44,7 +47,7 @@ export function ShotGradeCard({
     <Card>
       <CardHeader className="flex items-center justify-between">
         <span className="text-lg font-semibold text-[var(--text-primary)]">
-          Shot Quality
+          {title}
         </span>
         <div className="flex gap-0.5" aria-label={`${starRating} out of ${maxStars} stars`}>
           {Array.from({ length: maxStars }).map((_, i) => (
