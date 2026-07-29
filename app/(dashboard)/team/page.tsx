@@ -1456,14 +1456,39 @@ export default function CoachRosterPage() {
             <div className="flex gap-4 overflow-x-auto pb-2">
               {playerCardEntries.map((entry) => (
                 <div key={entry.playerId} className="shrink-0">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={() => router.push(`/players/${entry.playerId}`)}
+                      className="text-left text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--primary)]"
+                      aria-label={`View profile for ${entry.playerName}`}
+                    >
+                      {entry.playerName}
+                    </button>
+                    {(role === "coach" || role === "admin") && (
+                      <button
+                        type="button"
+                        onClick={() => void openCardEditorForPlayer(entry.playerId)}
+                        className="rounded p-1 text-[var(--text-secondary)] hover:bg-[var(--surface-secondary)] hover:text-[var(--primary)]"
+                        aria-label={`Edit player card for ${entry.playerName}`}
+                      >
+                        <PencilIcon />
+                      </button>
+                    )}
+                  </div>
                   <button
                     type="button"
-                    onClick={() => void openCardEditorForPlayer(entry.playerId)}
-                    className="mb-2 text-left text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--primary)]"
+                    onClick={() => router.push(`/players/${entry.playerId}`)}
+                    className="block w-full text-left"
+                    aria-label={`View profile for ${entry.playerName}`}
                   >
-                    {entry.playerName}
+                    <PlayerCardDisplay
+                      card={entry.card}
+                      aiBgCss={null}
+                      compact
+                      interactive={false}
+                    />
                   </button>
-                  <PlayerCardDisplay card={entry.card} aiBgCss={null} compact interactive={false} />
                 </div>
               ))}
 
@@ -1590,9 +1615,14 @@ export default function CoachRosterPage() {
                     >
                       <td className="py-4">
                         <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--surface-secondary)] text-sm font-semibold text-[var(--primary)]">
+                          <button
+                            type="button"
+                            onClick={() => router.push(`/players/${player.id}`)}
+                            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--surface-secondary)] text-sm font-semibold text-[var(--primary)] transition-colors hover:bg-[var(--surface-secondary)]/70"
+                            aria-label={`View profile for ${player.name}`}
+                          >
                             {player.avatarInitials}
-                          </div>
+                          </button>
                           <div>
                             <p className="font-medium text-[var(--text-primary)]">
                               {player.name}
