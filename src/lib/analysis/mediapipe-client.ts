@@ -7,6 +7,42 @@ function getBaseUrl(): string {
 
 export const MEDIAPIPE_FRAMES_PER_BATCH = 14;
 
+function isPixelBbox(
+  value: unknown
+): value is { x: number; y: number; w: number; h: number } {
+  if (!value || typeof value !== "object") return false;
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.x === "number" &&
+    typeof v.y === "number" &&
+    typeof v.w === "number" &&
+    typeof v.h === "number" &&
+    v.w > 0 &&
+    v.h > 0
+  );
+}
+
+/** Union two analysis-frame pixel bboxes (same space MediaPipe returns). */
+function mergePixelBboxes(
+  a: PoseEstimateResponse["batsman_bbox"] | undefined,
+  b: PoseEstimateResponse["batsman_bbox"] | undefined
+): PoseEstimateResponse["batsman_bbox"] | undefined {
+  if (!isPixelBbox(a)) return isPixelBbox(b) ? b : undefined;
+  if (!isPixelBbox(b)) return a;
+  const ax2 = a.x + a.w;
+  const ay2 = a.y + a.h;
+  const bx2 = b.x + b.w;
+  const by2 = b.y + b.h;
+  const x = Math.min(a.x, b.x);
+  const y = Math.min(a.y, b.y);
+  return {
+    x,
+    y,
+    w: Math.max(ax2, bx2) - x,
+    h: Math.max(ay2, by2) - y,
+  };
+}
+
 /**
  * POST /pose with base64 JPEG frames. Batches if the payload would be huge.
  */
@@ -92,7 +128,7 @@ export async function estimatePoseFromFrames(input: {
     }
     batchIndex += 1;
     if (json.batsman_bbox) {
-      bbox = json.batsman_bbox;
+      bbox = mergePixelBboxes(bbox, json.batsman_bbox);
     }
     for (const lm of json.landmarks) {
       const globalIdx = offset + lm.frameIndex;

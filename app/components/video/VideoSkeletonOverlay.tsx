@@ -53,6 +53,39 @@ function isValidBbox(
   );
 }
 
+/**
+ * Build a normalized (0–1) bbox from the current frame's visible landmarks.
+ * Prefer this over the clip-level `batsman_bbox`, which is a single static box
+ * (and historically last-MediaPipe-batch-wins) that drifts away from early frames.
+ */
+export function bboxFromFrameLandmarks(
+  frame: FrameLandmarks,
+  paddingRatio = 0.12
+): { x: number; y: number; w: number; h: number } | null {
+  const xs: number[] = [];
+  const ys: number[] = [];
+  for (const kp of Object.values(frame.keypoints)) {
+    if (kp.visibility < 0.2) continue;
+    if (!Number.isFinite(kp.x) || !Number.isFinite(kp.y)) continue;
+    xs.push(kp.x);
+    ys.push(kp.y);
+  }
+  if (xs.length === 0) return null;
+
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  const padX = Math.max(0.01, (maxX - minX) * paddingRatio);
+  const padY = Math.max(0.01, (maxY - minY) * paddingRatio);
+  const x = Math.max(0, minX - padX);
+  const y = Math.max(0, minY - padY);
+  const w = Math.min(1 - x, maxX - minX + 2 * padX);
+  const h = Math.min(1 - y, maxY - minY + 2 * padY);
+  if (w <= 0 || h <= 0) return null;
+  return { x, y, w, h };
+}
+
 interface VideoSkeletonOverlayProps {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   poseData: PoseEstimateResponse | null;
@@ -112,13 +145,25 @@ export function VideoSkeletonOverlay({
       const offsetX = (displayWidth - fittedWidth) / 2;
       const offsetY = (displayHeight - fittedHeight) / 2;
 
-      const bbox = isValidBbox(poseData.batsman_bbox) ? poseData.batsman_bbox : null;
+      const frame = findNearestPoseFrame(poseData.landmarks, videoEl.currentTime);
+      if (!frame) {
+        rafId = window.requestAnimationFrame(drawFrame);
+        return;
+      }
 
-      if (showBbox && bbox) {
-        const bx = offsetX + (bbox.x / sourceWidth) * fittedWidth;
-        const by = offsetY + (bbox.y / sourceHeight) * fittedHeight;
-        const bw = (bbox.w / sourceWidth) * fittedWidth;
-        const bh = (bbox.h / sourceHeight) * fittedHeight;
+      // Prefer per-frame landmark bbox (normalized) so the box tracks the skeleton.
+      // Fall back to clip-level pixel bbox only when landmarks can't produce one.
+      const normalizedBbox = showBbox ? bboxFromFrameLandmarks(frame) : null;
+      const legacyPixelBbox =
+        showBbox && !normalizedBbox && isValidBbox(poseData.batsman_bbox)
+          ? poseData.batsman_bbox
+          : null;
+
+      if (normalizedBbox) {
+        const bx = offsetX + normalizedBbox.x * fittedWidth;
+        const by = offsetY + normalizedBbox.y * fittedHeight;
+        const bw = normalizedBbox.w * fittedWidth;
+        const bh = normalizedBbox.h * fittedHeight;
         ctx.strokeStyle = "rgba(250, 204, 21, 0.95)";
         ctx.lineWidth = 2;
         ctx.setLineDash([6, 4]);
@@ -127,12 +172,19 @@ export function VideoSkeletonOverlay({
         ctx.font = "11px system-ui, sans-serif";
         ctx.fillStyle = "rgba(250, 204, 21, 0.95)";
         ctx.fillText("Tracked subject", bx + 4, Math.max(12, by - 4));
-      }
-
-      const frame = findNearestPoseFrame(poseData.landmarks, videoEl.currentTime);
-      if (!frame) {
-        rafId = window.requestAnimationFrame(drawFrame);
-        return;
+      } else if (legacyPixelBbox) {
+        const bx = offsetX + (legacyPixelBbox.x / sourceWidth) * fittedWidth;
+        const by = offsetY + (legacyPixelBbox.y / sourceHeight) * fittedHeight;
+        const bw = (legacyPixelBbox.w / sourceWidth) * fittedWidth;
+        const bh = (legacyPixelBbox.h / sourceHeight) * fittedHeight;
+        ctx.strokeStyle = "rgba(250, 204, 21, 0.95)";
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
+        ctx.strokeRect(bx, by, bw, bh);
+        ctx.setLineDash([]);
+        ctx.font = "11px system-ui, sans-serif";
+        ctx.fillStyle = "rgba(250, 204, 21, 0.95)";
+        ctx.fillText("Tracked subject", bx + 4, Math.max(12, by - 4));
       }
 
       const mapPoint = (kp: PoseKeypoint) => ({
