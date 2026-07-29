@@ -22,6 +22,50 @@ const POSE_CONNECTIONS: Array<[string, string]> = [
   ["rightKnee", "rightAnkle"],
 ];
 
+/** Distinct joint colours — used by the overlay and the on-screen key. */
+export const JOINT_STYLE = {
+  head: { color: "rgba(255, 255, 255, 0.95)", label: "head" },
+  shoulders: { color: "rgba(250, 204, 21, 0.95)", label: "shoulders" },
+  elbows: { color: "rgba(251, 146, 60, 0.95)", label: "elbows" },
+  wrists: { color: "rgba(244, 63, 94, 0.95)", label: "wrists" },
+  hips: { color: "rgba(168, 85, 247, 0.95)", label: "hips" },
+  knees: { color: "rgba(34, 211, 238, 0.95)", label: "knees" },
+  ankles: { color: "rgba(52, 211, 153, 0.95)", label: "ankles" },
+} as const;
+
+export const JOINT_LEGEND = [
+  JOINT_STYLE.head,
+  JOINT_STYLE.shoulders,
+  JOINT_STYLE.elbows,
+  JOINT_STYLE.wrists,
+  JOINT_STYLE.hips,
+  JOINT_STYLE.knees,
+  JOINT_STYLE.ankles,
+] as const;
+
+const JOINT_COLOUR_BY_NAME: Record<string, string> = {
+  nose: JOINT_STYLE.head.color,
+  leftEye: JOINT_STYLE.head.color,
+  rightEye: JOINT_STYLE.head.color,
+  leftEar: JOINT_STYLE.head.color,
+  rightEar: JOINT_STYLE.head.color,
+  leftShoulder: JOINT_STYLE.shoulders.color,
+  rightShoulder: JOINT_STYLE.shoulders.color,
+  leftElbow: JOINT_STYLE.elbows.color,
+  rightElbow: JOINT_STYLE.elbows.color,
+  leftWrist: JOINT_STYLE.wrists.color,
+  rightWrist: JOINT_STYLE.wrists.color,
+  leftHip: JOINT_STYLE.hips.color,
+  rightHip: JOINT_STYLE.hips.color,
+  leftKnee: JOINT_STYLE.knees.color,
+  rightKnee: JOINT_STYLE.knees.color,
+  leftAnkle: JOINT_STYLE.ankles.color,
+  rightAnkle: JOINT_STYLE.ankles.color,
+};
+
+const JOINT_RADIUS = 2.25;
+const WRIST_RADIUS = 2.75;
+
 export function findNearestPoseFrame(
   frames: FrameLandmarks[],
   currentTimeSeconds: number
@@ -86,6 +130,31 @@ export function bboxFromFrameLandmarks(
   return { x, y, w, h };
 }
 
+/**
+ * CSS content box of an object-fit:contain video, relative to its offsetParent.
+ * Aligning the canvas to this box (instead of inset-0 + manual offsets) avoids
+ * systematic drift when the canvas display size fights absolute inset styles.
+ */
+function getContainedVideoContentBox(videoEl: HTMLVideoElement): {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+} | null {
+  const sourceWidth = videoEl.videoWidth;
+  const sourceHeight = videoEl.videoHeight;
+  if (!sourceWidth || !sourceHeight) return null;
+
+  const clientWidth = Math.max(1, videoEl.clientWidth);
+  const clientHeight = Math.max(1, videoEl.clientHeight);
+  const scale = Math.min(clientWidth / sourceWidth, clientHeight / sourceHeight);
+  const width = sourceWidth * scale;
+  const height = sourceHeight * scale;
+  const left = videoEl.offsetLeft + (clientWidth - width) / 2;
+  const top = videoEl.offsetTop + (clientHeight - height) / 2;
+  return { left, top, width, height };
+}
+
 interface VideoSkeletonOverlayProps {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   poseData: PoseEstimateResponse | null;
@@ -122,28 +191,27 @@ export function VideoSkeletonOverlay({
     const dpr = window.devicePixelRatio || 1;
 
     const drawFrame = () => {
-      const displayWidth = Math.max(1, videoEl.clientWidth);
-      const displayHeight = Math.max(1, videoEl.clientHeight);
-      if (
-        canvasEl.width !== Math.floor(displayWidth * dpr) ||
-        canvasEl.height !== Math.floor(displayHeight * dpr)
-      ) {
-        canvasEl.width = Math.floor(displayWidth * dpr);
-        canvasEl.height = Math.floor(displayHeight * dpr);
-        canvasEl.style.width = `${displayWidth}px`;
-        canvasEl.style.height = `${displayHeight}px`;
+      const box = getContainedVideoContentBox(videoEl);
+      if (!box) {
+        rafId = window.requestAnimationFrame(drawFrame);
+        return;
       }
 
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, displayWidth, displayHeight);
+      const { left, top, width: contentWidth, height: contentHeight } = box;
+      const bufW = Math.max(1, Math.floor(contentWidth * dpr));
+      const bufH = Math.max(1, Math.floor(contentHeight * dpr));
 
-      const sourceWidth = videoEl.videoWidth || displayWidth;
-      const sourceHeight = videoEl.videoHeight || displayHeight;
-      const scale = Math.min(displayWidth / sourceWidth, displayHeight / sourceHeight);
-      const fittedWidth = sourceWidth * scale;
-      const fittedHeight = sourceHeight * scale;
-      const offsetX = (displayWidth - fittedWidth) / 2;
-      const offsetY = (displayHeight - fittedHeight) / 2;
+      if (canvasEl.width !== bufW || canvasEl.height !== bufH) {
+        canvasEl.width = bufW;
+        canvasEl.height = bufH;
+      }
+      canvasEl.style.left = `${left}px`;
+      canvasEl.style.top = `${top}px`;
+      canvasEl.style.width = `${contentWidth}px`;
+      canvasEl.style.height = `${contentHeight}px`;
+
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, contentWidth, contentHeight);
 
       const frame = findNearestPoseFrame(poseData.landmarks, videoEl.currentTime);
       if (!frame) {
@@ -151,8 +219,11 @@ export function VideoSkeletonOverlay({
         return;
       }
 
-      // Prefer per-frame landmark bbox (normalized) so the box tracks the skeleton.
-      // Fall back to clip-level pixel bbox only when landmarks can't produce one.
+      const mapPoint = (kp: PoseKeypoint) => ({
+        x: kp.x * contentWidth,
+        y: kp.y * contentHeight,
+      });
+
       const normalizedBbox = showBbox ? bboxFromFrameLandmarks(frame) : null;
       const legacyPixelBbox =
         showBbox && !normalizedBbox && isValidBbox(poseData.batsman_bbox)
@@ -160,12 +231,12 @@ export function VideoSkeletonOverlay({
           : null;
 
       if (normalizedBbox) {
-        const bx = offsetX + normalizedBbox.x * fittedWidth;
-        const by = offsetY + normalizedBbox.y * fittedHeight;
-        const bw = normalizedBbox.w * fittedWidth;
-        const bh = normalizedBbox.h * fittedHeight;
+        const bx = normalizedBbox.x * contentWidth;
+        const by = normalizedBbox.y * contentHeight;
+        const bw = normalizedBbox.w * contentWidth;
+        const bh = normalizedBbox.h * contentHeight;
         ctx.strokeStyle = "rgba(250, 204, 21, 0.95)";
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 1.5;
         ctx.setLineDash([6, 4]);
         ctx.strokeRect(bx, by, bw, bh);
         ctx.setLineDash([]);
@@ -173,12 +244,14 @@ export function VideoSkeletonOverlay({
         ctx.fillStyle = "rgba(250, 204, 21, 0.95)";
         ctx.fillText("Tracked subject", bx + 4, Math.max(12, by - 4));
       } else if (legacyPixelBbox) {
-        const bx = offsetX + (legacyPixelBbox.x / sourceWidth) * fittedWidth;
-        const by = offsetY + (legacyPixelBbox.y / sourceHeight) * fittedHeight;
-        const bw = (legacyPixelBbox.w / sourceWidth) * fittedWidth;
-        const bh = (legacyPixelBbox.h / sourceHeight) * fittedHeight;
+        const sourceWidth = videoEl.videoWidth || contentWidth;
+        const sourceHeight = videoEl.videoHeight || contentHeight;
+        const bx = (legacyPixelBbox.x / sourceWidth) * contentWidth;
+        const by = (legacyPixelBbox.y / sourceHeight) * contentHeight;
+        const bw = (legacyPixelBbox.w / sourceWidth) * contentWidth;
+        const bh = (legacyPixelBbox.h / sourceHeight) * contentHeight;
         ctx.strokeStyle = "rgba(250, 204, 21, 0.95)";
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 1.5;
         ctx.setLineDash([6, 4]);
         ctx.strokeRect(bx, by, bw, bh);
         ctx.setLineDash([]);
@@ -187,13 +260,8 @@ export function VideoSkeletonOverlay({
         ctx.fillText("Tracked subject", bx + 4, Math.max(12, by - 4));
       }
 
-      const mapPoint = (kp: PoseKeypoint) => ({
-        x: offsetX + kp.x * fittedWidth,
-        y: offsetY + kp.y * fittedHeight,
-      });
-
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = "rgba(16, 185, 129, 0.95)";
+      ctx.lineWidth = 1.75;
+      ctx.strokeStyle = "rgba(16, 185, 129, 0.9)";
 
       for (const [from, to] of POSE_CONNECTIONS) {
         const fromPoint = frame.keypoints[from];
@@ -208,35 +276,18 @@ export function VideoSkeletonOverlay({
         ctx.stroke();
       }
 
-      // Joint group colours for visual clarity
-      const JOINT_COLOURS: Record<string, string> = {
-        nose: "rgba(255, 255, 255, 0.9)", // head: white
-        leftEye: "rgba(255, 255, 255, 0.7)",
-        rightEye: "rgba(255, 255, 255, 0.7)",
-        leftEar: "rgba(255, 255, 255, 0.7)",
-        rightEar: "rgba(255, 255, 255, 0.7)",
-        leftShoulder: "rgba(250, 204, 21, 0.9)", // torso: yellow
-        rightShoulder: "rgba(250, 204, 21, 0.9)",
-        leftHip: "rgba(250, 204, 21, 0.9)",
-        rightHip: "rgba(250, 204, 21, 0.9)",
-        leftElbow: "rgba(251, 146, 60, 0.95)", // arms: orange
-        rightElbow: "rgba(251, 146, 60, 0.95)",
-        leftWrist: "rgba(251, 146, 60, 0.95)",
-        rightWrist: "rgba(251, 146, 60, 0.95)",
-      };
-      const DEFAULT_JOINT_COLOUR = "rgba(34, 211, 238, 0.85)"; // legs/feet: cyan
-
       Object.entries(frame.keypoints).forEach(([name, kp]) => {
         if (kp.visibility < 0.25) return;
         const p = mapPoint(kp);
-        const radius = name === "leftWrist" || name === "rightWrist" ? 5 : 3.5;
+        const radius =
+          name === "leftWrist" || name === "rightWrist" ? WRIST_RADIUS : JOINT_RADIUS;
         ctx.beginPath();
         ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
-        ctx.fillStyle = JOINT_COLOURS[name] ?? DEFAULT_JOINT_COLOUR;
+        ctx.fillStyle = JOINT_COLOUR_BY_NAME[name] ?? JOINT_STYLE.knees.color;
         ctx.fill();
       });
 
-      // Draw wrist velocity vectors (orange arrows showing direction of wrist movement)
+      // Wrist velocity vectors
       const WRIST_JOINTS = ["leftWrist", "rightWrist"] as const;
       const nextFrame = findNearestPoseFrame(poseData.landmarks, videoEl.currentTime + 0.15);
       if (nextFrame) {
@@ -251,29 +302,24 @@ export function VideoSkeletonOverlay({
           const dx = p2.x - p1.x;
           const dy = p2.y - p1.y;
           const magnitude = Math.sqrt(dx * dx + dy * dy);
-
-          // Only draw if there is meaningful movement (> 3px)
           if (magnitude < 3) continue;
 
           const angle = Math.atan2(dy, dx);
-          // Scale arrow — amplify small movements for visibility, cap very large ones
-          const displayLen = Math.min(40, Math.max(12, magnitude * 2.5));
+          const displayLen = Math.min(36, Math.max(10, magnitude * 2.5));
           const arrowX = p1.x + Math.cos(angle) * displayLen;
           const arrowY = p1.y + Math.sin(angle) * displayLen;
 
           ctx.save();
-          ctx.strokeStyle = "rgba(251, 146, 60, 0.95)"; // orange
-          ctx.fillStyle = "rgba(251, 146, 60, 0.95)";
-          ctx.lineWidth = 2.5;
+          ctx.strokeStyle = JOINT_STYLE.wrists.color;
+          ctx.fillStyle = JOINT_STYLE.wrists.color;
+          ctx.lineWidth = 2;
 
-          // Arrow shaft
           ctx.beginPath();
           ctx.moveTo(p1.x, p1.y);
           ctx.lineTo(arrowX, arrowY);
           ctx.stroke();
 
-          // Arrowhead
-          const headLen = 8;
+          const headLen = 7;
           ctx.beginPath();
           ctx.moveTo(arrowX, arrowY);
           ctx.lineTo(
@@ -290,16 +336,15 @@ export function VideoSkeletonOverlay({
         }
       }
 
-      // Confidence and frame info HUD
       ctx.save();
-      ctx.font = "11px system-ui, monospace, sans-serif";
+      ctx.font = "10px system-ui, monospace, sans-serif";
       ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
-      ctx.fillRect(4, displayHeight - 28, 180, 22);
+      ctx.fillRect(4, contentHeight - 24, 170, 20);
       ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
       ctx.fillText(
-        `pose conf: ${(frame.poseConfidence * 100).toFixed(0)}%  frame: ${frame.frameIndex}  t: ${frame.timestamp.toFixed(2)}s`,
+        `pose conf: ${(frame.poseConfidence * 100).toFixed(0)}%  f:${frame.frameIndex}  t:${frame.timestamp.toFixed(2)}s`,
         8,
-        displayHeight - 12
+        contentHeight - 10
       );
       ctx.restore();
 
@@ -316,11 +361,32 @@ export function VideoSkeletonOverlay({
   return (
     <canvas
       ref={canvasRef}
-      className={`pointer-events-none absolute inset-0 transition-opacity ${
+      className={`pointer-events-none absolute transition-opacity ${
         enabled ? "opacity-100" : "opacity-0"
       } ${className}`}
       aria-hidden="true"
     />
+  );
+}
+
+/** Compact colour key shown under the skeleton toggle when the overlay is on. */
+export function SkeletonJointLegend({ className = "" }: { className?: string }) {
+  return (
+    <ul
+      className={`flex flex-col gap-1 text-[10px] leading-tight text-white ${className}`}
+      aria-label="Skeleton joint colour key"
+    >
+      {JOINT_LEGEND.map((item) => (
+        <li key={item.label} className="flex items-center gap-1.5">
+          <span
+            className="inline-block h-2 w-2 shrink-0 rounded-full"
+            style={{ backgroundColor: item.color }}
+            aria-hidden
+          />
+          <span>{item.label}</span>
+        </li>
+      ))}
+    </ul>
   );
 }
 

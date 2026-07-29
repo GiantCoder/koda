@@ -20,6 +20,7 @@ import { useToast } from "@/app/hooks/useToast";
 import { buildMockAuthHeaders } from "@/app/lib/mock-auth-headers";
 import {
   VideoSkeletonOverlay,
+  SkeletonJointLegend,
   useOverlayStatusText,
 } from "@/app/components/video/VideoSkeletonOverlay";
 import type { PoseEstimateResponse } from "@/src/lib/analysis/mediapipe-types";
@@ -625,24 +626,31 @@ export default function AnalysisResultsPage() {
                   enabled={isOverlayEnabled && !poseDataError}
                   showBbox
                 />
-                <div className="absolute right-3 top-3 flex items-center gap-2 rounded-lg bg-black/60 px-3 py-2">
-                  <span className="text-xs text-white">Skeleton + Bbox</span>
-                  <button
-                    type="button"
-                    className={`relative h-5 w-10 rounded-full transition-colors ${
-                      isOverlayEnabled ? "bg-emerald-500" : "bg-[var(--surface-secondary)]"
-                    }`}
-                    role="switch"
-                    aria-checked={isOverlayEnabled}
-                    aria-label="Toggle skeleton overlay"
-                    onClick={() => setIsOverlayEnabled((current) => !current)}
-                  >
-                    <span
-                      className={`absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${
-                        isOverlayEnabled ? "translate-x-5" : "translate-x-0"
+                <div className="absolute right-3 top-3 flex flex-col items-end gap-2">
+                  <div className="flex items-center gap-2 rounded-lg bg-black/60 px-3 py-2">
+                    <span className="text-xs text-white">Skeleton + Bbox</span>
+                    <button
+                      type="button"
+                      className={`relative h-5 w-10 rounded-full transition-colors ${
+                        isOverlayEnabled ? "bg-emerald-500" : "bg-[var(--surface-secondary)]"
                       }`}
-                    />
-                  </button>
+                      role="switch"
+                      aria-checked={isOverlayEnabled}
+                      aria-label="Toggle skeleton overlay"
+                      onClick={() => setIsOverlayEnabled((current) => !current)}
+                    >
+                      <span
+                        className={`absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${
+                          isOverlayEnabled ? "translate-x-5" : "translate-x-0"
+                        }`}
+                      />
+                    </button>
+                  </div>
+                  {isOverlayEnabled && !poseDataError ? (
+                    <div className="rounded-lg bg-black/60 px-3 py-2">
+                      <SkeletonJointLegend />
+                    </div>
+                  ) : null}
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 p-4">
