@@ -84,7 +84,7 @@ services:
         condition: service_healthy
     networks:
       - koda_network
-    command: npm run worker:dev
+    command: sh -c "npx prisma generate && npm run worker:dev"
 
   mediapipe:
     build:

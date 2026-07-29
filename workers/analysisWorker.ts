@@ -13,6 +13,7 @@ import {
   removeTempPath,
   writeTempVideoFile,
 } from "@/src/lib/analysis/video-frames";
+import { persistAnalysisFrames } from "@/src/lib/analysis/frame-persistence";
 import {
   estimatePoseFromFrames,
   MEDIAPIPE_FRAMES_PER_BATCH,
@@ -158,11 +159,19 @@ export const analysisWorker = new Worker<AnalysisJobData>(
         `[analysisWorker] ${analysisId}: extracted ${framesBase64.length} frames @${sampleFps}fps ${width}x${height}`
       );
 
+      // Persist frames for the results-page gallery (including clips later rejected
+      // as UNSUPPORTED_CONTENT — coaches reviewing rejections still benefit).
+      const frameManifest = await persistAnalysisFrames(analysisId, framesBase64, sampleFps);
+      console.log(
+        `[analysisWorker] ${analysisId}: persisted ${frameManifest.length} frames to storage`
+      );
+
       // ── ACTIVITY GATE ──────────────────────────────────────────────────────
       await prisma.analysis.update({
         where: { id: analysisId },
         data: {
           status: "ACTIVITY_CLASSIFICATION",
+          frameManifest,
         } as Parameters<typeof prisma.analysis.update>[0]["data"],
       });
       await publishStage(analysisId, {

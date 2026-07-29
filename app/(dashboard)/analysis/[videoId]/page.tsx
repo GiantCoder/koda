@@ -9,6 +9,10 @@ import { ShotGradeCard } from "@/app/components/analysis/ShotGradeCard";
 import { CoachingTipsPanel, type CoachingTip } from "@/app/components/analysis/CoachingTipsPanel";
 import { TagStrip, type ShotTag } from "@/app/components/analysis/TagStrip";
 import { TechniqueRadarChart, type RadarDataPoint } from "@/app/components/analysis/TechniqueRadarChart";
+import FrameGallery from "@/src/components/analysis/FrameGallery";
+import AnnotationPanel, {
+  type Annotation,
+} from "@/src/components/analysis/AnnotationPanel";
 import { LoadingSpinner } from "@/app/components/common/LoadingSpinner";
 import { ToastContainer } from "@/app/components/ui/Toast";
 import { useMockAuth } from "@/app/hooks/useMockAuth";
@@ -223,6 +227,8 @@ export default function AnalysisResultsPage() {
   const [poseDataError, setPoseDataError] = useState<string | null>(null);
   const [isPoseLoading, setIsPoseLoading] = useState(false);
   const [showDebugPanel, setShowDebugPanel] = useState(false);
+  const [annotations, setAnnotations] = useState<Annotation[]>([]);
+  const [selectedFrameTimestampMs, setSelectedFrameTimestampMs] = useState<number | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   const fetchAnalysis = useCallback(async () => {
@@ -293,6 +299,58 @@ export default function AnalysisResultsPage() {
     };
   }, [analysis?.id, user]);
 
+  useEffect(() => {
+    if (!analysis?.id || !user) return;
+
+    let cancelled = false;
+
+    const loadAnnotations = async () => {
+      try {
+        const response = await fetch(`/api/analysis/${analysis.id}/annotations`, {
+          headers: buildMockAuthHeaders(user),
+        });
+        if (!response.ok) return;
+        const payload = (await response.json()) as {
+          annotations: Annotation[];
+        };
+        if (!cancelled) {
+          setAnnotations(payload.annotations ?? []);
+        }
+      } catch {
+        // Non-blocking — gallery/panel still render without annotations
+      }
+    };
+    void loadAnnotations();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [analysis?.id, user]);
+
+  const handleCreateAnnotation = useCallback(
+    async (input: { timestampMs: number; content: string; isPrivate: boolean }) => {
+      if (!analysis || !user) {
+        throw new Error("Not signed in");
+      }
+      const res = await fetch(`/api/analysis/${analysis.id}/annotations`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...buildMockAuthHeaders(user),
+        },
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error ?? "Failed to add annotation");
+      }
+      const created = (await res.json()) as Annotation;
+      setAnnotations((prev) => [...prev, created]);
+      showToast("Annotation added", "success");
+    },
+    [analysis, user, showToast]
+  );
+
   const handleDelete = useCallback(async () => {
     if (!analysis || !user) return;
     setIsDeleting(true);
@@ -315,6 +373,13 @@ export default function AnalysisResultsPage() {
       setIsDeleting(false);
     }
   }, [analysis, user, showToast, router]);
+
+  const annotationPanelRole =
+    role === "coach" || role === "admin"
+      ? "coach"
+      : role === "parent"
+        ? "parent"
+        : "player";
 
   const overlayStatusText = useOverlayStatusText(
     isOverlayEnabled,
@@ -531,7 +596,7 @@ export default function AnalysisResultsPage() {
       {role === "coach" && (
         <div className="mb-6 rounded-lg border border-[var(--warning)]/50 bg-[var(--warning)]/10 px-4 py-3">
           <p className="text-sm text-[var(--text-primary)]">
-            <strong>Coach view:</strong> You are viewing this player&apos;s analysis. Add timestamped annotations via the annotation panel.
+            <strong>Coach view:</strong> You are viewing this player&apos;s analysis. Select a frame below to add a timestamped annotation.
           </p>
         </div>
       )}
@@ -598,6 +663,27 @@ export default function AnalysisResultsPage() {
               </div>
             </CardContent>
           </Card>
+
+          <FrameGallery
+            analysisId={analysis.id}
+            annotations={annotations}
+            onFrameSelect={(ts) => {
+              setSelectedFrameTimestampMs(ts);
+              if (videoRef.current) {
+                videoRef.current.currentTime = ts / 1000;
+              }
+            }}
+          />
+
+          <AnnotationPanel
+            annotations={annotations}
+            role={annotationPanelRole}
+            selectedTimestampMs={selectedFrameTimestampMs}
+            getCurrentPlaybackMs={() =>
+              videoRef.current ? Math.round(videoRef.current.currentTime * 1000) : 0
+            }
+            onSubmit={handleCreateAnnotation}
+          />
 
           <CoachingTipsPanel tips={defaultTips} />
           <TagStrip tags={tags} />
