@@ -224,6 +224,8 @@ model Video {
   uploadedAt      DateTime  @default(now())
   isDeleted       Boolean   @default(false)
   deletedAt       DateTime?
+  /// Coach/user-editable freeform tags (JSON string[]). Null/empty = no tags.
+  tags            Json?
 
   user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   analysis   Analysis?

@@ -50,7 +50,7 @@ describe("FrameGallery", () => {
       />
     );
 
-    const frameBtn = await screen.findByRole("option", { name: /Frame at 0:01/i });
+    const frameBtn = await screen.findByRole("option", { name: /Frame at 0:01\.25/i });
     expect(frameBtn).toBeInTheDocument();
     // Badge for annotation within ±500ms of frame 1 (1250)
     expect(screen.getByLabelText("1 comment")).toBeInTheDocument();

@@ -13,6 +13,8 @@ import FrameGallery from "@/src/components/analysis/FrameGallery";
 import AnnotationPanel, {
   type Annotation,
 } from "@/src/components/analysis/AnnotationPanel";
+import { PlayerAssigneeSelect, type AssignablePlayer } from "@/app/components/video/PlayerAssigneeSelect";
+import { VideoTagsEditor } from "@/app/components/video/VideoTagsEditor";
 import { LoadingSpinner } from "@/app/components/common/LoadingSpinner";
 import { ToastContainer } from "@/app/components/ui/Toast";
 import { useMockAuth } from "@/app/hooks/useMockAuth";
@@ -76,7 +78,15 @@ interface AnalysisResult {
       confidence?: number;
     };
   } | null;
-  video?: { cdnUrl: string | null; durationSeconds: number | null; resolutionWidth: number | null; resolutionHeight: number | null };
+  video?: {
+    id?: string;
+    cdnUrl: string | null;
+    durationSeconds: number | null;
+    resolutionWidth: number | null;
+    resolutionHeight: number | null;
+    tags?: string[];
+    assignedPlayer?: AssignablePlayer | null;
+  };
 }
 
 function formatShotType(s: string): string {
@@ -230,6 +240,8 @@ export default function AnalysisResultsPage() {
   const [showDebugPanel, setShowDebugPanel] = useState(false);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [selectedFrameTimestampMs, setSelectedFrameTimestampMs] = useState<number | null>(null);
+  const [assignedPlayer, setAssignedPlayer] = useState<AssignablePlayer | null>(null);
+  const [videoTags, setVideoTags] = useState<string[]>([]);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   const fetchAnalysis = useCallback(async () => {
@@ -237,20 +249,24 @@ export default function AnalysisResultsPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/analysis/video/${videoId}`);
+      const res = await fetch(`/api/analysis/video/${videoId}`, {
+        headers: buildMockAuthHeaders(user),
+      });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error ?? `Failed to load analysis (${res.status})`);
       }
       const data = await res.json();
       setAnalysis(data);
+      setAssignedPlayer(data?.video?.assignedPlayer ?? null);
+      setVideoTags(Array.isArray(data?.video?.tags) ? data.video.tags : []);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load analysis");
       setAnalysis(null);
     } finally {
       setLoading(false);
     }
-  }, [videoId]);
+  }, [videoId, user]);
 
   useEffect(() => {
     void fetchAnalysis();
@@ -585,13 +601,30 @@ export default function AnalysisResultsPage() {
         </Button>
       </div>
 
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-[var(--text-primary)]">
-          {isBowling ? "Bowling Analysis Results" : "Shot Analysis Results"}
-        </h1>
-        <p className="mt-1 text-[var(--text-secondary)]">
-          Analyzed on {new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
-        </p>
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-[var(--text-primary)]">
+            {isBowling ? "Bowling Analysis Results" : "Shot Analysis Results"}
+          </h1>
+          <p className="mt-1 text-[var(--text-secondary)]">
+            Analyzed on {new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+          </p>
+        </div>
+        {(role === "coach" || role === "admin" || role === "parent") && analysis.videoId ? (
+          <PlayerAssigneeSelect
+            user={user}
+            videoId={analysis.videoId}
+            assignedPlayer={assignedPlayer}
+            onSaved={(player) => {
+              setAssignedPlayer(player);
+              showToast(
+                player ? `Assigned to ${player.displayName}` : "Video unassigned",
+                "success"
+              );
+            }}
+            onError={(message) => showToast(message, "error")}
+          />
+        ) : null}
       </div>
 
       {role === "coach" && (
@@ -691,6 +724,17 @@ export default function AnalysisResultsPage() {
               videoRef.current ? Math.round(videoRef.current.currentTime * 1000) : 0
             }
             onSubmit={handleCreateAnnotation}
+          />
+
+          <VideoTagsEditor
+            user={user}
+            videoId={analysis.videoId}
+            tags={videoTags}
+            onSaved={(next) => {
+              setVideoTags(next);
+              showToast("Tags saved", "success");
+            }}
+            onError={(message) => showToast(message, "error")}
           />
 
           <CoachingTipsPanel tips={defaultTips} />

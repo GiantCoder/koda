@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/prisma/client";
 import { getAuthUser } from "@/lib/get-auth-user";
+import { canAccessVideo } from "@/src/lib/videos/access";
+import { parseVideoTags } from "@/app/api/videos/[id]/schema";
 import { z } from "zod";
 
 const videoIdParamSchema = z.object({
@@ -72,6 +74,8 @@ function buildMockAnalysis(videoId: string) {
       durationSeconds: 12.4,
       resolutionWidth: 1920,
       resolutionHeight: 1080,
+      tags: [],
+      assignedPlayer: null,
     },
   };
 }
@@ -109,15 +113,19 @@ export async function GET(
 
   const { videoId } = paramResult.data;
 
-  const video = user
-    ? await prisma.video.findFirst({
-        where: { id: videoId, userId: user.id, isDeleted: false },
-      })
-    : process.env.NODE_ENV !== "production"
-      ? await prisma.video.findFirst({
-          where: { id: videoId, isDeleted: false },
-        })
-      : null;
+  const video = await prisma.video.findFirst({
+    where: { id: videoId, isDeleted: false },
+    include: {
+      user: {
+        select: {
+          id: true,
+          displayName: true,
+          role: true,
+          avatarUrl: true,
+        },
+      },
+    },
+  });
 
   if (!video) {
     return NextResponse.json(
@@ -126,14 +134,42 @@ export async function GET(
     );
   }
 
+  if (user) {
+    if (!(await canAccessVideo(user, video.userId))) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+  } else if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const analysis = await prisma.analysis.findUnique({
     where: { videoId },
-    include: { video: true },
   });
 
   if (!analysis) {
     return NextResponse.json({ error: "Analysis not found for this video" }, { status: 404 });
   }
 
-  return NextResponse.json(toJsonSafe(analysis));
+  const isPlayerAssignee = video.user.role === "PLAYER";
+
+  return NextResponse.json(
+    toJsonSafe({
+      ...analysis,
+      video: {
+        id: video.id,
+        cdnUrl: video.cdnUrl,
+        durationSeconds: video.durationSeconds,
+        resolutionWidth: video.resolutionWidth,
+        resolutionHeight: video.resolutionHeight,
+        tags: parseVideoTags(video.tags),
+        assignedPlayer: isPlayerAssignee
+          ? {
+              id: video.user.id,
+              displayName: video.user.displayName,
+              avatarUrl: video.user.avatarUrl,
+            }
+          : null,
+      },
+    })
+  );
 }
