@@ -12,6 +12,8 @@ export interface CoachingTip {
 
 interface CoachingTipsPanelProps {
   tips: CoachingTip[];
+  /** Optional control shown under tip text (e.g. reprocess CTA). */
+  action?: React.ReactNode;
 }
 
 function LightbulbIcon() {
@@ -33,7 +35,7 @@ function getTipBorderColor(type?: string): string {
   return "border-l-[var(--success)]";
 }
 
-export function CoachingTipsPanel({ tips }: CoachingTipsPanelProps) {
+export function CoachingTipsPanel({ tips, action }: CoachingTipsPanelProps) {
   if (tips.length === 0) {
     return (
       <Card>
@@ -45,6 +47,7 @@ export function CoachingTipsPanel({ tips }: CoachingTipsPanelProps) {
           <p className="text-sm text-[var(--text-secondary)]">
             No coaching tips available for this shot.
           </p>
+          {action ? <div className="mt-3">{action}</div> : null}
         </CardContent>
       </Card>
     );
@@ -69,6 +72,7 @@ export function CoachingTipsPanel({ tips }: CoachingTipsPanelProps) {
             {tip.description && tip.description !== tip.body ? (
               <p className="mt-1 text-sm text-[var(--text-secondary)]">{tip.description}</p>
             ) : null}
+            {action && idx === 0 ? <div className="mt-3">{action}</div> : null}
           </div>
         ))}
       </CardContent>

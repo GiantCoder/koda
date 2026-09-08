@@ -1,0 +1,69 @@
+import React from "react";
+import { ActivityIndicator, Pressable, Text, type PressableProps } from "react-native";
+
+type Variant = "primary" | "secondary" | "ghost" | "danger";
+type Size = "sm" | "md" | "lg";
+
+interface ButtonProps extends Omit<PressableProps, "children"> {
+  variant?: Variant;
+  size?: Size;
+  isLoading?: boolean;
+  children: React.ReactNode;
+}
+
+// Mirrors app/components/ui/Button.tsx on the web side (same variant/size
+// vocabulary), rebuilt on Pressable + NativeWind since MUI/Tailwind-for-DOM
+// don't run in React Native.
+const containerBase = "flex-row items-center justify-center rounded-lg";
+const containerSizes: Record<Size, string> = {
+  sm: "px-3 py-2",
+  md: "px-4 py-3",
+  lg: "px-6 py-4",
+};
+const containerVariants: Record<Variant, string> = {
+  primary: "bg-primary active:bg-primary-hover",
+  secondary: "bg-surface-secondary active:opacity-80",
+  ghost: "bg-transparent active:bg-surface-secondary",
+  danger: "bg-danger active:opacity-90",
+};
+const textSizes: Record<Size, string> = {
+  sm: "text-xs",
+  md: "text-sm",
+  lg: "text-base",
+};
+const textVariants: Record<Variant, string> = {
+  primary: "text-white font-medium",
+  secondary: "text-text-primary font-medium",
+  ghost: "text-text-primary font-medium",
+  danger: "text-white font-medium",
+};
+
+export function Button({
+  variant = "primary",
+  size = "md",
+  isLoading = false,
+  disabled,
+  children,
+  className,
+  ...props
+}: ButtonProps & { className?: string }) {
+  const isDisabled = disabled || isLoading;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      disabled={isDisabled}
+      className={`${containerBase} ${containerSizes[size]} ${containerVariants[variant]} ${
+        isDisabled ? "opacity-50" : ""
+      } ${className ?? ""}`}
+      {...props}
+    >
+      {isLoading ? (
+        <ActivityIndicator color={variant === "secondary" || variant === "ghost" ? "#111827" : "#FFFFFF"} />
+      ) : typeof children === "string" ? (
+        <Text className={`${textVariants[variant]} ${textSizes[size]}`}>{children}</Text>
+      ) : (
+        children
+      )}
+    </Pressable>
+  );
+}

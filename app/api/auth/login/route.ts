@@ -87,6 +87,12 @@ export async function POST(request: NextRequest) {
     // Still return success so login works when Redis is down (e.g. dev); refresh may not work until Redis is up
   }
 
+  // Native clients (Expo/React Native) can't rely on the httpOnly cookie below —
+  // there's no browser cookie jar. They identify themselves with this header and
+  // get the refresh token back in the body instead, to store in expo-secure-store.
+  // Web behavior (cookie-only, refresh token never touches page JS) is unchanged.
+  const isMobileClient = request.headers.get("x-koda-client") === "mobile";
+
   const response = NextResponse.json({
     user: {
       id: user.id,
@@ -97,6 +103,7 @@ export async function POST(request: NextRequest) {
     },
     accessToken,
     expiresIn: 900,
+    ...(isMobileClient ? { refreshToken } : {}),
   });
 
   response.cookies.set(REFRESH_COOKIE_NAME, refreshToken, {

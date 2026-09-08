@@ -21,7 +21,7 @@ import {
 import { logMediaPipeOutcome, logPoseSummaryForLlm } from "@/src/lib/analysis/pipeline-log";
 import { buildPoseSummaryForLlm, assessPoseTrackingSubject, extractBatterFramesFromMixedPose, remapPoseFromFarEndRoi, looksLikeDistantBatter } from "@/src/lib/analysis/pose-summary";
 import { cropFramesToFarEndBatterRoi, FAR_END_BATTER_ROI_ATTEMPTS, maskForegroundSubjectInFrames } from "@/src/lib/analysis/frame-crop";
-import { buildCoachingFeedbackFromScores, shotTypeToLabel } from "@/src/lib/analysis/coaching-feedback";
+import { shotTypeToLabel } from "@/src/lib/analysis/coaching-feedback";
 import { runBowlingAnalysisBranch } from "@/src/lib/analysis/bowling-pipeline";
 import type { PoseEstimateResponse } from "@/src/lib/analysis/mediapipe-types";
 
@@ -194,11 +194,22 @@ export const analysisWorker = new Worker<AnalysisJobData>(
         } as Parameters<typeof prisma.analysis.update>[0]["data"],
       });
 
+      const forceBatting = row.activityOverride === "BATTING";
+      const forceBowling = row.activityOverride === "BOWLING";
       const bowlingEnabled = isBowlingAnalysisEnabled();
       const takeBowlingPath =
-        bowlingEnabled && activityResult.isBowling && !activityResult.isBatting;
+        forceBowling ||
+        (!forceBatting &&
+          bowlingEnabled &&
+          activityResult.isBowling &&
+          !activityResult.isBatting);
 
-      if (!activityResult.isBatting && !takeBowlingPath) {
+      if (
+        !forceBatting &&
+        !forceBowling &&
+        !activityResult.isBatting &&
+        !takeBowlingPath
+      ) {
         const rejectionReason = buildRejectionReason(
           activityResult.activityType,
           activityResult.reasons
@@ -222,6 +233,19 @@ export const analysisWorker = new Worker<AnalysisJobData>(
           `[analysisWorker] ${analysisId}: UNSUPPORTED_CONTENT — ${activityResult.activityType} (confidence ${activityResult.confidence})`
         );
         return;
+      }
+
+      if (forceBatting || forceBowling) {
+        const forced = forceBatting ? "BATTING" : "BOWLING";
+        await prisma.analysis.update({
+          where: { id: analysisId },
+          data: {
+            activityType: forced,
+          } as Parameters<typeof prisma.analysis.update>[0]["data"],
+        });
+        console.log(
+          `[analysisWorker] ${analysisId}: activityOverride=${forced} — forcing ${forced.toLowerCase()} pipeline (gate said ${activityResult.activityType})`
+        );
       }
       // ── END ACTIVITY GATE ──────────────────────────────────────────────────
 
@@ -601,6 +625,7 @@ export const analysisWorker = new Worker<AnalysisJobData>(
         declaredShotCount,
         durationSeconds: row.video.durationSeconds,
         poseSummary,
+        framesBase64,
         // Far-end re-pose yields real batter landmarks — treat as reliable for scoring.
         poseTracksForegroundBowlersRunUp:
           poseTracksForegroundBowlersRunUp && !farEndBatterPoseRecovered,
@@ -610,11 +635,6 @@ export const analysisWorker = new Worker<AnalysisJobData>(
       const metricScores = scoring.scores;
       const grade = calculateGrade(classification.shotType, metricScores);
       const label = shotTypeToLabel(classification.shotType);
-      const coachingFeedback = buildCoachingFeedbackFromScores(label, {
-        weightTransfer: metricScores[1] ?? 75,
-        balance: metricScores[5] ?? 75,
-        timing: metricScores[4] ?? 75,
-      });
 
       const geminiRawResponse = {
         classification: {
@@ -627,6 +647,8 @@ export const analysisWorker = new Worker<AnalysisJobData>(
         scoring: {
           text: scoring.rawResponseText,
           scores: scoring.scores,
+          feedback: scoring.feedback,
+          summary: scoring.summary,
         },
         mediapipe: posePayload
           ? {
@@ -643,6 +665,7 @@ export const analysisWorker = new Worker<AnalysisJobData>(
         where: { id: analysisId },
         data: {
           status: "COMPLETE",
+          activityType: "BATTING",
           shotType: classification.shotType as any,
           shotConfidence: classification.confidence,
           gradeOverall: grade.score,
@@ -655,11 +678,12 @@ export const analysisWorker = new Worker<AnalysisJobData>(
           scoreBalance: metricScores[5],
           scoreFootwork: metricScores[6],
           scoreShotSelection: metricScores[7],
+          technicalFeedback: scoring.feedback,
           coachingTips: [
             {
               type: "summary",
               title: `${grade.letter} — ${label}`,
-              description: coachingFeedback,
+              description: scoring.summary,
             },
           ],
           rawGeminiResponse: geminiRawResponse as any,
@@ -715,5 +739,14 @@ export const analysisWorker = new Worker<AnalysisJobData>(
       }
     }
   },
-  { connection, concurrency: 2 }
+  {
+    connection,
+    concurrency: 2,
+    // Gemini + MediaPipe pipelines regularly run 2–10+ minutes. Default BullMQ
+    // lock is 30s; if the process restarts (tsx watch / docker) or the event
+    // loop is busy, the lock is not renewed and the job is marked stalled.
+    lockDuration: 15 * 60 * 1000,
+    stalledInterval: 60 * 1000,
+    maxStalledCount: 2,
+  }
 );

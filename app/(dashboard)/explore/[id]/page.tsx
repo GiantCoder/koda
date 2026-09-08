@@ -29,7 +29,16 @@ interface ClipDetails {
       stanceBalance: number;
       batPathFollowThrough: number;
     };
-    coachingTips: any;
+    coachingTips: Array<{ type?: string; title?: string; description?: string; body?: string }> | null;
+    technicalFeedback: Array<{
+      dimension: string;
+      score: number;
+      diagnosis: string;
+      timestampSeconds: number | null;
+      evidence: string;
+      drill: string;
+      confidence: "low" | "medium" | "high";
+    }> | null;
   };
   relatedClips: Array<{
     id: string;

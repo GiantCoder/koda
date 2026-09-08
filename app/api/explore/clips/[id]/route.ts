@@ -95,6 +95,7 @@ export async function GET(
           batPathFollowThrough: video.analysis.scoreFollowThrough || 0,
         },
         coachingTips: video.analysis.coachingTips || [],
+        technicalFeedback: video.analysis.technicalFeedback || null,
       },
       relatedClips: relatedClips.map((clip) => ({
         id: clip.id,

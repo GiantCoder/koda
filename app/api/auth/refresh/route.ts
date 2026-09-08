@@ -6,7 +6,26 @@ const REFRESH_COOKIE_NAME = "koda_refresh_token";
 const REFRESH_TTL_SECONDS = 60 * 60 * 24 * 7;
 
 export async function POST(request: NextRequest) {
-  const refreshToken = request.cookies.get(REFRESH_COOKIE_NAME)?.value;
+  const cookieToken = request.cookies.get(REFRESH_COOKIE_NAME)?.value;
+
+  // Native clients have no cookie jar, so they send the refresh token they
+  // stored (from login's response body) in the JSON body instead. Web never
+  // sends a body here, so this is a no-op for the existing cookie-only flow.
+  let bodyRefreshToken: string | undefined;
+  if (!cookieToken) {
+    try {
+      const body = (await request.json()) as { refreshToken?: unknown };
+      if (typeof body?.refreshToken === "string") {
+        bodyRefreshToken = body.refreshToken;
+      }
+    } catch {
+      // No/invalid JSON body — fine, falls through to the missing-token check below.
+    }
+  }
+
+  const refreshToken = cookieToken ?? bodyRefreshToken;
+  const isMobileClient = !cookieToken && !!bodyRefreshToken;
+
   if (!refreshToken) {
     return NextResponse.json({ error: "Missing refresh token", code: "MISSING_REFRESH_TOKEN" }, { status: 401 });
   }
@@ -40,7 +59,11 @@ export async function POST(request: NextRequest) {
   });
   await redis.set(`refresh:${payload.userId}:${tokenId}`, "1", "EX", REFRESH_TTL_SECONDS);
 
-  const response = NextResponse.json({ accessToken, expiresIn: 900 });
+  const response = NextResponse.json({
+    accessToken,
+    expiresIn: 900,
+    ...(isMobileClient ? { refreshToken: newRefreshToken } : {}),
+  });
   response.cookies.set(REFRESH_COOKIE_NAME, newRefreshToken, {
     httpOnly: true,
     sameSite: "lax",

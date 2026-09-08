@@ -3,9 +3,20 @@ import { cropFramesToFarEndBatterRoi, CLASSIFICATION_FAR_END_ROI } from "@/src/l
 import { sampleFramesForShotClassification } from "@/src/lib/analysis/frame-selection";
 import { isValidShotType, type ShotTypeValue } from "@/src/lib/cricket/shot-types";
 import { parseJsonObject } from "@/src/lib/llm/json-parse";
+import {
+  BATTING_SCORE_DIMENSIONS,
+  type ScoringResult,
+} from "@/src/types/technical-feedback";
 import { detectLeaveWithGemini } from "./leaveDetection";
 import { generateContentTextWithRetryAndFallback } from "./gemini-retry";
 import { shotClassificationPrompt } from "./prompts/shotClassification";
+import {
+  SCORING_FEEDBACK_FEW_SHOT,
+  normalizeFeedbackArray,
+  normalizeScores,
+  normalizeSummary,
+  sampleFramesForScoring,
+} from "./scoring-feedback";
 
 type ShotType = ShotTypeValue;
 
@@ -19,10 +30,7 @@ interface ShotClassificationResult {
   rawResponseText: string;
 }
 
-interface BiometricScoringResult {
-  scores: number[];
-  rawResponseText: string;
-}
+export type BiometricScoringResult = ScoringResult;
 
 /** Default Gemini 3.x model for analysis (override via GEMINI_* env). See https://ai.google.dev/gemini-api/docs/models */
 const DEFAULT_GEMINI_ANALYSIS_MODEL = "gemini-3.1-pro-preview";
@@ -32,13 +40,6 @@ export function modelNameForTask(task: "classification" | "scoring"): string {
   return task === "classification"
     ? process.env.GEMINI_CLASSIFICATION_MODEL ?? fallback
     : process.env.GEMINI_SCORING_MODEL ?? fallback;
-}
-
-function clampScore(value: number): number {
-  if (!Number.isFinite(value)) {
-    return 0;
-  }
-  return Math.max(0, Math.min(100, Math.round(value)));
 }
 
 function buildUploadDeclaredShotsContext(
@@ -455,15 +456,18 @@ export async function scoreBiomechanicsWithGemini(input: {
   declaredShotCount?: number | null;
   durationSeconds?: number | null;
   poseSummary?: string | null;
+  framesBase64?: string[] | null;
   poseTracksForegroundBowlersRunUp?: boolean;
   analysisId?: string;
 }): Promise<BiometricScoringResult> {
   const poseUnreliable = Boolean(input.poseTracksForegroundBowlersRunUp);
+  const poseAvailable =
+    Boolean(input.poseSummary?.trim()) && !poseUnreliable;
   const poseBlock = poseUnreliable
-    ? "Pose data: UNRELIABLE — tracked the foreground bowler, not the batter. Score conservatively from shot type context only; use 45–60 range unless clip metadata strongly supports higher."
-    : input.poseSummary && input.poseSummary.trim().length > 0
-      ? `Pose / joint data (use this as primary evidence for technique scores):\n${input.poseSummary.trim()}`
-      : "Pose data: NOT AVAILABLE — return conservative scores (40–55) to reflect the absence of pose evidence; do not fabricate plausible-looking grades.";
+    ? 'Pose data: UNRELIABLE — tracked the foreground bowler, not the batter. Score conservatively from shot type context only; use 45–60 range unless clip metadata strongly supports higher. For every feedback item set timestampSeconds to null and confidence to "low".'
+    : poseAvailable
+      ? `Pose / joint data (use this as primary evidence for technique scores and timestamps):\n${input.poseSummary!.trim()}`
+      : 'Pose data: NOT AVAILABLE — return conservative scores (40–55) to reflect the absence of pose evidence; do not fabricate plausible-looking grades. For every feedback item set timestampSeconds to null and confidence to "low".';
 
   const multi =
     input.shotTypesOrdered && input.shotTypesOrdered.length > 1
@@ -477,46 +481,104 @@ export async function scoreBiomechanicsWithGemini(input: {
       ? `\nThis is a LEAVE — the batter deliberately let the ball pass. Score head stillness, judgement (not playing at the ball), balance while withdrawing, and bat kept away from the ball line. Do not penalise for lack of bat-ball contact or drive follow-through.\n`
       : "";
 
+  const sampledFrames = sampleFramesForScoring(input.framesBase64);
+  const imageParts = sampledFrames.map((b64) => ({
+    inlineData: { mimeType: "image/jpeg" as const, data: b64 },
+  }));
+
+  const framesNote =
+    sampledFrames.length > 0
+      ? `Visual frames: ${sampledFrames.length} JPEG stills attached (evenly sampled). Use them to corroborate cues pose landmarks miss (bat face, ball path, front-foot plant).`
+      : "Visual frames: NOT AVAILABLE — rely on pose timeline only.";
+
+  const dimensionList = BATTING_SCORE_DIMENSIONS.join(", ");
+  const battingFewShot = SCORING_FEEDBACK_FEW_SHOT.replace(
+    "Work on your release point.",
+    "Work on your weight transfer."
+  ).replace(
+    "At 0:58 (front-foot plant), your bowling arm is still below shoulder height — release lands early, sending the ball high and resulting in a full toss. Aim to delay release until the arm is vertical, just past the head.",
+    "At 0:58 (front-foot plant), your weight is still stacked over the back hip — the drive finishes upright and late. Transfer earlier so the front knee is flexed and the head is over the ball at contact."
+  );
+
   const prompt = `You are a cricket biomechanics analyst.
 Score the batter using the pose timeline when present; it reflects body positions across sampled frames.
+${framesNote}
 
 Shot type (primary / first in time): ${input.shotType}
 Duration seconds: ${input.durationSeconds ?? "unknown"}
 ${leaveNote}${multi}
 ${poseBlock}
+${battingFewShot}
 
 Return JSON only in this exact shape:
 {
-  "scores": [backlift, weightTransfer, headPosition, followThrough, timing, balance, footwork, shotSelection]
+  "scores": [backlift, weightTransfer, headPosition, followThrough, timing, balance, footwork, shotSelection],
+  "feedback": [
+    {
+      "dimension": "backlift",
+      "score": 0,
+      "diagnosis": "1-2 sentences citing a concrete cue",
+      "timestampSeconds": 1.24,
+      "evidence": "short phrase: joint/frame cue",
+      "drill": "one general practice suggestion",
+      "confidence": "low" | "medium" | "high"
+    }
+  ],
+  "summary": "1-2 sentence overall roll-up grounded in the same evidence"
 }
-Each score must be an integer from 0 to 100.`;
+Rules:
+- scores: exactly 8 integers 0–100, order: ${dimensionList}
+- feedback: exactly 8 objects in the same order; each dimension must match
+- timestampSeconds: number from a pose t=Xs line, or null if not groundable
+- Each score in feedback[i].score must match scores[i]`;
 
   if (input.analysisId) {
     logGeminiRequest(input.analysisId, "scoring", modelNameForTask("scoring"), prompt, {
       shotType: input.shotType,
       shotTypesOrdered: input.shotTypesOrdered ?? null,
       declaredShotCount: input.declaredShotCount ?? null,
-      hasPoseSummary: Boolean(input.poseSummary?.trim()) && !poseUnreliable,
+      hasPoseSummary: poseAvailable,
       poseTracksForegroundBowlersRunUp: poseUnreliable,
+      framesProvided: imageParts.length,
     });
   }
 
   const rawResponseText = await generateContentTextWithRetryAndFallback("scoring", modelNameForTask("scoring"), {
-    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    contents: [{ role: "user", parts: [...imageParts, { text: prompt }] }],
     generationConfig: {
       responseMimeType: "application/json",
     },
   });
-  const parsed = parseJsonObject<{ scores?: unknown[] }>(rawResponseText);
+
+  let parsed: {
+    scores?: unknown[];
+    feedback?: unknown;
+    summary?: unknown;
+  } = {};
+  try {
+    parsed = parseJsonObject<{
+      scores?: unknown[];
+      feedback?: unknown;
+      summary?: unknown;
+    }>(rawResponseText);
+  } catch {
+    parsed = {};
+  }
 
   const rawScores = Array.isArray(parsed.scores) ? parsed.scores : [];
-  const normalizedScores = rawScores
-    .slice(0, 8)
-    .map((value) => (typeof value === "number" ? clampScore(value) : 0));
-
-  while (normalizedScores.length < 8) {
-    normalizedScores.push(0);
-  }
+  const scores = normalizeScores(rawScores, 8);
+  const feedback = normalizeFeedbackArray({
+    rawFeedback: parsed.feedback,
+    scores,
+    dimensions: BATTING_SCORE_DIMENSIONS,
+    poseAvailable,
+  });
+  const summary = normalizeSummary(
+    parsed.summary,
+    poseAvailable
+      ? "Technique scored from pose evidence across the stroke; review per-dimension notes for specifics."
+      : "Conservative batting scores due to missing or unreliable pose evidence — re-film with the batter clearly in frame."
+  );
 
   if (input.analysisId) {
     console.log(
@@ -525,7 +587,9 @@ Each score must be an integer from 0 to 100.`;
           tag: "analysisPipeline.gemini.response",
           analysisId: input.analysisId,
           phase: "scoring",
-          scores: normalizedScores,
+          scores,
+          feedbackCount: feedback.length,
+          summaryPreview: summary.slice(0, 160),
           rawResponseCharLength: rawResponseText.length,
         },
         null,
@@ -535,7 +599,9 @@ Each score must be an integer from 0 to 100.`;
   }
 
   return {
-    scores: normalizedScores,
+    scores,
+    feedback,
+    summary,
     rawResponseText,
   };
 }

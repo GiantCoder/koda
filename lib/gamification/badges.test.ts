@@ -68,6 +68,8 @@ describe("checkAndAwardBadges", () => {
     shotConfidence: null,
     gradeLetter: null,
     coachingTips: null,
+    technicalFeedback: null,
+    activityOverride: null,
     poseDataPath: null,
     skeletonOverlayPath: null,
     rawGeminiResponse: null,

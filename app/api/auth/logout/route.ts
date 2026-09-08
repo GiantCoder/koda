@@ -5,7 +5,23 @@ import { redis } from "@/src/lib/redis";
 const REFRESH_COOKIE_NAME = "koda_refresh_token";
 
 export async function POST(request: NextRequest) {
-  const refreshToken = request.cookies.get(REFRESH_COOKIE_NAME)?.value;
+  const cookieToken = request.cookies.get(REFRESH_COOKIE_NAME)?.value;
+
+  // Same native-client fallback as /api/auth/refresh: no cookie jar on mobile,
+  // so it sends the refresh token it's revoking in the JSON body instead.
+  let bodyRefreshToken: string | undefined;
+  if (!cookieToken) {
+    try {
+      const body = (await request.json()) as { refreshToken?: unknown };
+      if (typeof body?.refreshToken === "string") {
+        bodyRefreshToken = body.refreshToken;
+      }
+    } catch {
+      // No/invalid JSON body — nothing to revoke beyond the cookie check below.
+    }
+  }
+
+  const refreshToken = cookieToken ?? bodyRefreshToken;
   if (refreshToken) {
     const payload = await verifyRefreshToken(refreshToken);
     if (payload?.userId && payload.tokenId) {

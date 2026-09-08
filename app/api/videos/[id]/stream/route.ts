@@ -4,6 +4,7 @@ import { prisma } from "@/prisma/client";
 import { getAuthUser } from "@/lib/get-auth-user";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import { Readable } from "stream";
+import { ensureWebSafePlayback } from "@/src/lib/videos/web-safe-playback";
 
 const idParamSchema = z.object({
   id: z.string().uuid(),
@@ -54,11 +55,28 @@ export async function GET(
     );
   }
 
+  // Prefer a browser-safe remux (strips broken midstream AAC sample-rate changes).
+  // Fall back to the original object if remux fails so playback isn't hard-down.
+  let storageKey = video.storagePath;
+  try {
+    storageKey = await ensureWebSafePlayback(video.storagePath);
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        tag: "video.stream.websafeFailed",
+        videoId: id,
+        storagePath: video.storagePath,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    );
+    storageKey = video.storagePath;
+  }
+
   const range = request.headers.get("range") ?? undefined;
   const object = await storageClient.send(
     new GetObjectCommand({
       Bucket: videosBucket,
-      Key: video.storagePath,
+      Key: storageKey,
       Range: range,
     })
   );
@@ -70,12 +88,14 @@ export async function GET(
   const bodyStream =
     typeof object.Body.transformToWebStream === "function"
       ? object.Body.transformToWebStream()
-      : Readable.toWeb(object.Body as Readable) as ReadableStream;
+      : (Readable.toWeb(object.Body as Readable) as ReadableStream);
 
   const headers = new Headers({
     "Content-Type": object.ContentType ?? "video/mp4",
     "Accept-Ranges": "bytes",
+    // Short cache; playback= query also busts browsers that cached broken originals.
     "Cache-Control": "private, max-age=60",
+    "X-Koda-Playback": storageKey === video.storagePath ? "original" : "websafe",
   });
 
   if (object.ContentLength != null) {

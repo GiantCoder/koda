@@ -58,13 +58,35 @@ app.listen(port, () => {
 
 function attachWorkerErrorLogging(workerName: string, workerInstance: Worker) {
   workerInstance.on("failed", async (job: Job | undefined, error: Error) => {
-    const analysisId = (job?.data as { analysisId?: string } | undefined)?.analysisId;
+    const data = job?.data as
+      | { analysisId?: string; videoId?: string }
+      | undefined;
+    const analysisId = data?.analysisId;
     if (analysisId) {
+      // Stall / process-kill failures never enter the job processor catch, so
+      // mark the analysis FAILED here so the UI can reprocess.
+      try {
+        const { prisma } = await import("@/prisma/client");
+        await prisma.analysis.updateMany({
+          where: {
+            id: analysisId,
+            status: {
+              notIn: ["COMPLETE", "UNSUPPORTED_CONTENT"],
+            },
+          },
+          data: {
+            status: "FAILED",
+            errorMessage: error.message,
+          },
+        });
+      } catch (dbErr) {
+        console.error(`[${workerName}] failed to mark analysis FAILED`, dbErr);
+      }
       await redisPublisher.publish(
         `analysis:${analysisId}`,
         JSON.stringify({
           type: "error",
-          message: (error as Error).message,
+          message: error.message,
           code: "WORKER_FAILED",
         })
       );

@@ -11,7 +11,9 @@ import { ProcessingTimeline } from "@/app/components/analysis/ProcessingStageCar
 import {
   VideoSkeletonOverlay,
   SkeletonJointLegend,
+  OverlayLayerControls,
   useOverlayStatusText,
+  type OverlayLayerToggles,
 } from "@/app/components/video/VideoSkeletonOverlay";
 import type { PoseEstimateResponse } from "@/src/lib/analysis/mediapipe-types";
 
@@ -28,7 +30,11 @@ export default function AnalysisProcessingPage() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   const [analysisId, setAnalysisId] = useState<string | null>(null);
-  const [isOverlayEnabled, setIsOverlayEnabled] = useState(true);
+  const [overlayLayers, setOverlayLayers] = useState<OverlayLayerToggles>({
+    showVideo: true,
+    showSkeleton: true,
+    showBbox: true,
+  });
   const [poseData, setPoseData] = useState<PoseEstimateResponse | null>(null);
   const [poseDataError, setPoseDataError] = useState<string | null>(null);
   const [isPoseLoading, setIsPoseLoading] = useState(false);
@@ -99,8 +105,10 @@ export default function AnalysisProcessingPage() {
     router.push("/upload");
   }, [router]);
 
+  const poseOverlayOn =
+    (overlayLayers.showSkeleton || overlayLayers.showBbox) && Boolean(poseData);
   const overlayStatusText = useOverlayStatusText(
-    isOverlayEnabled,
+    poseOverlayOn,
     isPoseLoading,
     poseDataError,
     poseData
@@ -154,7 +162,7 @@ export default function AnalysisProcessingPage() {
   const estimatedMins = displayStatus.estimatedSecondsRemaining
     ? Math.ceil(displayStatus.estimatedSecondsRemaining / 60)
     : null;
-  const previewSrc = `/api/videos/${videoId}/stream`;
+  const previewSrc = `/api/videos/${videoId}/stream?playback=1`;
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -180,30 +188,18 @@ export default function AnalysisProcessingPage() {
             <VideoSkeletonOverlay
               videoRef={videoRef}
               poseData={poseData}
-              enabled={isOverlayEnabled && Boolean(poseData)}
-              showBbox
+              enabled={Boolean(poseData) || !overlayLayers.showVideo}
+              showVideo={overlayLayers.showVideo}
+              showSkeleton={overlayLayers.showSkeleton}
+              showBbox={overlayLayers.showBbox}
             />
             <div className="absolute right-3 top-3 flex flex-col items-end gap-2">
-              <div className="flex items-center gap-2 rounded-lg bg-black/60 px-3 py-2">
-                <span className="text-xs text-white">Skeleton + Bbox</span>
-                <button
-                  type="button"
-                  className={`relative h-5 w-10 rounded-full transition-colors ${
-                    isOverlayEnabled ? "bg-emerald-500" : "bg-[var(--surface-secondary)]"
-                  }`}
-                  role="switch"
-                  aria-checked={isOverlayEnabled}
-                  aria-label="Toggle skeleton overlay"
-                  onClick={() => setIsOverlayEnabled((current) => !current)}
-                >
-                  <span
-                    className={`absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${
-                      isOverlayEnabled ? "translate-x-5" : "translate-x-0"
-                    }`}
-                  />
-                </button>
-              </div>
-              {isOverlayEnabled && poseData ? (
+              <OverlayLayerControls
+                layers={overlayLayers}
+                onChange={setOverlayLayers}
+                poseAvailable={Boolean(poseData) && !poseDataError}
+              />
+              {overlayLayers.showSkeleton && poseData ? (
                 <div className="rounded-lg bg-black/60 px-3 py-2">
                   <SkeletonJointLegend />
                 </div>

@@ -35,8 +35,28 @@ describe("runBowlingAnalysisBranch", () => {
       noBowlerVisible: false,
       rawResponseText: "{}",
     });
+    const bowlingFeedback = [
+      "runUpRhythm",
+      "loadUp",
+      "bowlingArmAction",
+      "deliveryStride",
+      "releasePoint",
+      "followThrough",
+      "alignment",
+      "balance",
+    ].map((dimension, i) => ({
+      dimension,
+      score: 70 + i * 2,
+      diagnosis: `Diagnosis for ${dimension}`,
+      timestampSeconds: 1.1,
+      evidence: "pose cue",
+      drill: "General drill",
+      confidence: "high" as const,
+    }));
     const scoreBowlingBiomechanicsWithGemini = vi.fn().mockResolvedValue({
       scores: [70, 72, 74, 76, 78, 80, 82, 84],
+      feedback: bowlingFeedback,
+      summary: "Yorker with strong arm action and balanced finish.",
       rawResponseText: "{}",
     });
 
@@ -85,6 +105,9 @@ describe("runBowlingAnalysisBranch", () => {
     expect(buildPoseSummaryForLlm).toHaveBeenCalledTimes(1);
     expect(classifyBowlingActionWithGemini).toHaveBeenCalledTimes(1);
     expect(scoreBowlingBiomechanicsWithGemini).toHaveBeenCalledTimes(1);
+    expect(scoreBowlingBiomechanicsWithGemini).toHaveBeenCalledWith(
+      expect.objectContaining({ framesBase64: ["f1", "f2"] })
+    );
     expect(assessPoseTrackingSubject).not.toHaveBeenCalled();
     expect(maskForegroundSubjectInFrames).not.toHaveBeenCalled();
     expect(cropFramesToFarEndBatterRoi).not.toHaveBeenCalled();
@@ -99,5 +122,18 @@ describe("runBowlingAnalysisBranch", () => {
     expect(data.deliveryType).toBe("YORKER");
     expect(data.scoreRunUpRhythm).toBe(70);
     expect(data.scoreBalance).toBe(84);
+    expect(data.technicalFeedback).toEqual(bowlingFeedback);
+    expect(data.coachingTips).toEqual([
+      {
+        type: "summary",
+        title: expect.stringContaining("yorker"),
+        description: "Yorker with strong arm action and balanced finish.",
+      },
+    ]);
+    const raw = data.rawGeminiResponse as {
+      bowlingScoring: { feedback: unknown; summary: string };
+    };
+    expect(raw.bowlingScoring.feedback).toEqual(bowlingFeedback);
+    expect(raw.bowlingScoring.summary).toContain("Yorker");
   });
 });

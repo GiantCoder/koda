@@ -2,7 +2,6 @@ import { calculateBowlingGrade } from "@/src/lib/grading";
 import { classifyBowlingActionWithGemini } from "@/src/lib/llm/bowlingClassification";
 import { scoreBowlingBiomechanicsWithGemini } from "@/src/lib/llm/bowlingScoring";
 import { formatDeliveryType } from "@/src/lib/cricket/bowling-types";
-import { buildBowlingCoachingFeedbackFromScores } from "@/src/lib/analysis/coaching-feedback";
 import {
   estimatePoseFromFrames,
   MEDIAPIPE_FRAMES_PER_BATCH,
@@ -200,18 +199,13 @@ export async function runBowlingAnalysisBranch(
     deliveryType: bowlingClassification.deliveryType,
     durationSeconds: input.durationSeconds,
     poseSummary,
+    framesBase64,
     analysisId,
   });
 
   const bowlingScores = bowlingScoring.scores;
   const bowlingGrade = calculateBowlingGrade(bowlingClassification.deliveryType, bowlingScores);
   const deliveryLabel = formatDeliveryType(bowlingClassification.deliveryType).toLowerCase();
-  const bowlingCoaching = buildBowlingCoachingFeedbackFromScores(deliveryLabel, {
-    runUpRhythm: bowlingScores[0] ?? 75,
-    bowlingArmAction: bowlingScores[2] ?? 75,
-    releasePoint: bowlingScores[4] ?? 75,
-    balance: bowlingScores[7] ?? 75,
-  });
 
   const processingMs = Date.now() - input.pipelineStart;
 
@@ -234,11 +228,12 @@ export async function runBowlingAnalysisBranch(
       scoreFollowThrough: bowlingScores[5],
       scoreAlignment: bowlingScores[6],
       scoreBalance: bowlingScores[7],
+      technicalFeedback: bowlingScoring.feedback,
       coachingTips: [
         {
           type: "summary",
           title: `${bowlingGrade.letter} — ${deliveryLabel}`,
-          description: bowlingCoaching,
+          description: bowlingScoring.summary,
         },
       ],
       rawGeminiResponse: {
@@ -253,6 +248,8 @@ export async function runBowlingAnalysisBranch(
         bowlingScoring: {
           text: bowlingScoring.rawResponseText,
           scores: bowlingScoring.scores,
+          feedback: bowlingScoring.feedback,
+          summary: bowlingScoring.summary,
         },
         mediapipe: posePayload
           ? {

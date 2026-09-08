@@ -137,6 +137,11 @@ export async function POST(request: NextRequest) {
   });
   await redis.set(`refresh:${user.id}:${tokenId}`, "1", "EX", REFRESH_TTL_SECONDS);
 
+  // See app/api/auth/login/route.ts for why: no cookie jar on native clients,
+  // so they get the refresh token back in the body instead when they
+  // identify themselves with this header. Web (cookie-only) is unchanged.
+  const isMobileClient = request.headers.get("x-koda-client") === "mobile";
+
   const response = NextResponse.json(
     {
       user: {
@@ -149,6 +154,7 @@ export async function POST(request: NextRequest) {
       },
       accessToken,
       expiresIn: 900,
+      ...(isMobileClient ? { refreshToken } : {}),
     },
     { status: 201 }
   );

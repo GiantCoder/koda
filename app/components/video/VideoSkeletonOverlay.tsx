@@ -159,6 +159,9 @@ interface VideoSkeletonOverlayProps {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   poseData: PoseEstimateResponse | null;
   enabled: boolean;
+  /** When true with an active overlay, paint the current video frame under skeleton/bbox. */
+  showVideo?: boolean;
+  showSkeleton?: boolean;
   showBbox?: boolean;
   className?: string;
 }
@@ -167,14 +170,18 @@ export function VideoSkeletonOverlay({
   videoRef,
   poseData,
   enabled,
+  showVideo = true,
+  showSkeleton = true,
   showBbox = true,
   className = "",
 }: VideoSkeletonOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  // Canvas must run whenever video is hidden (mask the element) or pose layers are on.
+  const overlayActive = enabled && (showSkeleton || showBbox || !showVideo);
 
   useEffect(() => {
-    if (!enabled || !poseData || !videoRef.current || !canvasRef.current) {
-      const ctx = canvasRef.current?.getContext("2d");
+    if (!overlayActive || !videoRef.current || !canvasRef.current) {
+      const ctx = canvasRef.current?.getContext("2d", { alpha: true });
       const canvas = canvasRef.current;
       if (ctx && canvas) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -184,8 +191,9 @@ export function VideoSkeletonOverlay({
 
     const videoEl = videoRef.current;
     const canvasEl = canvasRef.current;
-    const ctx = canvasEl.getContext("2d");
+    const ctx = canvasEl.getContext("2d", { alpha: true });
     if (!ctx) return;
+    canvasEl.style.backgroundColor = "transparent";
 
     let rafId = 0;
     const dpr = window.devicePixelRatio || 1;
@@ -213,7 +221,23 @@ export function VideoSkeletonOverlay({
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, contentWidth, contentHeight);
 
-      const frame = findNearestPoseFrame(poseData.landmarks, videoEl.currentTime);
+      // Composite the video onto the canvas so pose layers never obscure it with an
+      // opaque canvas backing store. When Video is off, fill black instead.
+      if (showVideo && videoEl.readyState >= 2) {
+        try {
+          ctx.drawImage(videoEl, 0, 0, contentWidth, contentHeight);
+        } catch {
+          // drawImage can throw if the frame isn't available yet
+        }
+      } else if (!showVideo) {
+        ctx.fillStyle = "#000";
+        ctx.fillRect(0, 0, contentWidth, contentHeight);
+      }
+
+      const frame =
+        poseData && (showSkeleton || showBbox)
+          ? findNearestPoseFrame(poseData.landmarks, videoEl.currentTime)
+          : null;
       if (!frame) {
         rafId = window.requestAnimationFrame(drawFrame);
         return;
@@ -226,7 +250,7 @@ export function VideoSkeletonOverlay({
 
       const normalizedBbox = showBbox ? bboxFromFrameLandmarks(frame) : null;
       const legacyPixelBbox =
-        showBbox && !normalizedBbox && isValidBbox(poseData.batsman_bbox)
+        showBbox && !normalizedBbox && isValidBbox(poseData?.batsman_bbox)
           ? poseData.batsman_bbox
           : null;
 
@@ -260,93 +284,100 @@ export function VideoSkeletonOverlay({
         ctx.fillText("Tracked subject", bx + 4, Math.max(12, by - 4));
       }
 
-      ctx.lineWidth = 1.75;
-      ctx.strokeStyle = "rgba(16, 185, 129, 0.9)";
+      if (showSkeleton) {
+        ctx.lineWidth = 1.75;
+        ctx.strokeStyle = "rgba(16, 185, 129, 0.9)";
 
-      for (const [from, to] of POSE_CONNECTIONS) {
-        const fromPoint = frame.keypoints[from];
-        const toPoint = frame.keypoints[to];
-        if (!fromPoint || !toPoint) continue;
-        if (fromPoint.visibility < 0.2 || toPoint.visibility < 0.2) continue;
-        const p1 = mapPoint(fromPoint);
-        const p2 = mapPoint(toPoint);
-        ctx.beginPath();
-        ctx.moveTo(p1.x, p1.y);
-        ctx.lineTo(p2.x, p2.y);
-        ctx.stroke();
-      }
-
-      Object.entries(frame.keypoints).forEach(([name, kp]) => {
-        if (kp.visibility < 0.25) return;
-        const p = mapPoint(kp);
-        const radius =
-          name === "leftWrist" || name === "rightWrist" ? WRIST_RADIUS : JOINT_RADIUS;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
-        ctx.fillStyle = JOINT_COLOUR_BY_NAME[name] ?? JOINT_STYLE.knees.color;
-        ctx.fill();
-      });
-
-      // Wrist velocity vectors
-      const WRIST_JOINTS = ["leftWrist", "rightWrist"] as const;
-      const nextFrame = findNearestPoseFrame(poseData.landmarks, videoEl.currentTime + 0.15);
-      if (nextFrame) {
-        for (const joint of WRIST_JOINTS) {
-          const currKp = frame.keypoints[joint];
-          const nextKp = nextFrame.keypoints[joint];
-          if (!currKp || !nextKp) continue;
-          if (currKp.visibility < 0.25 || nextKp.visibility < 0.25) continue;
-
-          const p1 = mapPoint(currKp);
-          const p2 = mapPoint(nextKp);
-          const dx = p2.x - p1.x;
-          const dy = p2.y - p1.y;
-          const magnitude = Math.sqrt(dx * dx + dy * dy);
-          if (magnitude < 3) continue;
-
-          const angle = Math.atan2(dy, dx);
-          const displayLen = Math.min(36, Math.max(10, magnitude * 2.5));
-          const arrowX = p1.x + Math.cos(angle) * displayLen;
-          const arrowY = p1.y + Math.sin(angle) * displayLen;
-
-          ctx.save();
-          ctx.strokeStyle = JOINT_STYLE.wrists.color;
-          ctx.fillStyle = JOINT_STYLE.wrists.color;
-          ctx.lineWidth = 2;
-
+        for (const [from, to] of POSE_CONNECTIONS) {
+          const fromPoint = frame.keypoints[from];
+          const toPoint = frame.keypoints[to];
+          if (!fromPoint || !toPoint) continue;
+          if (fromPoint.visibility < 0.2 || toPoint.visibility < 0.2) continue;
+          const p1 = mapPoint(fromPoint);
+          const p2 = mapPoint(toPoint);
           ctx.beginPath();
           ctx.moveTo(p1.x, p1.y);
-          ctx.lineTo(arrowX, arrowY);
+          ctx.lineTo(p2.x, p2.y);
           ctx.stroke();
+        }
 
-          const headLen = 7;
+        Object.entries(frame.keypoints).forEach(([name, kp]) => {
+          if (kp.visibility < 0.25) return;
+          const p = mapPoint(kp);
+          const radius =
+            name === "leftWrist" || name === "rightWrist" ? WRIST_RADIUS : JOINT_RADIUS;
           ctx.beginPath();
-          ctx.moveTo(arrowX, arrowY);
-          ctx.lineTo(
-            arrowX - headLen * Math.cos(angle - 0.45),
-            arrowY - headLen * Math.sin(angle - 0.45)
-          );
-          ctx.lineTo(
-            arrowX - headLen * Math.cos(angle + 0.45),
-            arrowY - headLen * Math.sin(angle + 0.45)
-          );
-          ctx.closePath();
+          ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+          ctx.fillStyle = JOINT_COLOUR_BY_NAME[name] ?? JOINT_STYLE.knees.color;
           ctx.fill();
-          ctx.restore();
+        });
+
+        // Wrist velocity vectors
+        const WRIST_JOINTS = ["leftWrist", "rightWrist"] as const;
+        const nextFrame = findNearestPoseFrame(
+          poseData?.landmarks ?? [],
+          videoEl.currentTime + 0.15
+        );
+        if (nextFrame) {
+          for (const joint of WRIST_JOINTS) {
+            const currKp = frame.keypoints[joint];
+            const nextKp = nextFrame.keypoints[joint];
+            if (!currKp || !nextKp) continue;
+            if (currKp.visibility < 0.25 || nextKp.visibility < 0.25) continue;
+
+            const p1 = mapPoint(currKp);
+            const p2 = mapPoint(nextKp);
+            const dx = p2.x - p1.x;
+            const dy = p2.y - p1.y;
+            const magnitude = Math.sqrt(dx * dx + dy * dy);
+            if (magnitude < 3) continue;
+
+            const angle = Math.atan2(dy, dx);
+            const displayLen = Math.min(36, Math.max(10, magnitude * 2.5));
+            const arrowX = p1.x + Math.cos(angle) * displayLen;
+            const arrowY = p1.y + Math.sin(angle) * displayLen;
+
+            ctx.save();
+            ctx.strokeStyle = JOINT_STYLE.wrists.color;
+            ctx.fillStyle = JOINT_STYLE.wrists.color;
+            ctx.lineWidth = 2;
+
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(arrowX, arrowY);
+            ctx.stroke();
+
+            const headLen = 7;
+            ctx.beginPath();
+            ctx.moveTo(arrowX, arrowY);
+            ctx.lineTo(
+              arrowX - headLen * Math.cos(angle - 0.45),
+              arrowY - headLen * Math.sin(angle - 0.45)
+            );
+            ctx.lineTo(
+              arrowX - headLen * Math.cos(angle + 0.45),
+              arrowY - headLen * Math.sin(angle + 0.45)
+            );
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+          }
         }
       }
 
-      ctx.save();
-      ctx.font = "10px system-ui, monospace, sans-serif";
-      ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
-      ctx.fillRect(4, contentHeight - 24, 170, 20);
-      ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
-      ctx.fillText(
-        `pose conf: ${(frame.poseConfidence * 100).toFixed(0)}%  f:${frame.frameIndex}  t:${frame.timestamp.toFixed(2)}s`,
-        8,
-        contentHeight - 10
-      );
-      ctx.restore();
+      if (showSkeleton || showBbox) {
+        ctx.save();
+        ctx.font = "10px system-ui, monospace, sans-serif";
+        ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
+        ctx.fillRect(4, contentHeight - 24, 170, 20);
+        ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
+        ctx.fillText(
+          `pose conf: ${(frame.poseConfidence * 100).toFixed(0)}%  f:${frame.frameIndex}  t:${frame.timestamp.toFixed(2)}s`,
+          8,
+          contentHeight - 10
+        );
+        ctx.restore();
+      }
 
       rafId = window.requestAnimationFrame(drawFrame);
     };
@@ -356,16 +387,74 @@ export function VideoSkeletonOverlay({
       window.cancelAnimationFrame(rafId);
       ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
     };
-  }, [enabled, poseData, showBbox, videoRef]);
+  }, [overlayActive, poseData, showBbox, showSkeleton, showVideo, videoRef]);
 
   return (
     <canvas
       ref={canvasRef}
-      className={`pointer-events-none absolute transition-opacity ${
-        enabled ? "opacity-100" : "opacity-0"
+      className={`pointer-events-none absolute bg-transparent transition-opacity ${
+        overlayActive ? "opacity-100" : "opacity-0"
       } ${className}`}
       aria-hidden="true"
     />
+  );
+}
+
+export interface OverlayLayerToggles {
+  showVideo: boolean;
+  showSkeleton: boolean;
+  showBbox: boolean;
+}
+
+interface OverlayLayerControlsProps {
+  layers: OverlayLayerToggles;
+  onChange: (next: OverlayLayerToggles) => void;
+  poseAvailable?: boolean;
+}
+
+/** Compact checkboxes for video / skeleton / bbox layers over the player. */
+export function OverlayLayerControls({
+  layers,
+  onChange,
+  poseAvailable = true,
+}: OverlayLayerControlsProps) {
+  const toggle = (key: keyof OverlayLayerToggles) => {
+    onChange({ ...layers, [key]: !layers[key] });
+  };
+
+  const options: Array<{ key: keyof OverlayLayerToggles; label: string; disabled?: boolean }> = [
+    { key: "showVideo", label: "Video" },
+    { key: "showSkeleton", label: "Skeleton", disabled: !poseAvailable },
+    { key: "showBbox", label: "Bbox", disabled: !poseAvailable },
+  ];
+
+  return (
+    <div
+      className="rounded-lg bg-black/60 px-3 py-2"
+      role="group"
+      aria-label="Overlay layers"
+    >
+      <ul className="flex flex-col gap-1.5">
+        {options.map(({ key, label, disabled }) => (
+          <li key={key}>
+            <label
+              className={`flex cursor-pointer items-center gap-2 text-xs text-white ${
+                disabled ? "cursor-not-allowed opacity-50" : ""
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={layers[key]}
+                disabled={disabled}
+                onChange={() => toggle(key)}
+                className="h-3.5 w-3.5 rounded border-white/40 bg-transparent text-emerald-500 focus:ring-emerald-500 focus:ring-offset-0"
+              />
+              <span>{label}</span>
+            </label>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

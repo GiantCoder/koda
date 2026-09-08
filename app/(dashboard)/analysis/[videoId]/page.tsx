@@ -7,9 +7,15 @@ import { Card, CardContent } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 import { ShotGradeCard } from "@/app/components/analysis/ShotGradeCard";
 import { CoachingTipsPanel, type CoachingTip } from "@/app/components/analysis/CoachingTipsPanel";
+import {
+  ReprocessActivityButton,
+  shouldOfferReprocessAsBatting,
+  shouldOfferReprocessAsBowling,
+} from "@/app/components/analysis/ReprocessActivityButton";
 import { TagStrip, type ShotTag } from "@/app/components/analysis/TagStrip";
 import { TechniqueRadarChart, type RadarDataPoint } from "@/app/components/analysis/TechniqueRadarChart";
 import FrameGallery from "@/src/components/analysis/FrameGallery";
+import TechnicalFeedbackPanel from "@/src/components/analysis/TechnicalFeedbackPanel";
 import AnnotationPanel, {
   type Annotation,
 } from "@/src/components/analysis/AnnotationPanel";
@@ -23,10 +29,16 @@ import { buildMockAuthHeaders } from "@/app/lib/mock-auth-headers";
 import {
   VideoSkeletonOverlay,
   SkeletonJointLegend,
+  OverlayLayerControls,
   useOverlayStatusText,
+  type OverlayLayerToggles,
 } from "@/app/components/video/VideoSkeletonOverlay";
 import type { PoseEstimateResponse } from "@/src/lib/analysis/mediapipe-types";
 import { formatBowlingDeliveryLabel } from "@/src/lib/cricket/bowling-types";
+import {
+  parseTechnicalFeedback,
+  type TechniqueFeedbackItem,
+} from "@/src/types/technical-feedback";
 
 interface AnalysisResult {
   id: string;
@@ -55,6 +67,7 @@ interface AnalysisResult {
   scoreReleasePoint?: number | null;
   scoreAlignment?: number | null;
   coachingTips: unknown;
+  technicalFeedback?: TechniqueFeedbackItem[] | null;
   activityType?: string | null;
   activityConfidence?: number | null;
   rejectionReason?: string | null;
@@ -234,7 +247,11 @@ export default function AnalysisResultsPage() {
   const [error, setError] = useState<string | null>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isOverlayEnabled, setIsOverlayEnabled] = useState(true);
+  const [overlayLayers, setOverlayLayers] = useState<OverlayLayerToggles>({
+    showVideo: true,
+    showSkeleton: true,
+    showBbox: true,
+  });
   const [poseData, setPoseData] = useState<PoseEstimateResponse | null>(null);
   const [poseDataError, setPoseDataError] = useState<string | null>(null);
   const [isPoseLoading, setIsPoseLoading] = useState(false);
@@ -468,8 +485,10 @@ export default function AnalysisResultsPage() {
         ? "parent"
         : "player";
 
+  const poseOverlayOn =
+    (overlayLayers.showSkeleton || overlayLayers.showBbox) && !poseDataError;
   const overlayStatusText = useOverlayStatusText(
-    isOverlayEnabled,
+    poseOverlayOn,
     isPoseLoading,
     poseDataError,
     poseData
@@ -598,6 +617,7 @@ export default function AnalysisResultsPage() {
       ].filter((m) => m.value > 0);
 
   const tips = parseCoachingTips(analysis.coachingTips);
+  const technicalFeedback = parseTechnicalFeedback(analysis.technicalFeedback) ?? [];
   const defaultTips: CoachingTip[] = tips.length > 0 ? tips : isBowling
     ? [
         { title: "Solid Run-Up", body: "Your approach into the crease looked controlled.", type: "strength" },
@@ -609,6 +629,35 @@ export default function AnalysisResultsPage() {
         { title: "Watch Your Head Position", body: "Try to keep your head more still over the ball for better balance.", type: "improvement" },
         { title: "Practice Recommendation", body: "Focus on drills that emphasize keeping the head still during front-foot drives.", type: "recommendation" },
       ];
+
+  const tipTexts = defaultTips.flatMap((t) => [t.body, t.description ?? ""]);
+  const offerBattingReprocess = shouldOfferReprocessAsBatting({
+    activityType: analysis.activityType,
+    tipTexts,
+    overlayStatusText,
+  });
+  const offerBowlingReprocess = shouldOfferReprocessAsBowling({
+    activityType: analysis.activityType,
+  });
+  const reprocessActions =
+    offerBattingReprocess || offerBowlingReprocess ? (
+      <span className="inline-flex flex-wrap items-start gap-2">
+        {offerBattingReprocess ? (
+          <ReprocessActivityButton
+            analysisId={analysis.id}
+            user={user}
+            forceActivity="BATTING"
+          />
+        ) : null}
+        {offerBowlingReprocess ? (
+          <ReprocessActivityButton
+            analysisId={analysis.id}
+            user={user}
+            forceActivity="BOWLING"
+          />
+        ) : null}
+      </span>
+    ) : null;
 
   const tags = deriveTags(analysis);
   const radarData = deriveRadarData(analysis);
@@ -648,7 +697,9 @@ export default function AnalysisResultsPage() {
   const resolution = analysis.video?.resolutionWidth && analysis.video?.resolutionHeight
     ? `${analysis.video.resolutionWidth}p`
     : "1080p";
-  const previewSrc = `/api/videos/${analysis.videoId}/stream`;
+  // playback=1 selects the web-safe remux (avoids Chromium MEDIA_ERR_DECODE on
+  // iPhone clips with midstream AAC sample-rate changes) and busts any cached original.
+  const previewSrc = `/api/videos/${analysis.videoId}/stream?playback=1`;
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -797,30 +848,18 @@ export default function AnalysisResultsPage() {
                 <VideoSkeletonOverlay
                   videoRef={videoRef}
                   poseData={poseData}
-                  enabled={isOverlayEnabled && !poseDataError}
-                  showBbox
+                  enabled={!poseDataError || !overlayLayers.showVideo}
+                  showVideo={overlayLayers.showVideo}
+                  showSkeleton={overlayLayers.showSkeleton && !poseDataError}
+                  showBbox={overlayLayers.showBbox && !poseDataError}
                 />
                 <div className="absolute right-3 top-3 flex flex-col items-end gap-2">
-                  <div className="flex items-center gap-2 rounded-lg bg-black/60 px-3 py-2">
-                    <span className="text-xs text-white">Skeleton + Bbox</span>
-                    <button
-                      type="button"
-                      className={`relative h-5 w-10 rounded-full transition-colors ${
-                        isOverlayEnabled ? "bg-emerald-500" : "bg-[var(--surface-secondary)]"
-                      }`}
-                      role="switch"
-                      aria-checked={isOverlayEnabled}
-                      aria-label="Toggle skeleton overlay"
-                      onClick={() => setIsOverlayEnabled((current) => !current)}
-                    >
-                      <span
-                        className={`absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${
-                          isOverlayEnabled ? "translate-x-5" : "translate-x-0"
-                        }`}
-                      />
-                    </button>
-                  </div>
-                  {isOverlayEnabled && !poseDataError ? (
+                  <OverlayLayerControls
+                    layers={overlayLayers}
+                    onChange={setOverlayLayers}
+                    poseAvailable={!poseDataError && Boolean(poseData)}
+                  />
+                  {overlayLayers.showSkeleton && !poseDataError ? (
                     <div className="rounded-lg bg-black/60 px-3 py-2">
                       <SkeletonJointLegend />
                     </div>
@@ -838,8 +877,17 @@ export default function AnalysisResultsPage() {
                   {resolution}
                 </span>
                 {overlayStatusText ? (
-                  <span className="rounded-full bg-[var(--surface-secondary)] px-3 py-1 text-xs text-[var(--text-secondary)]">
-                    {overlayStatusText}
+                  <span className="inline-flex max-w-full flex-wrap items-center gap-2">
+                    <span className="rounded-full bg-[var(--surface-secondary)] px-3 py-1 text-xs text-[var(--text-secondary)]">
+                      {overlayStatusText}
+                    </span>
+                    {offerBattingReprocess ? (
+                      <ReprocessActivityButton
+                        analysisId={analysis.id}
+                        user={user}
+                        forceActivity="BATTING"
+                      />
+                    ) : null}
                   </span>
                 ) : null}
               </div>
@@ -878,7 +926,24 @@ export default function AnalysisResultsPage() {
             onError={(message) => showToast(message, "error")}
           />
 
-          <CoachingTipsPanel tips={defaultTips} />
+          <CoachingTipsPanel
+            tips={defaultTips}
+            action={reprocessActions}
+          />
+          {technicalFeedback.length > 0 ? (
+            <TechnicalFeedbackPanel
+              items={technicalFeedback}
+              analysisId={analysis.id}
+              onSeek={(timestampSeconds) => {
+                if (videoRef.current) {
+                  videoRef.current.currentTime = timestampSeconds;
+                  void videoRef.current.play().catch(() => {
+                    /* autoplay may be blocked; seek still applied */
+                  });
+                }
+              }}
+            />
+          ) : null}
           <TagStrip tags={tags} />
 
           {/* Debug panel — classification evidence from Gemini */}

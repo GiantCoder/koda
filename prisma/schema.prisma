@@ -271,6 +271,8 @@ model Analysis {
   playerDeclaredShotHints Json?
   /// Activity detected by the vision gate (BATTING | BOWLING | FIELDING | GYM | UNCLEAR)
   activityType        String?
+  /// Coach/user override for reprocessing (e.g. "BATTING") — forces that pipeline branch.
+  activityOverride    String?
   /// Confidence score from activity gate (0.0–1.0)
   activityConfidence  Float?
   /// Human-readable reason shown on the UI when activityType !== BATTING
@@ -280,6 +282,8 @@ model Analysis {
   frameManifest        Json?
   skeletonOverlayPath  String?
   coachingTips        Json?
+  /// Per-dimension grounded feedback from Gemini scoring: TechniqueFeedbackItem[] (batting or bowling; discriminate via activityType).
+  technicalFeedback   Json?
   rawGeminiResponse   Json?
   rawOpenAiResponse   Json?
   analysisVersion     String         @default("1.0")
