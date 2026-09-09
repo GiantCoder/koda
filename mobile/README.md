@@ -439,3 +439,126 @@ Phase 6 scoping decisions:
 - **Single aggregate grade-trend line**, not web's per-category breakdown
   chart -- reuses Phase 4's `TrendLineChart` component as-is rather than
   building a second charting component for one screen.
+
+## Screens (Phase 7)
+
+The stretch surface area from the roadmap: Leagues, Gamification
+("Achievements"), Collections ("Saved"), Player Card customization, Shadow
+Batting, Explore, and a minimal Clubs view. Unlike every prior phase, most
+of this area turned out to be **genuinely real end-to-end already** --
+Phase 7's research was less "find the mock" and more "find out what's
+real, what's missing entirely, and what doesn't actually fit on a phone."
+None of these are tabs: they're reached from a new "More" section of quick
+links on the Dashboard (same root-level-stack-screen pattern as
+Notifications and Squads) -- a 7th+ tab wasn't worth it.
+
+- **Leagues** (`leagues`, `leagues/[leagueId]`, `leagues/global`) is fully
+  real: points are genuinely awarded to every league you belong to on each
+  completed analysis, ranks are recalculated on a cron, and any
+  authenticated user (not just coaches) can create a custom league and get
+  a join code to share. The "Koda Global" age-group leaderboard is
+  real but **browse-only** on mobile -- the system league does have a
+  join code, but nothing in the backend ever surfaces it to a user, and
+  completing an analysis only awards points to leagues you're *already* a
+  member of, so there's no real, discoverable way to actually join Global.
+- **Achievements** (`achievements`) surfaces `GET /api/gamification/
+  {summary,badges,points/history}` -- a fully real, tested, Prisma-backed
+  points-and-badges system where **no page anywhere in the web app calls
+  any of these three endpoints**. Points and badges have been silently
+  accumulating for every user with nothing to show them; mobile is the
+  first client to actually display this. Badge art is rendered as a
+  rarity-tier emoji rather than web's `iconKey` slugs (e.g.
+  `badge-first-touch`) -- those slugs have no matching art asset in either
+  codebase, just a naming convention, so a real icon set needs designing
+  regardless of platform.
+- **Saved** (`saved`, `saved/[id]`) is web's "Saved" nav item, confirmed to
+  literally *be* the Collections backend (not a separate bookmarking
+  layer) -- full CRUD, clip management, and sharing, all real. A "Save to
+  Collection" button was added to the Phase 4 analysis results screen
+  (the natural point where a `videoId` is already in hand) so clips can
+  actually get into a collection from somewhere. Since the backend has no
+  generic "search all users" endpoint, the share picker is scoped to
+  whoever a role already has a real contact list for: coach/admin share
+  with their roster, everyone else shares with their coach (reusing Phase
+  6's `getMyCoaches()`).
+- **Player Card editor** (`player-card/edit`, linked from Profile)
+  resolves the customization Phase 2 explicitly deferred: real display
+  name/tier/role/icon/stats editing and a real profile-photo upload, both
+  against genuine, working endpoints (`PUT /api/player-card`,
+  `POST /api/player-card/upload-image`). **Not wrapped**: AI-generated
+  backgrounds (`POST /api/player-card/generate-background`). It's real on
+  the backend (a genuine Claude call), but returns a raw CSS `background`
+  shorthand string -- arbitrary layered gradients meant for a web `<div>`'s
+  style -- and React Native has no CSS background-shorthand support at
+  all. Reliably parsing arbitrary AI-generated gradient CSS into
+  `expo-linear-gradient` props isn't a small additive change, so mobile
+  offers DEFAULT and UPLOAD (photo) background modes only; AI backgrounds
+  stay web-only until there's a real native rendering path.
+- **Shadow Batting** (`shadow-batting`) is the one genuinely new native
+  capability this phase needed. Web records via `getUserMedia` +
+  `MediaRecorder` with a prep-countdown then duration-countdown overlay;
+  mobile's equivalent adds `expo-camera` (a new dependency -- the app's
+  first camera-preview/recording library, distinct from
+  `expo-image-picker`'s pick-or-capture-then-hand-off flow) and reproduces
+  the same two-stage countdown UX with a live front-camera preview.
+  Uploads go through `POST /api/shadow-batting/upload`, which deliberately
+  reuses the **exact same** `Video`/`Analysis`/BullMQ pipeline as a normal
+  upload -- so once queued, the existing Phase 3/4 processing and results
+  screens handle it with zero changes.
+- **Explore** (`explore`, `explore/[id]`) was built per the user's explicit
+  decision to match web's current behavior rather than withhold it -- see
+  the safety flag below. No thumbnails are shown anywhere: `thumbnail`
+  URLs point at `/api/videos/[id]/thumbnail`, which doesn't exist as a
+  route anywhere in this codebase, web included (a pre-existing dead
+  reference). Tapping into a clip only shows a real video player when
+  you're the uploader; `/api/videos/[id]/stream` enforces owner-only
+  access in production, so every other clip renders as coaching-detail
+  metadata with a plain explanation instead of a broken video player.
+- **Clubs** (`clubs`) is deliberately minimal, per the user's decision plus
+  a real constraint found afterward: `GET /api/clubs` is coach/admin-only
+  with no equivalent for players or parents at all (a player's club is
+  only ever inferred by matching free-text names, never exposed to the
+  player themselves) -- so this screen only does anything for coach/admin,
+  and says so plainly for everyone else rather than showing an empty
+  screen. It's also read-only aggregate counts, not a member list: the
+  real endpoint only returns seniors/juniors/playersCoached/
+  sessionsThisMonth per club, not an actual roster. `stats.averageRating`
+  (the same fabricated per-player-id hash already skipped on Phase 6's
+  Squads screen) is dropped here too.
+
+**A real safeguarding-relevant gap, found and handled the same way as
+Phase 5's messaging gap**: Explore's two backend routes have no auth check
+at all -- neither calls `getAuthUser`. The `Video` model has no
+visibility/consent field whatsoever, so the moment any user's uploaded
+video finishes analysis, its metadata (filename, grade, shot type,
+uploader's real name, and on the detail route, the full coaching-tips
+text) becomes publicly readable by anyone, logged in or not. Given this
+product's users include junior cricketers, that's a real, unconsented
+data exposure, not just a UX gap. Presented this to the user explicitly
+before building; their decision (this time **not** matching the
+"Recommended, don't extend it" option): **build Explore on mobile matching
+web's current behavior as-is**. Two things soften the actual blast radius
+in practice -- `/api/videos/[id]/stream` genuinely enforces owner-only
+access in production (so exposed metadata can't be turned into exposed
+video playback for anyone but the uploader), and the referenced
+thumbnails are dead links everywhere already -- but the metadata leak
+itself is real and unchanged by mobile shipping this. **Flagged for the
+team, independent of mobile**, same as the Phase 5 gap: this needs either
+a real auth check plus a visibility/consent field, or an explicit product
+decision that Explore is meant to be fully public.
+
+**A second real backend gap found this phase**: `GET /api/team/players`
+being `SquadMember`-derived (see Phase 6) means a coach's roster and the
+Clubs `GET /api/clubs` endpoint's player counts can silently diverge from
+reality in the same way -- not a new issue, just the same shape recurring.
+No action taken here; noted for whoever picks up that earlier flag.
+
+Also added this phase: `expo-camera` as a new dependency (Shadow
+Batting's live preview + recording), with matching
+`NSCameraUsageDescription`/`NSMicrophoneUsageDescription` reuse on iOS and
+a new Android permission plugin entry in `app.json`.
+
+Verification note: unlike every prior phase, `npx expo export -p web`
+**completed successfully** this time (no sandbox timeout), bundling all
+15 new Phase 7 routes cleanly alongside the existing app --
+`npx tsc --noEmit` is also clean.

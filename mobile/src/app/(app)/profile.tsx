@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { router } from "expo-router";
 import { useAppSelector } from "@/store/hooks";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -189,7 +190,17 @@ export default function ProfileScreen() {
             {cardLoading ? (
               <ActivityIndicator className="py-6" />
             ) : playerCard ? (
-              <PlayerCardCompact card={playerCard} />
+              <>
+                <PlayerCardCompact card={playerCard} />
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="mt-4"
+                  onPress={() => router.push("/player-card/edit")}
+                >
+                  Edit Card
+                </Button>
+              </>
             ) : (
               <Text className="text-sm text-text-secondary">
                 Your player card will appear here after your first completed analysis.

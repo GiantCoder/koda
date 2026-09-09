@@ -1,11 +1,18 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { RefreshControl, ScrollView, Text, View } from "react-native";
+import { Modal, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { BackBar } from "@/components/ui/BackBar";
+import { Input } from "@/components/ui/Input";
+import {
+  getCollections,
+  createCollection,
+  addClipToCollection,
+  type CollectionSummary,
+} from "@/api/collections";
 import { useAppSelector } from "@/store/hooks";
 import { getAccessToken } from "@/api/tokenStore";
 import { API_BASE_URL } from "@/api/client";
@@ -154,6 +161,61 @@ export default function AnalysisResultsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [saveVisible, setSaveVisible] = useState(false);
+  const [savedCollectionIds, setSavedCollectionIds] = useState<Set<string>>(new Set());
+  const [collections, setCollections] = useState<CollectionSummary[] | null>(null);
+  const [savingToId, setSavingToId] = useState<string | null>(null);
+  const [newCollectionName, setNewCollectionName] = useState("");
+  const [creatingCollection, setCreatingCollection] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const openSaveModal = useCallback(async () => {
+    setSaveError(null);
+    setSaveVisible(true);
+    if (collections === null) {
+      try {
+        setCollections(await getCollections());
+      } catch {
+        setCollections([]);
+      }
+    }
+  }, [collections]);
+
+  const handleSaveToCollection = useCallback(
+    async (collectionId: string) => {
+      if (!videoId) return;
+      setSavingToId(collectionId);
+      setSaveError(null);
+      try {
+        await addClipToCollection(collectionId, videoId);
+        setSavedCollectionIds((prev) => new Set(prev).add(collectionId));
+      } catch (e) {
+        setSaveError(e instanceof ApiError ? e.message : "Failed to save clip");
+      } finally {
+        setSavingToId(null);
+      }
+    },
+    [videoId]
+  );
+
+  const handleCreateAndSave = useCallback(async () => {
+    const name = newCollectionName.trim();
+    if (!name || !videoId) return;
+    setCreatingCollection(true);
+    setSaveError(null);
+    try {
+      const created = await createCollection({ name });
+      setCollections((prev) => [{ ...created, clipCount: 0, shareCount: 0, ownerId: "", ownerName: "", canEdit: true, isSharedWithMe: false, thumbnails: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }, ...(prev ?? [])]);
+      await addClipToCollection(created.id, videoId);
+      setSavedCollectionIds((prev) => new Set(prev).add(created.id));
+      setNewCollectionName("");
+    } catch (e) {
+      setSaveError(e instanceof ApiError ? e.message : "Failed to create collection");
+    } finally {
+      setCreatingCollection(false);
+    }
+  }, [newCollectionName, videoId]);
+
   const load = useCallback(async () => {
     if (!videoId) return;
     setError(null);
@@ -258,9 +320,14 @@ export default function AnalysisResultsScreen() {
           />
         }
       >
-        <Text className="mb-1 text-2xl font-bold text-text-primary">
-          {analysis.video?.filename?.trim() || (isBowling ? "Bowling Analysis" : "Shot Analysis")}
-        </Text>
+        <View className="mb-1 flex-row items-start justify-between">
+          <Text className="flex-1 pr-3 text-2xl font-bold text-text-primary">
+            {analysis.video?.filename?.trim() || (isBowling ? "Bowling Analysis" : "Shot Analysis")}
+          </Text>
+          <Button variant="secondary" size="sm" onPress={() => void openSaveModal()}>
+            Save
+          </Button>
+        </View>
         <Text className="mb-4 text-sm text-text-secondary">
           {isBowling
             ? analysis.deliveryType
@@ -312,6 +379,61 @@ export default function AnalysisResultsScreen() {
           />
         </View>
       </ScrollView>
+
+      <Modal visible={saveVisible} animationType="slide" onRequestClose={() => setSaveVisible(false)}>
+        <SafeAreaView className="flex-1 bg-surface">
+          <View className="flex-row items-center justify-between px-6 pt-4">
+            <Text className="text-xl font-bold text-text-primary">Save to Collection</Text>
+            <Button variant="ghost" size="sm" onPress={() => setSaveVisible(false)}>
+              Close
+            </Button>
+          </View>
+          <ScrollView className="flex-1 px-6 pt-4">
+            {collections === null ? (
+              <Text className="text-sm text-text-secondary">Loading…</Text>
+            ) : (
+              <View className="gap-1">
+                {collections
+                  .filter((c) => c.canEdit)
+                  .map((c) => {
+                    const saved = savedCollectionIds.has(c.id);
+                    return (
+                      <Pressable
+                        key={c.id}
+                        onPress={() => (saved ? undefined : void handleSaveToCollection(c.id))}
+                        disabled={savingToId === c.id || saved}
+                        className="flex-row items-center justify-between rounded-lg p-3"
+                      >
+                        <Text className="text-text-primary">{c.name}</Text>
+                        <Text className={`text-xs ${saved ? "text-success" : "text-primary"}`}>
+                          {saved ? "Saved ✓" : savingToId === c.id ? "Saving…" : "Save"}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                {collections.filter((c) => c.canEdit).length === 0 ? (
+                  <Text className="text-sm text-text-secondary">You don't have any collections yet.</Text>
+                ) : null}
+              </View>
+            )}
+
+            <View className="mt-4 flex-row items-end gap-2 border-t border-surface-secondary pt-4">
+              <View className="flex-1">
+                <Input
+                  label="New collection"
+                  value={newCollectionName}
+                  onChangeText={setNewCollectionName}
+                  placeholder="e.g. Best Cover Drives"
+                />
+              </View>
+              <Button onPress={() => void handleCreateAndSave()} isLoading={creatingCollection} size="md">
+                Create &amp; Save
+              </Button>
+            </View>
+            {saveError ? <Text className="mt-2 text-sm text-danger">{saveError}</Text> : null}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }

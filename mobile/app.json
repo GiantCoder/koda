@@ -45,6 +45,14 @@
           "cameraPermission": "Koda needs camera access so you can record a coaching video to upload for analysis.",
           "microphonePermission": "Koda needs microphone access to record audio with your coaching videos."
         }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Koda needs camera access to record a shadow batting session.",
+          "microphonePermission": "Koda needs microphone access to record audio with your shadow batting session.",
+          "recordAudioAndroid": false
+        }
       ]
     ],
     "experiments": {

@@ -130,7 +130,31 @@ export default function DashboardScreen() {
             ) : null}
           </CardContent>
         </Card>
+
+        <Text className="mb-2 mt-6 text-lg font-semibold text-text-primary">More</Text>
+        <View className="mb-8 flex-row flex-wrap gap-2">
+          <QuickLinkCard emoji="🏆" label="Leagues" onPress={() => router.push("/leagues")} />
+          <QuickLinkCard emoji="⭐️" label="Achievements" onPress={() => router.push("/achievements")} />
+          <QuickLinkCard emoji="📁" label="Saved" onPress={() => router.push("/saved")} />
+          <QuickLinkCard emoji="🔎" label="Explore" onPress={() => router.push("/explore")} />
+          <QuickLinkCard emoji="🎯" label="Shadow Batting" onPress={() => router.push("/shadow-batting")} />
+          {user?.role === "COACH" || user?.role === "ADMIN" ? (
+            <QuickLinkCard emoji="🏟️" label="Clubs" onPress={() => router.push("/clubs")} />
+          ) : null}
+        </View>
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function QuickLinkCard({ emoji, label, onPress }: { emoji: string; label: string; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      className="w-[31%] items-center gap-1.5 rounded-lg bg-surface-secondary py-4"
+    >
+      <Text style={{ fontSize: 22 }}>{emoji}</Text>
+      <Text className="text-center text-xs font-medium text-text-primary">{label}</Text>
+    </Pressable>
   );
 }
