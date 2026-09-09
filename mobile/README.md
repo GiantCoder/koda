@@ -5,7 +5,8 @@ backend as the web app in the parent `koda/` repo — nothing here runs its own
 server. See `../claude/koda-mobile-roadmap.md` in the project docs for the
 full phase-by-phase plan. Phase 0 (foundations), Phase 1 (auth + onboarding),
 Phase 2 (dashboard + profile/settings), Phase 3 (video upload + processing),
-and Phase 4 (analysis results + progress/trends) are all in.
+Phase 4 (analysis results + progress/trends), and Phase 5 (messaging +
+notifications) are all in.
 
 ## What's here
 
@@ -27,9 +28,11 @@ and Phase 4 (analysis results + progress/trends) are all in.
 - `src/app/index.tsx` is a gatekeeper screen: redirects to `(auth)`,
   `(onboarding)`, or `(app)` based on Redux auth/onboarding state. Every
   other screen assumes it arrived through that redirect.
-- `(app)` is a tab bar (Dashboard / Upload / Progress / Profile / Settings
-  as of Phase 4 — Progress is the newest tab) — the first bit of tab
-  navigation in the app, previously just a bare Stack.
+- `(app)` is a tab bar (Dashboard / Upload / Messages / Progress / Profile /
+  Settings as of Phase 5 — Messages is the newest tab) — the first bit of
+  tab navigation in the app, previously just a bare Stack. Notifications
+  deliberately did NOT get a tab (six felt like one too many) — it's a bell
+  icon on the dashboard instead, badged with the real unread count.
 
 ## Screens (Phase 1)
 
@@ -281,3 +284,83 @@ added for the first time, please run `npx expo start` (or your usual
 than Expo Go) yourself before relying on this -- if you're on a custom dev
 client you'll likely need a fresh native build to pick up the two new native
 modules, not just a JS reload.
+
+## Screens (Phase 5)
+
+A new Messages tab (conversation list + a `messages/[conversationId]` stack
+screen for the thread itself), and a Notifications screen (`notifications`,
+also a root-level stack screen, reached via a bell icon on the dashboard).
+
+- **Messages** lists real conversations (`GET /api/conversations`), sorted
+  by most recent activity, with an unread indicator computed from the
+  conversation's `lastReadAt` vs its last message. Tapping one opens the
+  thread (`GET`/`POST /api/conversations/[id]/messages`, polled every 4s --
+  the backend does `redis.publish` on every send, but nothing in the
+  codebase subscribes to that channel anywhere, so there's no real SSE/
+  WebSocket path to use; same "RN has no EventSource, poll instead"
+  decision as Phase 3/4). Opening a thread marks it read
+  (`PUT /api/conversations/[id]/read`).
+- **Notifications** lists real notifications (`GET /api/notifications`),
+  with mark-read (tap), mark-all-read, and delete, all hitting real,
+  ownership-checked endpoints. Badged on the dashboard's bell icon with the
+  real unread count.
+
+**The single biggest finding this phase**: web's own Messages page
+(`app/(dashboard)/messages/[[...conversationId]]/page.tsx`) is 100% mocked
+— `setTimeout()` + hardcoded conversations, "New Message" has no click
+handler, nothing is ever persisted — even though a full, real, working
+backend already exists and was simply never wired up (same pattern as
+Phase 4's Progress page). Mobile wires up the real thing directly.
+
+**A safeguarding gap worth knowing about, not just a mobile quirk**: the
+backend computes a `visibility`/`parentVisibility` flag on messages to
+minors, and web's UI displays banners claiming *"All messages with junior
+players are visible to their parents"* and *"Direct player messaging
+requires parental consent."* Neither is true today -- the flag is metadata
+only. `GuardianLink` (the real, active parent-child link model used
+elsewhere in the app) is never consulted by the messaging code: a guardian
+is never added as a participant, gets no access to anything, and there is
+no consent gate stopping a coach from 1:1-messaging a minor player
+directly. Per the user's explicit decision, mobile does **not** repeat
+web's false claim -- the thread screen shows a neutral, accurate line
+instead ("Only people in this conversation can see these messages," which
+*is* true given the participant-only RBAC on `GET /api/conversations`).
+The backend itself is intentionally unchanged this phase (beyond the small
+addition below) -- this is a real gap worth the team's attention
+independent of mobile, since it currently affects web too, just with no
+real traffic yet since web's page is mocked. Full writeup in the roadmap
+doc.
+
+One small additive backend change: sending a message
+(`POST /api/conversations/[id]/messages`) now also creates a real
+`Notification` (type `NEW_MESSAGE`) for the other participant(s) --
+previously this was a dead code path (the enum value existed, nothing ever
+created one), so the real, working notifications list would have stayed
+permanently silent for messaging. Purely additive, same spirit as earlier
+phases' small backend additions.
+
+Deliberately narrower than a "complete" messaging feature, per the user's
+scoping decisions and a real backend gap found along the way:
+- **"Start new conversation" is coach/admin-only.** The only real "who can
+  I message" list the backend exposes is `GET /api/team/players` (a
+  coach's squad, already wrapped as `getAssignablePlayers()` in Phase 3).
+  There's no reciprocal endpoint for a player or parent to discover a
+  contact (their coach), so they can view and reply to conversations a
+  coach starts, but can't start one themselves yet. A real backend gap, not
+  a design preference -- worth a small new endpoint later.
+- **No message search UI**, though `GET /api/messages/search` is real and
+  working -- deferred to keep this phase's scope focused on the core
+  conversation + notifications flow.
+- **No push notifications** -- in-app notifications list only, per the
+  user's scoping decision. `expo-notifications` device registration and
+  real backend triggers (most notably wiring `ANALYSIS_COMPLETE`, which
+  also never fires today) are a separate, bigger effort for later.
+- **No message attachments** -- `attachmentUrl`/`attachmentType` are real
+  schema columns but nothing anywhere (web included) reads or writes them.
+
+Also fixed this phase: the Phase 4 analysis results screen had no way back
+to the previous screen at all (the root Stack runs with `headerShown: false`
+app-wide, so there was no native back button, and the screen never added
+its own). Added a shared `BackBar` component
+(`src/components/ui/BackBar.tsx`) and used it on that screen plus the two
+new Phase 5 stack screens (notifications, message thread).

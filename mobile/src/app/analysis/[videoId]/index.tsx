@@ -5,6 +5,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { BackBar } from "@/components/ui/BackBar";
 import { useAppSelector } from "@/store/hooks";
 import { getAccessToken } from "@/api/tokenStore";
 import { API_BASE_URL } from "@/api/client";
@@ -201,25 +202,34 @@ export default function AnalysisResultsScreen() {
 
   if (!videoId) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-surface px-6">
-        <Text className="text-sm text-danger">No video specified.</Text>
+      <SafeAreaView className="flex-1 bg-surface" edges={["top", "left", "right"]}>
+        <BackBar />
+        <View className="flex-1 items-center justify-center px-6">
+          <Text className="text-sm text-danger">No video specified.</Text>
+        </View>
       </SafeAreaView>
     );
   }
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-surface">
-        <Text className="text-sm text-text-secondary">Loading analysis…</Text>
+      <SafeAreaView className="flex-1 bg-surface" edges={["top", "left", "right"]}>
+        <BackBar />
+        <View className="flex-1 items-center justify-center">
+          <Text className="text-sm text-text-secondary">Loading analysis…</Text>
+        </View>
       </SafeAreaView>
     );
   }
 
   if (error || !analysis) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-surface px-6">
-        <Text className="mb-4 text-center text-sm text-danger">{error ?? "Analysis not found."}</Text>
-        <Button onPress={() => router.replace("/(app)/dashboard")}>Back to Dashboard</Button>
+      <SafeAreaView className="flex-1 bg-surface" edges={["top", "left", "right"]}>
+        <BackBar />
+        <View className="flex-1 items-center justify-center px-6">
+          <Text className="mb-4 text-center text-sm text-danger">{error ?? "Analysis not found."}</Text>
+          <Button onPress={() => router.replace("/(app)/dashboard")}>Back to Dashboard</Button>
+        </View>
       </SafeAreaView>
     );
   }
@@ -235,6 +245,7 @@ export default function AnalysisResultsScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-surface" edges={["top", "left", "right"]}>
+      <BackBar />
       <ScrollView
         className="flex-1 px-6 pt-6"
         refreshControl={

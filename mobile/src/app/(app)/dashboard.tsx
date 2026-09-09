@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { RefreshControl, ScrollView, Text, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { router } from "expo-router";
 import { useAppSelector } from "@/store/hooks";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { getDashboardSummary, type DashboardSummary } from "@/api/dashboard";
+import { getNotifications } from "@/api/notifications";
 import { ApiError } from "@/api/client";
 
 function getGreeting(): string {
@@ -39,6 +41,7 @@ export default function DashboardScreen() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const load = useCallback(async () => {
     setError(null);
@@ -48,6 +51,14 @@ export default function DashboardScreen() {
     } catch (err) {
       console.error("[dashboard] Failed to load summary:", err);
       setError(err instanceof ApiError ? err.message : "Couldn't load your dashboard right now.");
+    }
+    // Non-blocking: a failed notification-count fetch shouldn't break the
+    // rest of the dashboard, it just leaves the bell unbadged.
+    try {
+      const { unreadCount: count } = await getNotifications({ limit: 1 });
+      setUnreadCount(count);
+    } catch {
+      setUnreadCount(0);
     }
   }, []);
 
@@ -72,12 +83,29 @@ export default function DashboardScreen() {
         className="flex-1 px-6 pt-6"
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        <Text className="text-2xl font-bold text-text-primary">
-          {getGreeting()}, {firstName}!
-        </Text>
-        {memberSince ? (
-          <Text className="mt-1 text-text-secondary">Member since {memberSince}</Text>
-        ) : null}
+        <View className="flex-row items-start justify-between">
+          <View className="flex-1 pr-3">
+            <Text className="text-2xl font-bold text-text-primary">
+              {getGreeting()}, {firstName}!
+            </Text>
+            {memberSince ? (
+              <Text className="mt-1 text-text-secondary">Member since {memberSince}</Text>
+            ) : null}
+          </View>
+          <Pressable
+            onPress={() => router.push("/notifications")}
+            hitSlop={8}
+            className="relative rounded-full bg-surface-secondary p-2.5"
+            accessibilityLabel={unreadCount > 0 ? `${unreadCount} unread notifications` : "Notifications"}
+          >
+            <Text style={{ fontSize: 20 }}>🔔</Text>
+            {unreadCount > 0 ? (
+              <View className="absolute -right-1 -top-1 min-w-[18px] items-center justify-center rounded-full bg-danger px-1">
+                <Text className="text-[10px] font-bold text-white">{unreadCount > 99 ? "99+" : unreadCount}</Text>
+              </View>
+            ) : null}
+          </Pressable>
+        </View>
 
         {error ? (
           <Card className="mt-6">

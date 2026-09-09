@@ -174,6 +174,26 @@ export async function POST(
     })
   );
 
+  // Mobile Phase 5 addition: sending a message never created a Notification
+  // row for the recipient(s) before this -- NEW_MESSAGE was a dead enum
+  // value with nothing generating it, so the (real, working) notifications
+  // list would stay permanently silent for messaging. Small additive change,
+  // same spirit as earlier phases' small additive backend changes.
+  await Promise.all(
+    otherParticipants.map((p) =>
+      prisma.notification.create({
+        data: {
+          userId: p.userId,
+          type: "NEW_MESSAGE",
+          title: `New message from ${message.sender.displayName}`,
+          message: content.length > 140 ? `${content.slice(0, 140)}…` : content,
+          actionUrl: `/messages/${conversationId}`,
+          metadata: { conversationId, messageId: message.id },
+        },
+      })
+    )
+  );
+
   return NextResponse.json({
     id: message.id,
     content: message.content,
