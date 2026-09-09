@@ -102,8 +102,8 @@ export default function RegisterScreen() {
               />
 
               <View>
-                <Text className="mb-1.5 text-sm font-medium text-text-primary">Date of birth</Text>
-                <Text className="mb-2 text-xs text-text-secondary">
+                <Text className="mb-1.5 text-sm font-medium text-text-primary dark:text-text-primary-dark">Date of birth</Text>
+                <Text className="mb-2 text-xs text-text-secondary dark:text-text-secondary-dark">
                   Used to apply the right privacy and consent rules for your age -- see Data & Privacy
                   later in setup.
                 </Text>
@@ -121,7 +121,7 @@ export default function RegisterScreen() {
               />
 
               {(formError ?? error) ? (
-                <Text className="text-sm text-danger">{formError ?? error}</Text>
+                <Text className="text-sm text-danger dark:text-danger-dark">{formError ?? error}</Text>
               ) : null}
 
               <Button onPress={handleSubmit} disabled={!isValid} isLoading={status === "signingIn"}>

@@ -140,14 +140,14 @@ export default function PlayerDetailScreen() {
 
   if (!playerId) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-surface">
-        <Text className="text-text-secondary">No player specified.</Text>
+      <SafeAreaView className="flex-1 items-center justify-center bg-surface dark:bg-surface-dark">
+        <Text className="text-text-secondary dark:text-text-secondary-dark">No player specified.</Text>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-surface" edges={["top", "left", "right"]}>
+    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
       <BackBar label="Team" />
       <ScrollView
         className="flex-1 px-6"
@@ -158,7 +158,7 @@ export default function PlayerDetailScreen() {
             <ActivityIndicator />
           </View>
         ) : error && !card ? (
-          <Text className="pt-6 text-sm text-danger">{error}</Text>
+          <Text className="pt-6 text-sm text-danger dark:text-danger-dark">{error}</Text>
         ) : card ? (
           <View className="gap-4 pb-10 pt-2">
             <Card>
@@ -181,7 +181,7 @@ export default function PlayerDetailScreen() {
             </Card>
 
             <View>
-              <Text className="mb-2 text-lg font-semibold text-text-primary">Analysed videos</Text>
+              <Text className="mb-2 text-lg font-semibold text-text-primary dark:text-text-primary-dark">Analysed videos</Text>
               <OptionPicker
                 options={CATEGORY_OPTIONS}
                 value={category}
@@ -195,7 +195,7 @@ export default function PlayerDetailScreen() {
             ) : videos.length === 0 ? (
               <Card>
                 <CardContent>
-                  <Text className="text-sm text-text-secondary">No analysed videos in this category yet.</Text>
+                  <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">No analysed videos in this category yet.</Text>
                 </CardContent>
               </Card>
             ) : (
@@ -204,20 +204,20 @@ export default function PlayerDetailScreen() {
                   <Pressable
                     key={video.id}
                     onPress={() => router.push(`/analysis/${video.id}`)}
-                    className="flex-row items-center justify-between rounded-lg border border-surface-secondary p-3"
+                    className="flex-row items-center justify-between rounded-lg border border-surface-secondary dark:border-surface-secondary-dark p-3"
                   >
                     <View className="flex-1">
-                      <Text className="text-text-primary" numberOfLines={1}>
+                      <Text className="text-text-primary dark:text-text-primary-dark" numberOfLines={1}>
                         {video.filename ?? "Untitled video"}
                       </Text>
-                      <Text className="mt-0.5 text-xs text-text-secondary">
+                      <Text className="mt-0.5 text-xs text-text-secondary dark:text-text-secondary-dark">
                         {formatDate(video.uploadedAt)} · {video.category}
                         {video.commentCount > 0 ? ` · ${video.commentCount} comments` : ""}
                       </Text>
                     </View>
                     {video.gradeLetter ? (
-                      <View className="ml-2 items-center justify-center rounded-full bg-surface-secondary px-3 py-1">
-                        <Text className="text-sm font-bold text-text-primary">{video.gradeLetter}</Text>
+                      <View className="ml-2 items-center justify-center rounded-full bg-surface-secondary dark:bg-surface-secondary-dark px-3 py-1">
+                        <Text className="text-sm font-bold text-text-primary dark:text-text-primary-dark">{video.gradeLetter}</Text>
                       </View>
                     ) : null}
                   </Pressable>
@@ -235,7 +235,7 @@ export default function PlayerDetailScreen() {
                 >
                   Previous
                 </Button>
-                <Text className="text-sm text-text-secondary">
+                <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">
                   Page {page} of {totalPages}
                 </Text>
                 <Button
@@ -249,7 +249,7 @@ export default function PlayerDetailScreen() {
               </View>
             ) : null}
 
-            {error ? <Text className="pb-4 text-sm text-danger">{error}</Text> : null}
+            {error ? <Text className="pb-4 text-sm text-danger dark:text-danger-dark">{error}</Text> : null}
           </View>
         ) : null}
       </ScrollView>

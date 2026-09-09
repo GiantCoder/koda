@@ -8,9 +8,9 @@ export interface ShotTag {
 }
 
 function tagClasses(type?: string): string {
-  if (type === "strength") return "bg-success/20 border-success/30";
-  if (type === "improvement") return "bg-warning/20 border-warning/30";
-  return "bg-surface-secondary border-surface-secondary";
+  if (type === "strength") return "bg-success dark:bg-success-dark/20 border-success dark:border-success-dark/30";
+  if (type === "improvement") return "bg-warning dark:bg-warning-dark/20 border-warning dark:border-warning-dark/30";
+  return "bg-surface-secondary dark:bg-surface-secondary-dark border-surface-secondary dark:border-surface-secondary-dark";
 }
 function tagTextColor(type?: string): string {
   if (type === "strength") return "#16a34a";
@@ -24,7 +24,7 @@ export function TagStrip({ tags }: { tags: ShotTag[] }) {
       <CardHeader>🏷️ Auto-Generated Tags</CardHeader>
       <CardContent>
         {tags.length === 0 ? (
-          <Text className="text-sm text-text-secondary">No tags generated for this shot.</Text>
+          <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">No tags generated for this shot.</Text>
         ) : (
           <View className="flex-row flex-wrap gap-2">
             {tags.map((tag, idx) => (

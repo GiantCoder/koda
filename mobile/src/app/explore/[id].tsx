@@ -47,21 +47,21 @@ export default function ExploreClipDetailScreen() {
 
   if (!id) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-surface">
-        <Text className="text-text-secondary">No clip specified.</Text>
+      <SafeAreaView className="flex-1 items-center justify-center bg-surface dark:bg-surface-dark">
+        <Text className="text-text-secondary dark:text-text-secondary-dark">No clip specified.</Text>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-surface" edges={["top", "left", "right"]}>
+    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
       <BackBar label="Explore" />
       {loading ? (
         <View className="items-center pt-12">
           <ActivityIndicator />
         </View>
       ) : error || !clip ? (
-        <Text className="px-6 pt-6 text-sm text-danger">{error ?? "Clip not found"}</Text>
+        <Text className="px-6 pt-6 text-sm text-danger dark:text-danger-dark">{error ?? "Clip not found"}</Text>
       ) : (
         <ScrollView className="flex-1 px-6">
           <View className="gap-4 pb-10 pt-2">
@@ -74,7 +74,7 @@ export default function ExploreClipDetailScreen() {
             ) : (
               <Card>
                 <CardContent>
-                  <Text className="text-sm text-text-secondary">
+                  <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">
                     Only {clip.uploadedBy} can play this clip back -- Explore shares the clip's coaching
                     detail publicly, but video playback stays restricted to whoever uploaded it.
                   </Text>
@@ -83,9 +83,9 @@ export default function ExploreClipDetailScreen() {
             )}
 
             <View>
-              <Text className="text-xl font-bold text-text-primary">{clip.title}</Text>
-              <Text className="mt-1 text-sm text-text-secondary">{clip.description}</Text>
-              <Text className="mt-1 text-xs text-text-secondary">
+              <Text className="text-xl font-bold text-text-primary dark:text-text-primary-dark">{clip.title}</Text>
+              <Text className="mt-1 text-sm text-text-secondary dark:text-text-secondary-dark">{clip.description}</Text>
+              <Text className="mt-1 text-xs text-text-secondary dark:text-text-secondary-dark">
                 by {clip.uploadedBy}
                 {clip.grade !== "N/A" ? ` · Grade ${clip.grade}` : ""}
               </Text>
@@ -99,8 +99,8 @@ export default function ExploreClipDetailScreen() {
                     const parsed = formatCoachingTip(tip);
                     return (
                       <View key={i}>
-                        <Text className="text-sm font-semibold text-text-primary">{parsed.title}</Text>
-                        {parsed.body ? <Text className="text-sm text-text-secondary">{parsed.body}</Text> : null}
+                        <Text className="text-sm font-semibold text-text-primary dark:text-text-primary-dark">{parsed.title}</Text>
+                        {parsed.body ? <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">{parsed.body}</Text> : null}
                       </View>
                     );
                   })}
@@ -110,18 +110,18 @@ export default function ExploreClipDetailScreen() {
 
             {clip.relatedClips.length > 0 ? (
               <View>
-                <Text className="mb-2 text-lg font-semibold text-text-primary">More like this</Text>
+                <Text className="mb-2 text-lg font-semibold text-text-primary dark:text-text-primary-dark">More like this</Text>
                 <View className="gap-1">
                   {clip.relatedClips.map((related) => (
                     <Pressable
                       key={related.id}
                       onPress={() => router.push(`/explore/${related.id}`)}
-                      className="rounded-lg border border-surface-secondary p-3"
+                      className="rounded-lg border border-surface-secondary dark:border-surface-secondary-dark p-3"
                     >
-                      <Text className="text-text-primary" numberOfLines={1}>
+                      <Text className="text-text-primary dark:text-text-primary-dark" numberOfLines={1}>
                         {related.title}
                       </Text>
-                      <Text className="mt-0.5 text-xs text-text-secondary">by {related.uploadedBy}</Text>
+                      <Text className="mt-0.5 text-xs text-text-secondary dark:text-text-secondary-dark">by {related.uploadedBy}</Text>
                     </Pressable>
                   ))}
                 </View>

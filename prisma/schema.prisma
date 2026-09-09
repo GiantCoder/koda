@@ -208,6 +208,7 @@ model User {
   coachPlayCricketMatches  PlayCricketMatch[]    @relation("CoachPlayCricketMatches")
   coachSyncLogs            PlayCricketSyncLog[]   @relation("CoachSyncLogs")
   coachInviteTokens       PlayCricketInviteToken[] @relation("CoachInviteTokens")
+  pushTokens              PushToken[]
 }
 
 model Video {
@@ -748,6 +749,25 @@ model Notification {
 
   @@index([userId, isRead])
   @@index([createdAt])
+}
+
+/// Registered Expo push tokens, one row per device a user has signed in on
+/// and granted notification permission -- added in Phase 8 (mobile) so
+/// Notification rows (see notifyUser() in lib/notifications.ts) can also
+/// trigger a real push, not just populate the in-app list. A user can have
+/// several rows (multiple devices); `token` is unique so re-registering the
+/// same device just updates its `lastSeenAt` rather than duplicating.
+model PushToken {
+  id         String   @id @default(uuid())
+  userId     String
+  token      String   @unique
+  platform   String?
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model PlayerCard {

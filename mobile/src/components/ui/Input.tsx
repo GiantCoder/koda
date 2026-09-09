@@ -20,16 +20,16 @@ export const Input = forwardRef<TextInput, InputProps>(
       // Text-appearance classes (e.g. `capitalize`) are harmless no-ops here
       // and still apply for real on the TextInput itself below.
       <View className={`w-full ${className}`}>
-        {label ? <Text className="mb-1.5 text-sm font-medium text-text-primary">{label}</Text> : null}
+        {label ? <Text className="mb-1.5 text-sm font-medium text-text-primary dark:text-text-primary-dark">{label}</Text> : null}
         <TextInput
           ref={ref}
           placeholderTextColor="#9CA3AF"
-          className={`w-full rounded-lg border px-4 py-3 text-base text-text-primary ${
-            error ? "border-danger" : "border-surface-secondary"
+          className={`w-full rounded-lg border px-4 py-3 text-base text-text-primary dark:text-text-primary-dark ${
+            error ? "border-danger dark:border-danger-dark" : "border-surface-secondary dark:border-surface-secondary-dark"
           } ${className}`}
           {...props}
         />
-        {error ? <Text className="mt-1 text-xs text-danger">{error}</Text> : null}
+        {error ? <Text className="mt-1 text-xs text-danger dark:text-danger-dark">{error}</Text> : null}
       </View>
     );
   }

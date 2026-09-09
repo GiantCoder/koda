@@ -10,7 +10,7 @@ import type { ProgressTrendPoint } from "@/api/progress";
  */
 export function TrendLineChart({ trend }: { trend: ProgressTrendPoint[] }) {
   if (trend.length === 0) {
-    return <Text className="text-sm text-text-secondary">No completed analyses yet -- your grade trend will appear here once you have a few.</Text>;
+    return <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">No completed analyses yet -- your grade trend will appear here once you have a few.</Text>;
   }
 
   const data = trend.map((point) => ({

@@ -141,6 +141,11 @@ export interface FrameLandmarks {
 export interface PoseEstimateResponse {
   landmarks: FrameLandmarks[];
   processingMs: number;
+  /** Legacy clip-level pixel bbox (last-MediaPipe-batch-wins, can drift on
+   * early/late frames) -- prefer the real per-frame box computed from
+   * landmarks (see lib/poseOverlay.ts's bboxFromFrameLandmarks), same as
+   * web. Added in Phase 8 for the tracked-subject bbox layer toggle. */
+  batsman_bbox?: Record<string, unknown> | null;
 }
 
 export async function getAnalysisPose(analysisId: string): Promise<PoseEstimateResponse> {

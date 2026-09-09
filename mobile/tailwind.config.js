@@ -5,21 +5,35 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Mirrors the CSS custom properties the web app uses (app/globals.css) so
-        // the two clients read as the same product. Adjust here as the brand settles.
-        primary: "#208AEF",
-        "primary-hover": "#1a72c7",
+        // Mirrors the CSS custom properties the web app uses (app/globals.css)
+        // so the two clients read as the same product -- values taken
+        // directly from web's :root / html.dark / html.light blocks.
+        //
+        // Phase 8 fix: mobile's `primary` had drifted to an unrelated blue
+        // (#208AEF, likely a placeholder from early scaffolding that was
+        // never corrected) instead of the real Koda Cricket brand red. Also
+        // added a `-dark` variant of every token that actually changes
+        // between web's light/dark themes, for use with NativeWind's
+        // `dark:` className variant (see src/hooks/useAppTheme.ts). Web's
+        // --primary/--primary-hover/--cricket-green do NOT change between
+        // themes, so there's no dark variant for those.
+        primary: "#E63946",
+        "primary-hover": "#C1121F",
         surface: "#FFFFFF",
-        "surface-secondary": "#F3F4F6",
-        "text-primary": "#111827",
+        "surface-dark": "#1A1D27",
+        "surface-secondary": "#F5F0E8",
+        "surface-secondary-dark": "#252836",
+        "text-primary": "#1A1A2E",
+        "text-primary-dark": "#F0F0F0",
         "text-secondary": "#6B7280",
-        danger: "#DC2626",
-        // Added in Phase 4: web's analysis/progress screens lean heavily on
-        // success (high scores/strengths) and warning (needs-improvement)
-        // colors (var(--success)/var(--warning) in app/globals.css) that
-        // mobile didn't need until now.
-        success: "#16a34a",
+        "text-secondary-dark": "#9CA3AF",
+        danger: "#EF4444",
+        "danger-dark": "#F87171",
+        success: "#10B981",
+        "success-dark": "#34D399",
         warning: "#F59E0B",
+        "warning-dark": "#FBBF24",
+        "cricket-green": "#2D6A4F",
       },
     },
   },

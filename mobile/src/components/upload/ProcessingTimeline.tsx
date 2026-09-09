@@ -31,7 +31,7 @@ export function ProcessingTimeline({ currentStage, error, activityType }: Proces
           <View key={stage} className="flex-row items-center gap-3 py-2">
             <View className="h-6 w-6 items-center justify-center">
               {failedHere ? (
-                <View className="h-5 w-5 items-center justify-center rounded-full bg-danger">
+                <View className="h-5 w-5 items-center justify-center rounded-full bg-danger dark:bg-danger-dark">
                   <Text className="text-xs font-bold text-white">✕</Text>
                 </View>
               ) : isComplete || isDoneFinal ? (
@@ -41,16 +41,16 @@ export function ProcessingTimeline({ currentStage, error, activityType }: Proces
               ) : isActive ? (
                 <ActivityIndicator size="small" color="#208AEF" />
               ) : (
-                <View className="h-4 w-4 rounded-full border-2 border-surface-secondary" />
+                <View className="h-4 w-4 rounded-full border-2 border-surface-secondary dark:border-surface-secondary-dark" />
               )}
             </View>
             <Text
               className={
                 isActive || isComplete || isDoneFinal
-                  ? "font-medium text-text-primary"
+                  ? "font-medium text-text-primary dark:text-text-primary-dark"
                   : failedHere
-                    ? "font-medium text-danger"
-                    : "text-text-secondary"
+                    ? "font-medium text-danger dark:text-danger-dark"
+                    : "text-text-secondary dark:text-text-secondary-dark"
               }
             >
               {getStageLabel(stage, activityType)}

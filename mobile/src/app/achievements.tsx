@@ -87,16 +87,16 @@ export default function AchievementsScreen() {
   }, [historyCursor, historyLoading]);
 
   return (
-    <SafeAreaView className="flex-1 bg-surface" edges={["top", "left", "right"]}>
+    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
       <BackBar label="Dashboard" />
-      <Text className="px-6 pt-2 text-2xl font-bold text-text-primary">Achievements</Text>
+      <Text className="px-6 pt-2 text-2xl font-bold text-text-primary dark:text-text-primary-dark">Achievements</Text>
 
       {loading ? (
         <View className="items-center pt-12">
           <ActivityIndicator />
         </View>
       ) : error && !summary ? (
-        <Text className="px-6 pt-6 text-sm text-danger">{error}</Text>
+        <Text className="px-6 pt-6 text-sm text-danger dark:text-danger-dark">{error}</Text>
       ) : (
         <ScrollView
           className="flex-1 px-6"
@@ -113,21 +113,21 @@ export default function AchievementsScreen() {
           <View className="gap-4 pb-10 pt-3">
             {summary ? (
               <View className="flex-row flex-wrap gap-2">
-                <View className="flex-1 min-w-[45%] items-center rounded-lg bg-surface-secondary py-4">
-                  <Text className="text-2xl font-bold text-text-primary">{summary.totalPoints}</Text>
-                  <Text className="text-xs text-text-secondary">Total points</Text>
+                <View className="flex-1 min-w-[45%] items-center rounded-lg bg-surface-secondary dark:bg-surface-secondary-dark py-4">
+                  <Text className="text-2xl font-bold text-text-primary dark:text-text-primary-dark">{summary.totalPoints}</Text>
+                  <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">Total points</Text>
                 </View>
-                <View className="flex-1 min-w-[45%] items-center rounded-lg bg-surface-secondary py-4">
-                  <Text className="text-2xl font-bold text-text-primary">{summary.goldStarCount}</Text>
-                  <Text className="text-xs text-text-secondary">Gold stars</Text>
+                <View className="flex-1 min-w-[45%] items-center rounded-lg bg-surface-secondary dark:bg-surface-secondary-dark py-4">
+                  <Text className="text-2xl font-bold text-text-primary dark:text-text-primary-dark">{summary.goldStarCount}</Text>
+                  <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">Gold stars</Text>
                 </View>
-                <View className="flex-1 min-w-[45%] items-center rounded-lg bg-surface-secondary py-4">
-                  <Text className="text-2xl font-bold text-text-primary">{summary.practiceStreakDays}</Text>
-                  <Text className="text-xs text-text-secondary">Day streak</Text>
+                <View className="flex-1 min-w-[45%] items-center rounded-lg bg-surface-secondary dark:bg-surface-secondary-dark py-4">
+                  <Text className="text-2xl font-bold text-text-primary dark:text-text-primary-dark">{summary.practiceStreakDays}</Text>
+                  <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">Day streak</Text>
                 </View>
-                <View className="flex-1 min-w-[45%] items-center rounded-lg bg-surface-secondary py-4">
-                  <Text className="text-2xl font-bold text-text-primary">{summary.currentSeasonPts}</Text>
-                  <Text className="text-xs text-text-secondary">This season</Text>
+                <View className="flex-1 min-w-[45%] items-center rounded-lg bg-surface-secondary dark:bg-surface-secondary-dark py-4">
+                  <Text className="text-2xl font-bold text-text-primary dark:text-text-primary-dark">{summary.currentSeasonPts}</Text>
+                  <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">This season</Text>
                 </View>
               </View>
             ) : null}
@@ -135,11 +135,11 @@ export default function AchievementsScreen() {
             {summary?.leagueSummary ? (
               <Card>
                 <CardContent>
-                  <Text className="text-sm text-text-secondary">Current league</Text>
-                  <Text className="mt-1 text-base font-semibold text-text-primary">
+                  <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">Current league</Text>
+                  <Text className="mt-1 text-base font-semibold text-text-primary dark:text-text-primary-dark">
                     {summary.leagueSummary.leagueName}
                   </Text>
-                  <Text className="mt-0.5 text-sm text-text-secondary">
+                  <Text className="mt-0.5 text-sm text-text-secondary dark:text-text-secondary-dark">
                     Rank {summary.leagueSummary.rank} of {summary.leagueSummary.totalMembers}
                   </Text>
                 </CardContent>
@@ -147,7 +147,7 @@ export default function AchievementsScreen() {
             ) : null}
 
             <View>
-              <Text className="mb-2 text-lg font-semibold text-text-primary">
+              <Text className="mb-2 text-lg font-semibold text-text-primary dark:text-text-primary-dark">
                 Badges ({badges.filter((b) => b.earned).length}/{badges.length})
               </Text>
               <View className="flex-row flex-wrap gap-2">
@@ -155,7 +155,7 @@ export default function AchievementsScreen() {
                   <View
                     key={badge.definition.id}
                     className={`w-[31%] items-center rounded-lg p-2 ${
-                      badge.earned ? "bg-surface-secondary" : "bg-surface-secondary/40"
+                      badge.earned ? "bg-surface-secondary dark:bg-surface-secondary-dark" : "bg-surface-secondary dark:bg-surface-secondary-dark/40"
                     }`}
                   >
                     <Text className={`text-2xl ${badge.earned ? "" : "opacity-30"}`}>
@@ -163,14 +163,14 @@ export default function AchievementsScreen() {
                     </Text>
                     <Text
                       className={`mt-1 text-center text-[11px] font-medium ${
-                        badge.earned ? "text-text-primary" : "text-text-secondary"
+                        badge.earned ? "text-text-primary dark:text-text-primary-dark" : "text-text-secondary dark:text-text-secondary-dark"
                       }`}
                       numberOfLines={2}
                     >
                       {badge.definition.name}
                     </Text>
                     {!badge.earned ? (
-                      <Text className="mt-0.5 text-center text-[9px] text-text-secondary" numberOfLines={2}>
+                      <Text className="mt-0.5 text-center text-[9px] text-text-secondary dark:text-text-secondary-dark" numberOfLines={2}>
                         {badge.definition.description}
                       </Text>
                     ) : null}
@@ -180,18 +180,18 @@ export default function AchievementsScreen() {
             </View>
 
             <View>
-              <Text className="mb-2 text-lg font-semibold text-text-primary">Recent activity</Text>
+              <Text className="mb-2 text-lg font-semibold text-text-primary dark:text-text-primary-dark">Recent activity</Text>
               {history.length === 0 ? (
-                <Text className="text-sm text-text-secondary">No points earned yet.</Text>
+                <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">No points earned yet.</Text>
               ) : (
                 <View className="gap-1">
                   {history.map((tx) => (
                     <View key={tx.id} className="flex-row items-center justify-between rounded-lg p-2">
                       <View className="flex-1 pr-2">
-                        <Text className="text-sm text-text-primary">{tx.reason.replace(/_/g, " ")}</Text>
-                        <Text className="text-xs text-text-secondary">{formatDate(tx.createdAt)}</Text>
+                        <Text className="text-sm text-text-primary dark:text-text-primary-dark">{tx.reason.replace(/_/g, " ")}</Text>
+                        <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">{formatDate(tx.createdAt)}</Text>
                       </View>
-                      <Text className={`text-sm font-semibold ${tx.points >= 0 ? "text-success" : "text-danger"}`}>
+                      <Text className={`text-sm font-semibold ${tx.points >= 0 ? "text-success dark:text-success-dark" : "text-danger dark:text-danger-dark"}`}>
                         {tx.points >= 0 ? "+" : ""}
                         {tx.points}
                       </Text>

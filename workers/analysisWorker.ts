@@ -23,6 +23,7 @@ import { buildPoseSummaryForLlm, assessPoseTrackingSubject, extractBatterFramesF
 import { cropFramesToFarEndBatterRoi, FAR_END_BATTER_ROI_ATTEMPTS, maskForegroundSubjectInFrames } from "@/src/lib/analysis/frame-crop";
 import { shotTypeToLabel } from "@/src/lib/analysis/coaching-feedback";
 import { runBowlingAnalysisBranch } from "@/src/lib/analysis/bowling-pipeline";
+import { notifyUser } from "@/lib/notifications";
 import type { PoseEstimateResponse } from "@/src/lib/analysis/mediapipe-types";
 
 function jsonToStringArray(value: unknown): string[] | null {
@@ -275,6 +276,17 @@ export const analysisWorker = new Worker<AnalysisJobData>(
             include: { video: { select: { storagePath: true } } },
           });
           await runGamificationPipeline(userId, analysis);
+        }
+
+        if (bowlingOutcome.status === "COMPLETE") {
+          await notifyUser({
+            userId,
+            type: "ANALYSIS_COMPLETE",
+            title: "Your analysis is ready",
+            message: "Your bowling delivery has been analysed -- tap to see the full breakdown.",
+            actionUrl: `/analysis/${videoId}`,
+            metadata: { analysisId, videoId },
+          });
         }
 
         console.log(
@@ -715,6 +727,15 @@ export const analysisWorker = new Worker<AnalysisJobData>(
       } else if (await shouldAwardPointsForUploads()) {
         await runGamificationPipeline(userId, analysis);
       }
+
+      await notifyUser({
+        userId,
+        type: "ANALYSIS_COMPLETE",
+        title: "Your analysis is ready",
+        message: `Your ${label.toLowerCase()} scored ${grade.letter} -- tap to see the full breakdown.`,
+        actionUrl: `/analysis/${videoId}`,
+        metadata: { analysisId, videoId },
+      });
 
       console.log(`[analysisWorker] ${analysisId}: COMPLETE in ${processingMs}ms`);
     } catch (error) {

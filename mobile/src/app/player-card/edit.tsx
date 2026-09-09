@@ -56,22 +56,22 @@ const STAT_FIELDS: { key: keyof Pick<PlayerCardDto, "statTec" | "statPow" | "sta
 function Stepper({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
   return (
     <View className="flex-row items-center justify-between py-2">
-      <Text className="text-sm text-text-primary">{label}</Text>
+      <Text className="text-sm text-text-primary dark:text-text-primary-dark">{label}</Text>
       <View className="flex-row items-center gap-3">
         <Pressable
           onPress={() => onChange(Math.max(1, value - 1))}
-          className="h-8 w-8 items-center justify-center rounded-full bg-surface-secondary"
+          className="h-8 w-8 items-center justify-center rounded-full bg-surface-secondary dark:bg-surface-secondary-dark"
           hitSlop={8}
         >
-          <Text className="text-base font-bold text-text-primary">−</Text>
+          <Text className="text-base font-bold text-text-primary dark:text-text-primary-dark">−</Text>
         </Pressable>
-        <Text className="w-8 text-center text-base font-semibold text-text-primary">{value}</Text>
+        <Text className="w-8 text-center text-base font-semibold text-text-primary dark:text-text-primary-dark">{value}</Text>
         <Pressable
           onPress={() => onChange(Math.min(99, value + 1))}
-          className="h-8 w-8 items-center justify-center rounded-full bg-surface-secondary"
+          className="h-8 w-8 items-center justify-center rounded-full bg-surface-secondary dark:bg-surface-secondary-dark"
           hitSlop={8}
         >
-          <Text className="text-base font-bold text-text-primary">+</Text>
+          <Text className="text-base font-bold text-text-primary dark:text-text-primary-dark">+</Text>
         </Pressable>
       </View>
     </View>
@@ -163,16 +163,16 @@ export default function PlayerCardEditScreen() {
   }, [card]);
 
   return (
-    <SafeAreaView className="flex-1 bg-surface" edges={["top", "left", "right"]}>
+    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
       <BackBar label="Profile" />
-      <Text className="px-6 pt-2 text-2xl font-bold text-text-primary">Edit Player Card</Text>
+      <Text className="px-6 pt-2 text-2xl font-bold text-text-primary dark:text-text-primary-dark">Edit Player Card</Text>
 
       {loading ? (
         <View className="items-center pt-12">
           <ActivityIndicator />
         </View>
       ) : !card ? (
-        <Text className="px-6 pt-6 text-sm text-danger">{error}</Text>
+        <Text className="px-6 pt-6 text-sm text-danger dark:text-danger-dark">{error}</Text>
       ) : (
         <ScrollView className="flex-1 px-6">
           <View className="gap-4 pb-10 pt-3">
@@ -184,12 +184,12 @@ export default function PlayerCardEditScreen() {
             />
 
             <View>
-              <Text className="mb-1.5 text-sm font-medium text-text-primary">Profile photo</Text>
+              <Text className="mb-1.5 text-sm font-medium text-text-primary dark:text-text-primary-dark">Profile photo</Text>
               <View className="flex-row items-center gap-3">
                 {card.profilePhotoUrl ? (
-                  <Image source={{ uri: card.profilePhotoUrl }} className="h-16 w-16 rounded-full bg-surface-secondary" />
+                  <Image source={{ uri: card.profilePhotoUrl }} className="h-16 w-16 rounded-full bg-surface-secondary dark:bg-surface-secondary-dark" />
                 ) : (
-                  <View className="h-16 w-16 items-center justify-center rounded-full bg-surface-secondary">
+                  <View className="h-16 w-16 items-center justify-center rounded-full bg-surface-secondary dark:bg-surface-secondary-dark">
                     <Text className="text-2xl">🏏</Text>
                   </View>
                 )}
@@ -219,8 +219,8 @@ export default function PlayerCardEditScreen() {
             />
 
             <View>
-              <Text className="mb-1 text-sm font-medium text-text-primary">Stats</Text>
-              <View className="rounded-lg bg-surface-secondary/40 px-3">
+              <Text className="mb-1 text-sm font-medium text-text-primary dark:text-text-primary-dark">Stats</Text>
+              <View className="rounded-lg bg-surface-secondary dark:bg-surface-secondary-dark/40 px-3">
                 {STAT_FIELDS.map(({ key, label }) => (
                   <Stepper key={key} label={label} value={card[key]} onChange={(v) => patch({ [key]: v } as Partial<PlayerCardDto>)} />
                 ))}
@@ -236,10 +236,10 @@ export default function PlayerCardEditScreen() {
             {card.backgroundMode === "UPLOAD" ? (
               <View className="flex-row items-center gap-3">
                 {card.backgroundUrl ? (
-                  <Image source={{ uri: card.backgroundUrl }} className="h-16 w-24 rounded-lg bg-surface-secondary" />
+                  <Image source={{ uri: card.backgroundUrl }} className="h-16 w-24 rounded-lg bg-surface-secondary dark:bg-surface-secondary-dark" />
                 ) : (
-                  <View className="h-16 w-24 items-center justify-center rounded-lg bg-surface-secondary">
-                    <Text className="text-xs text-text-secondary">No image</Text>
+                  <View className="h-16 w-24 items-center justify-center rounded-lg bg-surface-secondary dark:bg-surface-secondary-dark">
+                    <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">No image</Text>
                   </View>
                 )}
                 <Button variant="secondary" size="sm" onPress={() => void pickImage("background")} isLoading={uploadingBackground}>
@@ -248,7 +248,7 @@ export default function PlayerCardEditScreen() {
               </View>
             ) : null}
 
-            {error ? <Text className="text-sm text-danger">{error}</Text> : null}
+            {error ? <Text className="text-sm text-danger dark:text-danger-dark">{error}</Text> : null}
             <Button onPress={() => void handleSave()} isLoading={saving}>
               Save Card
             </Button>

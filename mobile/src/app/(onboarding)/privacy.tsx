@@ -27,10 +27,10 @@ function ToggleRow({
   locked?: boolean;
 }) {
   return (
-    <View className="flex-row items-center justify-between rounded-lg bg-surface-secondary p-4">
+    <View className="flex-row items-center justify-between rounded-lg bg-surface-secondary dark:bg-surface-secondary-dark p-4">
       <View className="mr-4 flex-1">
-        <Text className="font-medium text-text-primary">{title}</Text>
-        <Text className="text-sm text-text-secondary">{description}</Text>
+        <Text className="font-medium text-text-primary dark:text-text-primary-dark">{title}</Text>
+        <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">{description}</Text>
       </View>
       <Switch value={value} onValueChange={onChange} disabled={locked} />
     </View>
@@ -72,7 +72,7 @@ export default function PrivacyScreen() {
       <Card>
           <CardHeader>Data &amp; Privacy</CardHeader>
           <CardContent>
-            <Text className="mb-6 text-sm text-text-secondary">
+            <Text className="mb-6 text-sm text-text-secondary dark:text-text-secondary-dark">
               We collect and use your data as described below. You can adjust these any time in
               Settings.
             </Text>
@@ -103,7 +103,7 @@ export default function PrivacyScreen() {
               />
               <OptionPicker label="Profile visibility" options={VISIBILITY_OPTIONS} value={visibility} onChange={setVisibility} />
             </View>
-            {error ? <Text className="mt-4 text-sm text-danger">{error}</Text> : null}
+            {error ? <Text className="mt-4 text-sm text-danger dark:text-danger-dark">{error}</Text> : null}
             <Button className="mt-6" onPress={handleContinue} isLoading={saving}>
               Continue
             </Button>

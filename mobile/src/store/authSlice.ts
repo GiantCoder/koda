@@ -11,6 +11,7 @@ import {
 import { ApiError } from "@/api/client";
 import { getOnboardingComplete, setOnboardingComplete, clearOnboardingComplete } from "@/lib/onboardingStore";
 import { getConsentStatus } from "@/api/onboarding";
+import { registerForPushNotificationsAsync, unregisterCurrentPushToken } from "@/lib/pushRegistration";
 
 type AuthStatus = "checkingSession" | "signedOut" | "signingIn" | "signedIn" | "error";
 
@@ -36,6 +37,10 @@ export const bootstrapAuth = createAsyncThunk("auth/bootstrap", async () => {
   const user = await bootstrapSession();
   if (!user) return null;
   const onboardingComplete = await getOnboardingComplete();
+  // Fire-and-forget: a resumed session should (re-)register this device
+  // for push the same as a fresh login, but must never hold up app launch
+  // waiting on a permission prompt / Expo push token round trip.
+  void registerForPushNotificationsAsync();
   return { user, onboardingComplete };
 });
 
@@ -72,6 +77,7 @@ export const loginThunk = createAsyncThunk<
     console.warn("[auth/login] Could not verify consent status after login:", err);
   }
   await setOnboardingComplete(onboardingComplete);
+  void registerForPushNotificationsAsync();
 
   return { user, onboardingComplete };
 });
@@ -91,6 +97,9 @@ export const registerThunk = createAsyncThunk<
 });
 
 export const logoutThunk = createAsyncThunk("auth/logout", async () => {
+  // Unregister before apiLogout() invalidates the session -- the DELETE
+  // call needs a still-valid access token to identify which token to remove.
+  await unregisterCurrentPushToken();
   await apiLogout();
   await clearOnboardingComplete();
 });

@@ -66,10 +66,10 @@ export default function SavedScreen() {
   }, [newName, newDescription, load]);
 
   return (
-    <SafeAreaView className="flex-1 bg-surface" edges={["top", "left", "right"]}>
+    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
       <BackBar label="Dashboard" />
       <View className="flex-row items-center justify-between px-6 pt-2">
-        <Text className="text-2xl font-bold text-text-primary">Saved</Text>
+        <Text className="text-2xl font-bold text-text-primary dark:text-text-primary-dark">Saved</Text>
         <Button size="sm" onPress={() => setCreateVisible(true)}>
           New Collection
         </Button>
@@ -88,13 +88,13 @@ export default function SavedScreen() {
         }
       >
         {loading ? (
-          <Text className="text-sm text-text-secondary">Loading…</Text>
+          <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">Loading…</Text>
         ) : error ? (
-          <Text className="text-sm text-danger">{error}</Text>
+          <Text className="text-sm text-danger dark:text-danger-dark">{error}</Text>
         ) : collections.length === 0 ? (
           <Card>
             <CardContent>
-              <Text className="text-sm text-text-secondary">
+              <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">
                 No saved collections yet. Create one, then save clips to it from any analysed video.
               </Text>
             </CardContent>
@@ -106,21 +106,21 @@ export default function SavedScreen() {
                 <Card>
                   <CardContent>
                     <View className="flex-row items-center justify-between">
-                      <Text className="text-base font-semibold text-text-primary">{c.name}</Text>
+                      <Text className="text-base font-semibold text-text-primary dark:text-text-primary-dark">{c.name}</Text>
                       {c.isSharedWithMe ? (
-                        <View className="rounded-full bg-surface-secondary px-2 py-0.5">
-                          <Text className="text-[10px] font-medium text-text-secondary">
+                        <View className="rounded-full bg-surface-secondary dark:bg-surface-secondary-dark px-2 py-0.5">
+                          <Text className="text-[10px] font-medium text-text-secondary dark:text-text-secondary-dark">
                             SHARED BY {c.ownerName.toUpperCase()}
                           </Text>
                         </View>
                       ) : null}
                     </View>
                     {c.description ? (
-                      <Text className="mt-1 text-sm text-text-secondary" numberOfLines={2}>
+                      <Text className="mt-1 text-sm text-text-secondary dark:text-text-secondary-dark" numberOfLines={2}>
                         {c.description}
                       </Text>
                     ) : null}
-                    <Text className="mt-1 text-xs text-text-secondary">
+                    <Text className="mt-1 text-xs text-text-secondary dark:text-text-secondary-dark">
                       {c.clipCount} {c.clipCount === 1 ? "clip" : "clips"}
                       {c.shareCount > 0 ? ` · shared with ${c.shareCount}` : ""}
                     </Text>
@@ -133,9 +133,9 @@ export default function SavedScreen() {
       </ScrollView>
 
       <Modal visible={createVisible} animationType="slide" onRequestClose={() => setCreateVisible(false)}>
-        <SafeAreaView className="flex-1 bg-surface">
+        <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark">
           <View className="flex-row items-center justify-between px-6 pt-4">
-            <Text className="text-xl font-bold text-text-primary">New Collection</Text>
+            <Text className="text-xl font-bold text-text-primary dark:text-text-primary-dark">New Collection</Text>
             <Button variant="ghost" size="sm" onPress={() => setCreateVisible(false)}>
               Close
             </Button>
@@ -149,7 +149,7 @@ export default function SavedScreen() {
               placeholder="What's this collection for?"
               multiline
             />
-            {createError ? <Text className="text-sm text-danger">{createError}</Text> : null}
+            {createError ? <Text className="text-sm text-danger dark:text-danger-dark">{createError}</Text> : null}
             <Button onPress={() => void handleCreate()} isLoading={creating}>
               Create Collection
             </Button>

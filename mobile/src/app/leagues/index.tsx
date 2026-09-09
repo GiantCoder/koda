@@ -128,10 +128,10 @@ export default function LeaguesScreen() {
   }, [newName, newAgeGroup, newSeasonLength, load]);
 
   return (
-    <SafeAreaView className="flex-1 bg-surface" edges={["top", "left", "right"]}>
+    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
       <BackBar label="Dashboard" />
       <View className="flex-row items-center justify-between px-6 pt-2">
-        <Text className="text-2xl font-bold text-text-primary">Leagues</Text>
+        <Text className="text-2xl font-bold text-text-primary dark:text-text-primary-dark">Leagues</Text>
         <View className="flex-row gap-2">
           <Button variant="secondary" size="sm" onPress={() => setJoinVisible(true)}>
             Join
@@ -157,8 +157,8 @@ export default function LeaguesScreen() {
         <Pressable onPress={() => router.push("/leagues/global")} className="mb-4">
           <Card className="bg-primary/10">
             <CardContent>
-              <Text className="text-base font-semibold text-text-primary">🌍 Koda Global Leaderboard</Text>
-              <Text className="mt-1 text-sm text-text-secondary">
+              <Text className="text-base font-semibold text-text-primary dark:text-text-primary-dark">🌍 Koda Global Leaderboard</Text>
+              <Text className="mt-1 text-sm text-text-secondary dark:text-text-secondary-dark">
                 Browse the top players in your age group across all of Koda.
               </Text>
             </CardContent>
@@ -166,13 +166,13 @@ export default function LeaguesScreen() {
         </Pressable>
 
         {loading ? (
-          <Text className="text-sm text-text-secondary">Loading…</Text>
+          <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">Loading…</Text>
         ) : error ? (
-          <Text className="text-sm text-danger">{error}</Text>
+          <Text className="text-sm text-danger dark:text-danger-dark">{error}</Text>
         ) : leagues.length === 0 ? (
           <Card>
             <CardContent>
-              <Text className="text-sm text-text-secondary">
+              <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">
                 You're not in any leagues yet. Join one with a code, or create your own.
               </Text>
             </CardContent>
@@ -184,12 +184,12 @@ export default function LeaguesScreen() {
                 <Card>
                   <CardContent>
                     <View className="flex-row items-center justify-between">
-                      <Text className="text-base font-semibold text-text-primary">{league.name}</Text>
-                      <View className="rounded-full bg-surface-secondary px-2 py-0.5">
-                        <Text className="text-[10px] font-medium text-text-secondary">{league.scope}</Text>
+                      <Text className="text-base font-semibold text-text-primary dark:text-text-primary-dark">{league.name}</Text>
+                      <View className="rounded-full bg-surface-secondary dark:bg-surface-secondary-dark px-2 py-0.5">
+                        <Text className="text-[10px] font-medium text-text-secondary dark:text-text-secondary-dark">{league.scope}</Text>
                       </View>
                     </View>
-                    <Text className="mt-1 text-sm text-text-secondary">
+                    <Text className="mt-1 text-sm text-text-secondary dark:text-text-secondary-dark">
                       {league.currentSeason
                         ? `Rank ${league.userRank ?? "—"} of ${league.memberCount}`
                         : "No active season"}
@@ -203,9 +203,9 @@ export default function LeaguesScreen() {
       </ScrollView>
 
       <Modal visible={joinVisible} animationType="slide" onRequestClose={() => setJoinVisible(false)}>
-        <SafeAreaView className="flex-1 bg-surface">
+        <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark">
           <View className="flex-row items-center justify-between px-6 pt-4">
-            <Text className="text-xl font-bold text-text-primary">Join a League</Text>
+            <Text className="text-xl font-bold text-text-primary dark:text-text-primary-dark">Join a League</Text>
             <Button variant="ghost" size="sm" onPress={() => setJoinVisible(false)}>
               Close
             </Button>
@@ -219,7 +219,7 @@ export default function LeaguesScreen() {
               autoCapitalize="characters"
               maxLength={6}
             />
-            {joinError ? <Text className="text-sm text-danger">{joinError}</Text> : null}
+            {joinError ? <Text className="text-sm text-danger dark:text-danger-dark">{joinError}</Text> : null}
             <Button onPress={() => void handleJoin()} isLoading={joining}>
               Join League
             </Button>
@@ -228,9 +228,9 @@ export default function LeaguesScreen() {
       </Modal>
 
       <Modal visible={createVisible} animationType="slide" onRequestClose={() => setCreateVisible(false)}>
-        <SafeAreaView className="flex-1 bg-surface">
+        <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark">
           <View className="flex-row items-center justify-between px-6 pt-4">
-            <Text className="text-xl font-bold text-text-primary">Create a League</Text>
+            <Text className="text-xl font-bold text-text-primary dark:text-text-primary-dark">Create a League</Text>
             <Button
               variant="ghost"
               size="sm"
@@ -245,7 +245,7 @@ export default function LeaguesScreen() {
           <ScrollView className="flex-1 px-6 pt-4">
             {createdJoinCode ? (
               <View className="items-center gap-3 py-8">
-                <Text className="text-sm text-text-secondary">League created! Share this code to invite others:</Text>
+                <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">League created! Share this code to invite others:</Text>
                 <Text className="text-3xl font-bold tracking-widest text-primary">{createdJoinCode}</Text>
                 <Button
                   onPress={() => {
@@ -271,7 +271,7 @@ export default function LeaguesScreen() {
                   value={newSeasonLength}
                   onChange={setNewSeasonLength}
                 />
-                {createError ? <Text className="text-sm text-danger">{createError}</Text> : null}
+                {createError ? <Text className="text-sm text-danger dark:text-danger-dark">{createError}</Text> : null}
                 <Button onPress={() => void handleCreate()} isLoading={creating}>
                   Create League
                 </Button>

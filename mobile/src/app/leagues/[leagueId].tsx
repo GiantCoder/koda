@@ -11,7 +11,7 @@ function RankBadge({ rank }: { rank: number | null }) {
   const medal = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : null;
   return (
     <View className="w-10 items-center">
-      <Text className="text-base font-bold text-text-primary">{medal ?? (rank ?? "—")}</Text>
+      <Text className="text-base font-bold text-text-primary dark:text-text-primary-dark">{medal ?? (rank ?? "—")}</Text>
     </View>
   );
 }
@@ -62,23 +62,23 @@ export default function LeagueStandingsScreen() {
 
   if (!leagueId) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-surface">
-        <Text className="text-text-secondary">No league specified.</Text>
+      <SafeAreaView className="flex-1 items-center justify-center bg-surface dark:bg-surface-dark">
+        <Text className="text-text-secondary dark:text-text-secondary-dark">No league specified.</Text>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-surface" edges={["top", "left", "right"]}>
+    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
       <BackBar label="Leagues" />
-      <Text className="px-6 pt-2 text-2xl font-bold text-text-primary">Standings</Text>
+      <Text className="px-6 pt-2 text-2xl font-bold text-text-primary dark:text-text-primary-dark">Standings</Text>
 
       {loading ? (
         <View className="items-center pt-12">
           <ActivityIndicator />
         </View>
       ) : error ? (
-        <Text className="px-6 pt-6 text-sm text-danger">{error}</Text>
+        <Text className="px-6 pt-6 text-sm text-danger dark:text-danger-dark">{error}</Text>
       ) : (
         <FlatList
           data={entries}
@@ -92,8 +92,8 @@ export default function LeagueStandingsScreen() {
               {userEntry ? (
                 <View className="mt-4 flex-row items-center gap-3 rounded-lg bg-primary/10 p-3">
                   <RankBadge rank={userEntry.currentRank} />
-                  <Text className="flex-1 font-semibold text-text-primary">{userEntry.user.displayName} (you)</Text>
-                  <Text className="text-sm font-medium text-text-primary">{userEntry.points} pts</Text>
+                  <Text className="flex-1 font-semibold text-text-primary dark:text-text-primary-dark">{userEntry.user.displayName} (you)</Text>
+                  <Text className="text-sm font-medium text-text-primary dark:text-text-primary-dark">{userEntry.points} pts</Text>
                 </View>
               ) : null}
             </>
@@ -105,18 +105,18 @@ export default function LeagueStandingsScreen() {
               }`}
             >
               <RankBadge rank={item.currentRank} />
-              <Text className="flex-1 text-text-primary" numberOfLines={1}>
+              <Text className="flex-1 text-text-primary dark:text-text-primary-dark" numberOfLines={1}>
                 {item.user.displayName}
                 {item.userId === currentUserId ? " (you)" : ""}
               </Text>
               {item.goldStars > 0 ? (
-                <Text className="text-xs text-text-secondary">⭐️{item.goldStars}</Text>
+                <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">⭐️{item.goldStars}</Text>
               ) : null}
-              <Text className="text-sm font-medium text-text-primary">{item.points} pts</Text>
+              <Text className="text-sm font-medium text-text-primary dark:text-text-primary-dark">{item.points} pts</Text>
             </View>
           )}
           ListEmptyComponent={
-            <Text className="text-sm text-text-secondary">No one has scored in this season yet.</Text>
+            <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">No one has scored in this season yet.</Text>
           }
         />
       )}

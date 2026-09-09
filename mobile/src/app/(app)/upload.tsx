@@ -171,23 +171,23 @@ export default function UploadScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-surface" edges={["top", "left", "right"]}>
+    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
       <ScrollView
         className="flex-1 px-6 pt-6"
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        <Text className="mb-6 text-2xl font-bold text-text-primary">Upload a Video</Text>
+        <Text className="mb-6 text-2xl font-bold text-text-primary dark:text-text-primary-dark">Upload a Video</Text>
 
         <Card className="mb-6">
           <CardHeader>New Upload</CardHeader>
           <CardContent>
             {picked ? (
-              <View className="rounded-lg border border-surface-secondary p-4">
-                <Text className="font-medium text-text-primary" numberOfLines={1}>
+              <View className="rounded-lg border border-surface-secondary dark:border-surface-secondary-dark p-4">
+                <Text className="font-medium text-text-primary dark:text-text-primary-dark" numberOfLines={1}>
                   {picked.fileName}
                 </Text>
                 {picked.fileSizeBytes ? (
-                  <Text className="mt-1 text-xs text-text-secondary">{formatFileSize(picked.fileSizeBytes)}</Text>
+                  <Text className="mt-1 text-xs text-text-secondary dark:text-text-secondary-dark">{formatFileSize(picked.fileSizeBytes)}</Text>
                 ) : null}
                 {!isUploading ? (
                   <Button variant="ghost" size="sm" className="mt-3 self-start" onPress={() => setPicked(null)}>
@@ -209,16 +209,16 @@ export default function UploadScreen() {
                 </View>
               </View>
             )}
-            {pickError ? <Text className="mt-3 text-sm text-danger">{pickError}</Text> : null}
+            {pickError ? <Text className="mt-3 text-sm text-danger dark:text-danger-dark">{pickError}</Text> : null}
 
             {needsAssigneePicker ? (
               <View className="mt-4">
                 {playersError ? (
-                  <Text className="text-sm text-danger">{playersError}</Text>
+                  <Text className="text-sm text-danger dark:text-danger-dark">{playersError}</Text>
                 ) : players === null ? (
                   <ActivityIndicator className="py-2" />
                 ) : noAssignablePlayers ? (
-                  <Text className="text-sm text-text-secondary">
+                  <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">
                     {isParent
                       ? "No child player is linked to your account yet."
                       : "No players in your squad yet."}
@@ -236,14 +236,14 @@ export default function UploadScreen() {
 
             {isUploading ? (
               <View className="mt-4">
-                <View className="h-2 overflow-hidden rounded-full bg-surface-secondary">
+                <View className="h-2 overflow-hidden rounded-full bg-surface-secondary dark:bg-surface-secondary-dark">
                   <View className="h-2 rounded-full bg-primary" style={{ width: `${uploadProgress}%` }} />
                 </View>
-                <Text className="mt-2 text-xs text-text-secondary">Uploading… {uploadProgress}%</Text>
+                <Text className="mt-2 text-xs text-text-secondary dark:text-text-secondary-dark">Uploading… {uploadProgress}%</Text>
               </View>
             ) : null}
 
-            {uploadError ? <Text className="mt-3 text-sm text-danger">{uploadError}</Text> : null}
+            {uploadError ? <Text className="mt-3 text-sm text-danger dark:text-danger-dark">{uploadError}</Text> : null}
 
             <Button className="mt-4" onPress={handleUpload} disabled={!canUpload} isLoading={isUploading}>
               Upload
@@ -257,7 +257,7 @@ export default function UploadScreen() {
             {recentUploads === null ? (
               <ActivityIndicator className="py-4" />
             ) : recentUploads.length === 0 ? (
-              <Text className="text-sm text-text-secondary">No uploads yet.</Text>
+              <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">No uploads yet.</Text>
             ) : (
               <View className="gap-3">
                 {recentUploads.map((upload) => (
@@ -274,7 +274,7 @@ export default function UploadScreen() {
                     }
                   >
                     <View className="flex-1 flex-row items-center justify-between">
-                      <Text className="flex-1 pr-2 text-sm text-text-primary" numberOfLines={1}>
+                      <Text className="flex-1 pr-2 text-sm text-text-primary dark:text-text-primary-dark" numberOfLines={1}>
                         {upload.filename}
                       </Text>
                       <Text className={`overflow-hidden rounded-full px-2 py-1 text-xs font-medium ${STATUS_COLORS[upload.processingState]}`}>

@@ -59,44 +59,44 @@ export function AnnotationsPanel({ annotations, canCreate, onCreate }: Annotatio
       <CardHeader>💬 Coach Comments</CardHeader>
       <CardContent className="gap-3">
         {annotations.length === 0 ? (
-          <Text className="text-sm text-text-secondary">No comments yet.</Text>
+          <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">No comments yet.</Text>
         ) : (
           annotations.map((a) => (
-            <View key={a.id} className="rounded-lg bg-surface-secondary p-3">
+            <View key={a.id} className="rounded-lg bg-surface-secondary dark:bg-surface-secondary-dark p-3">
               <Text className="text-xs font-medium text-primary">{formatTimestamp(a.timestampMs)}</Text>
-              <Text className="mt-1 text-sm text-text-primary">{a.content}</Text>
-              {a.isPrivate ? <Text className="mt-1 text-[10px] text-text-secondary">Private</Text> : null}
+              <Text className="mt-1 text-sm text-text-primary dark:text-text-primary-dark">{a.content}</Text>
+              {a.isPrivate ? <Text className="mt-1 text-[10px] text-text-secondary dark:text-text-secondary-dark">Private</Text> : null}
             </View>
           ))
         )}
 
         {canCreate ? (
-          <View className="mt-2 gap-2 border-t border-surface-secondary pt-3">
-            <Text className="text-sm font-medium text-text-primary">Add a comment</Text>
+          <View className="mt-2 gap-2 border-t border-surface-secondary dark:border-surface-secondary-dark pt-3">
+            <Text className="text-sm font-medium text-text-primary dark:text-text-primary-dark">Add a comment</Text>
             <View className="flex-row items-center gap-2">
               <TextInput
                 value={minutes}
                 onChangeText={setMinutes}
                 keyboardType="number-pad"
-                className="w-14 rounded-md border border-surface-secondary px-2 py-1 text-center text-text-primary"
+                className="w-14 rounded-md border border-surface-secondary dark:border-surface-secondary-dark px-2 py-1 text-center text-text-primary dark:text-text-primary-dark"
               />
-              <Text className="text-text-secondary">min</Text>
+              <Text className="text-text-secondary dark:text-text-secondary-dark">min</Text>
               <TextInput
                 value={seconds}
                 onChangeText={setSeconds}
                 keyboardType="number-pad"
-                className="w-14 rounded-md border border-surface-secondary px-2 py-1 text-center text-text-primary"
+                className="w-14 rounded-md border border-surface-secondary dark:border-surface-secondary-dark px-2 py-1 text-center text-text-primary dark:text-text-primary-dark"
               />
-              <Text className="text-text-secondary">sec</Text>
+              <Text className="text-text-secondary dark:text-text-secondary-dark">sec</Text>
             </View>
             <TextInput
               value={content}
               onChangeText={setContent}
               placeholder="What did you notice at this point?"
               multiline
-              className="min-h-[64px] rounded-md border border-surface-secondary px-3 py-2 text-text-primary"
+              className="min-h-[64px] rounded-md border border-surface-secondary dark:border-surface-secondary-dark px-3 py-2 text-text-primary dark:text-text-primary-dark"
             />
-            {error ? <Text className="text-xs text-danger">{error}</Text> : null}
+            {error ? <Text className="text-xs text-danger dark:text-danger-dark">{error}</Text> : null}
             <Button size="sm" onPress={handleSubmit} isLoading={submitting} className="self-start">
               Add Comment
             </Button>

@@ -10,7 +10,7 @@ interface CardProps extends ViewProps {
 export function Card({ children, className = "", ...props }: CardProps) {
   return (
     <View
-      className={`rounded-lg border border-surface-secondary bg-surface p-6 ${className}`}
+      className={`rounded-lg border border-surface-secondary dark:border-surface-secondary-dark bg-surface dark:bg-surface-dark p-6 ${className}`}
       {...props}
     >
       {children}
@@ -19,7 +19,7 @@ export function Card({ children, className = "", ...props }: CardProps) {
 }
 
 export function CardHeader({ children, className = "" }: CardProps) {
-  return <Text className={`mb-4 text-lg font-semibold text-text-primary ${className}`}>{children}</Text>;
+  return <Text className={`mb-4 text-lg font-semibold text-text-primary dark:text-text-primary-dark ${className}`}>{children}</Text>;
 }
 
 export function CardContent({ children, className = "" }: CardProps) {

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { OptionPicker } from "@/components/ui/OptionPicker";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { useAppTheme, type ThemePreference } from "@/hooks/useAppTheme";
 import { getPrivacyPreferences, updatePrivacyPreferences } from "@/api/onboarding";
 import { getEcbKeyStatus, saveEcbKey, validateEcbKey, removeEcbKey, type EcbKeyStatus } from "@/api/ecbApiKey";
 import { ApiError } from "@/api/client";
@@ -16,6 +17,12 @@ const VISIBILITY_OPTIONS = [
   { value: "PUBLIC", label: "Public" },
   { value: "COACHES_PARENTS", label: "Coaches & Parents" },
   { value: "COACHES_ONLY", label: "Coaches Only" },
+];
+
+const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
+  { value: "system", label: "Match device" },
+  { value: "light", label: "Light" },
+  { value: "dark", label: "Dark" },
 ];
 
 function ToggleRow({
@@ -30,10 +37,10 @@ function ToggleRow({
   onChange: (value: boolean) => void;
 }) {
   return (
-    <View className="flex-row items-center justify-between rounded-lg bg-surface-secondary p-4">
+    <View className="flex-row items-center justify-between rounded-lg bg-surface-secondary dark:bg-surface-secondary-dark p-4">
       <View className="mr-4 flex-1">
-        <Text className="font-medium text-text-primary">{title}</Text>
-        <Text className="text-sm text-text-secondary">{description}</Text>
+        <Text className="font-medium text-text-primary dark:text-text-primary-dark">{title}</Text>
+        <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">{description}</Text>
       </View>
       <Switch value={value} onValueChange={onChange} />
     </View>
@@ -56,6 +63,7 @@ export default function SettingsScreen() {
   const dispatch = useAppDispatch();
   const user = useAppSelector((state) => state.auth.user);
   const isCoach = user?.role === "COACH";
+  const { preference: themePreference, setPreference: setThemePreference } = useAppTheme();
 
   // Privacy & consent
   const [analytics, setAnalytics] = useState(true);
@@ -191,15 +199,27 @@ export default function SettingsScreen() {
   const [isSigningOut, setIsSigningOut] = useState(false);
 
   return (
-    <SafeAreaView className="flex-1 bg-surface" edges={["top", "left", "right"]}>
+    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
       <ScrollView className="flex-1 px-6 pt-6">
-        <Text className="mb-6 text-2xl font-bold text-text-primary">Settings</Text>
+        <Text className="mb-6 text-2xl font-bold text-text-primary dark:text-text-primary-dark">Settings</Text>
 
         <Card className="mb-6">
           <CardHeader>Account</CardHeader>
           <CardContent className="gap-3">
             <Input label="Email" value={user?.email ?? ""} editable={false} />
             <Input label="Role" value={user?.role ?? ""} editable={false} className="capitalize" />
+          </CardContent>
+        </Card>
+
+        <Card className="mb-6">
+          <CardHeader>Appearance</CardHeader>
+          <CardContent>
+            <OptionPicker
+              label="Theme"
+              options={THEME_OPTIONS}
+              value={themePreference}
+              onChange={(next) => setThemePreference(next as ThemePreference)}
+            />
           </CardContent>
         </Card>
 
@@ -236,7 +256,7 @@ export default function SettingsScreen() {
                 />
               </View>
             )}
-            {privacyError ? <Text className="mt-3 text-sm text-danger">{privacyError}</Text> : null}
+            {privacyError ? <Text className="mt-3 text-sm text-danger dark:text-danger-dark">{privacyError}</Text> : null}
             {privacySaved ? <Text className="mt-3 text-sm text-emerald-700">Preferences saved.</Text> : null}
             <Button className="mt-4" onPress={handleSavePrivacy} isLoading={privacySaving} disabled={!privacyLoaded}>
               Save preferences
@@ -248,7 +268,7 @@ export default function SettingsScreen() {
           <Card className="mb-6">
             <CardHeader>Play-Cricket / ECB Integration</CardHeader>
             <CardContent>
-              <Text className="mb-3 text-sm text-text-secondary">
+              <Text className="mb-3 text-sm text-text-secondary dark:text-text-secondary-dark">
                 Connect your ECB API key to import players and match data from Play-Cricket.
               </Text>
 
@@ -257,12 +277,14 @@ export default function SettingsScreen() {
                   <View className="flex-row flex-wrap items-center gap-2">
                     <Text
                       className={`rounded-full px-2 py-1 text-xs font-medium ${
-                        ecbKey.verifiedAt ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
+                        ecbKey.verifiedAt
+                          ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
+                          : "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
                       }`}
                     >
                       {ecbKey.verifiedAt ? "✓ Connected" : "⚠ Not verified"}
                     </Text>
-                    <Text className="font-mono text-sm text-text-secondary">{ecbKey.maskedKey}</Text>
+                    <Text className="font-mono text-sm text-text-secondary dark:text-text-secondary-dark">{ecbKey.maskedKey}</Text>
                   </View>
                   <View className="flex-row gap-4">
                     <Button variant="ghost" size="sm" onPress={() => setEcbShowInput(true)}>
@@ -293,7 +315,7 @@ export default function SettingsScreen() {
                 </View>
               )}
 
-              {ecbError ? <Text className="mt-2 text-sm text-danger">{ecbError}</Text> : null}
+              {ecbError ? <Text className="mt-2 text-sm text-danger dark:text-danger-dark">{ecbError}</Text> : null}
               {ecbSuccess ? <Text className="mt-2 text-sm text-emerald-700">{ecbSuccess}</Text> : null}
             </CardContent>
           </Card>

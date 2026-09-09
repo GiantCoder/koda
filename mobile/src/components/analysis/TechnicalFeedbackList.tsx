@@ -37,23 +37,23 @@ export function TechnicalFeedbackList({ items }: { items: TechnicalFeedbackItem[
       <CardHeader>🔍 Detailed Technique Feedback</CardHeader>
       <CardContent className="gap-4">
         {items.map((item, idx) => (
-          <View key={idx} className="border-b border-surface-secondary pb-4 last:border-0 last:pb-0">
+          <View key={idx} className="border-b border-surface-secondary dark:border-surface-secondary-dark pb-4 last:border-0 last:pb-0">
             <View className="mb-1 flex-row items-center justify-between">
-              <Text className="font-medium text-text-primary">{dimensionLabel(item.dimension)}</Text>
+              <Text className="font-medium text-text-primary dark:text-text-primary-dark">{dimensionLabel(item.dimension)}</Text>
               <View className="flex-row items-center gap-2">
                 {item.timestampSeconds != null ? (
-                  <Text className="text-xs text-text-secondary">@ {formatClock(item.timestampSeconds)}</Text>
+                  <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">@ {formatClock(item.timestampSeconds)}</Text>
                 ) : null}
-                <View className="rounded-full bg-surface-secondary px-2 py-0.5">
+                <View className="rounded-full bg-surface-secondary dark:bg-surface-secondary-dark px-2 py-0.5">
                   <Text className="text-[10px] font-medium" style={{ color: confidenceColor(item.confidence) }}>
                     {item.confidence} confidence
                   </Text>
                 </View>
               </View>
             </View>
-            <Text className="text-sm text-text-secondary">{item.diagnosis}</Text>
+            <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">{item.diagnosis}</Text>
             {item.evidence ? (
-              <Text className="mt-1 text-xs italic text-text-secondary">Evidence: {item.evidence}</Text>
+              <Text className="mt-1 text-xs italic text-text-secondary dark:text-text-secondary-dark">Evidence: {item.evidence}</Text>
             ) : null}
             {item.drill ? (
               <Text className="mt-1 text-sm text-primary">Drill: {item.drill}</Text>

@@ -19,11 +19,11 @@ export default function RoleScreen() {
   const [role, setRole] = useState<string | null>(null);
 
   return (
-    <SafeAreaView className="flex-1 justify-center bg-surface px-6">
+    <SafeAreaView className="flex-1 justify-center bg-surface dark:bg-surface-dark px-6">
       <Card>
         <CardHeader>Choose Your Role</CardHeader>
         <CardContent>
-          <Text className="mb-6 text-sm text-text-secondary">
+          <Text className="mb-6 text-sm text-text-secondary dark:text-text-secondary-dark">
             Select one role to determine your experience.
           </Text>
           <OptionPicker layout="cards" options={ROLES} value={role} onChange={setRole} />

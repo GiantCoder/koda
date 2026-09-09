@@ -15,7 +15,7 @@ function formatShotType(s: string): string {
 /** Real shot-type breakdown from GET /api/progress/[userId]/shots. */
 export function ShotDistributionChart({ shots }: { shots: ShotDistributionEntry[] }) {
   if (shots.length === 0) {
-    return <Text className="text-sm text-text-secondary">No completed analyses yet -- your shot mix will appear here once you have a few.</Text>;
+    return <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">No completed analyses yet -- your shot mix will appear here once you have a few.</Text>;
   }
 
   const data = shots.map((s, i) => ({
@@ -31,8 +31,8 @@ export function ShotDistributionChart({ shots }: { shots: ShotDistributionEntry[
         {shots.map((s, i) => (
           <View key={s.shotType} className="flex-row items-center gap-2">
             <View className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: PALETTE[i % PALETTE.length] }} />
-            <Text className="flex-1 text-xs text-text-primary">{formatShotType(s.shotType)}</Text>
-            <Text className="text-xs text-text-secondary">{s.count}</Text>
+            <Text className="flex-1 text-xs text-text-primary dark:text-text-primary-dark">{formatShotType(s.shotType)}</Text>
+            <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">{s.count}</Text>
           </View>
         ))}
       </View>

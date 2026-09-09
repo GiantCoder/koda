@@ -70,9 +70,9 @@ export default function GlobalLeaderboardScreen() {
   }, [ageGroup, nextCursor, loadingMore]);
 
   return (
-    <SafeAreaView className="flex-1 bg-surface" edges={["top", "left", "right"]}>
+    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
       <BackBar label="Leagues" />
-      <Text className="px-6 pt-2 text-2xl font-bold text-text-primary">🌍 Koda Global</Text>
+      <Text className="px-6 pt-2 text-2xl font-bold text-text-primary dark:text-text-primary-dark">🌍 Koda Global</Text>
       <View className="px-6 pt-3">
         <OptionPicker
           options={AGE_GROUP_OPTIONS}
@@ -86,7 +86,7 @@ export default function GlobalLeaderboardScreen() {
           <ActivityIndicator />
         </View>
       ) : error ? (
-        <Text className="px-6 pt-6 text-sm text-danger">{error}</Text>
+        <Text className="px-6 pt-6 text-sm text-danger dark:text-danger-dark">{error}</Text>
       ) : (
         <FlatList
           data={entries}
@@ -102,17 +102,17 @@ export default function GlobalLeaderboardScreen() {
               }`}
             >
               <View className="w-10 items-center">
-                <Text className="text-base font-bold text-text-primary">{index + 1}</Text>
+                <Text className="text-base font-bold text-text-primary dark:text-text-primary-dark">{index + 1}</Text>
               </View>
-              <Text className="flex-1 text-text-primary" numberOfLines={1}>
+              <Text className="flex-1 text-text-primary dark:text-text-primary-dark" numberOfLines={1}>
                 {item.user.displayName}
                 {item.userId === currentUserId ? " (you)" : ""}
               </Text>
-              <Text className="text-sm font-medium text-text-primary">{item.points} pts</Text>
+              <Text className="text-sm font-medium text-text-primary dark:text-text-primary-dark">{item.points} pts</Text>
             </View>
           )}
           ListEmptyComponent={
-            <Text className="text-sm text-text-secondary">No entries for this age group yet.</Text>
+            <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">No entries for this age group yet.</Text>
           }
         />
       )}

@@ -19,18 +19,18 @@ export function CoachingTipsPanel({ tips }: CoachingTipsPanelProps) {
       <CardHeader>💡 AI Coaching Tips</CardHeader>
       <CardContent className="gap-3">
         {tips.length === 0 ? (
-          <Text className="text-sm text-text-secondary">No coaching tips available for this shot.</Text>
+          <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">No coaching tips available for this shot.</Text>
         ) : (
           tips.map((tip, idx) => (
             <View
               key={idx}
-              className="rounded-r-lg bg-surface-secondary p-3"
+              className="rounded-r-lg bg-surface-secondary dark:bg-surface-secondary-dark p-3"
               style={{ borderLeftWidth: 4, borderLeftColor: tipBorderColor(tip.type) }}
             >
-              <Text className="font-medium text-text-primary">{tip.title}</Text>
-              {tip.body ? <Text className="mt-1 text-sm text-text-secondary">{tip.body}</Text> : null}
+              <Text className="font-medium text-text-primary dark:text-text-primary-dark">{tip.title}</Text>
+              {tip.body ? <Text className="mt-1 text-sm text-text-secondary dark:text-text-secondary-dark">{tip.body}</Text> : null}
               {tip.description && tip.description !== tip.body ? (
-                <Text className="mt-1 text-sm text-text-secondary">{tip.description}</Text>
+                <Text className="mt-1 text-sm text-text-secondary dark:text-text-secondary-dark">{tip.description}</Text>
               ) : null}
             </View>
           ))

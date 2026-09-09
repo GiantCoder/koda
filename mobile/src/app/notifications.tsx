@@ -53,12 +53,12 @@ function NotificationRow({
     >
       <View className={`mt-1.5 h-2 w-2 rounded-full ${notification.isRead ? "bg-transparent" : "bg-primary"}`} />
       <View className="flex-1">
-        <Text className="font-medium text-text-primary">{notification.title}</Text>
-        <Text className="mt-0.5 text-sm text-text-secondary">{notification.message}</Text>
-        <Text className="mt-1 text-xs text-text-secondary">{timeAgo(notification.createdAt)}</Text>
+        <Text className="font-medium text-text-primary dark:text-text-primary-dark">{notification.title}</Text>
+        <Text className="mt-0.5 text-sm text-text-secondary dark:text-text-secondary-dark">{notification.message}</Text>
+        <Text className="mt-1 text-xs text-text-secondary dark:text-text-secondary-dark">{timeAgo(notification.createdAt)}</Text>
       </View>
       <Pressable onPress={onDelete} hitSlop={8} className="p-1">
-        <Text className="text-text-secondary">✕</Text>
+        <Text className="text-text-secondary dark:text-text-secondary-dark">✕</Text>
       </Pressable>
     </Pressable>
   );
@@ -128,10 +128,10 @@ export default function NotificationsScreen() {
   const hasUnread = notifications.some((n) => !n.isRead);
 
   return (
-    <SafeAreaView className="flex-1 bg-surface" edges={["top", "left", "right"]}>
+    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
       <BackBar />
       <View className="flex-row items-center justify-between px-6 pt-2">
-        <Text className="text-2xl font-bold text-text-primary">Notifications</Text>
+        <Text className="text-2xl font-bold text-text-primary dark:text-text-primary-dark">Notifications</Text>
         {hasUnread ? (
           <Button variant="ghost" size="sm" onPress={handleMarkAllRead}>
             Mark all read
@@ -152,13 +152,13 @@ export default function NotificationsScreen() {
         }
       >
         {loading ? (
-          <Text className="mt-4 text-sm text-text-secondary">Loading…</Text>
+          <Text className="mt-4 text-sm text-text-secondary dark:text-text-secondary-dark">Loading…</Text>
         ) : error ? (
-          <Text className="mt-4 text-sm text-danger">{error}</Text>
+          <Text className="mt-4 text-sm text-danger dark:text-danger-dark">{error}</Text>
         ) : notifications.length === 0 ? (
           <Card className="mt-4">
             <CardContent>
-              <Text className="text-sm text-text-secondary">No notifications yet.</Text>
+              <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">No notifications yet.</Text>
             </CardContent>
           </Card>
         ) : (

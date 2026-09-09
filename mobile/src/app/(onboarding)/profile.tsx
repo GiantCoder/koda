@@ -67,7 +67,7 @@ export default function ProfileScreen() {
       <Card>
           <CardHeader>Complete Your Profile</CardHeader>
           <CardContent>
-            <Text className="mb-6 text-sm text-text-secondary">
+            <Text className="mb-6 text-sm text-text-secondary dark:text-text-secondary-dark">
               Add a few details to personalise your experience. You can change these later.
             </Text>
             <View className="gap-4">
@@ -77,7 +77,7 @@ export default function ProfileScreen() {
               <OptionPicker label="Batting style" options={BATTING_STYLES} value={battingStyle} onChange={setBattingStyle} />
               <OptionPicker label="Bowling style" options={BOWLING_STYLES} value={bowlingStyle} onChange={setBowlingStyle} />
             </View>
-            {error ? <Text className="mt-4 text-sm text-danger">{error}</Text> : null}
+            {error ? <Text className="mt-4 text-sm text-danger dark:text-danger-dark">{error}</Text> : null}
             <Button className="mt-6" onPress={handleFinish} isLoading={saving}>
               Finish setup
             </Button>

@@ -137,11 +137,11 @@ export default function ShadowBattingScreen() {
 
   if (phase === "setup") {
     return (
-      <SafeAreaView className="flex-1 bg-surface" edges={["top", "left", "right"]}>
+      <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
         <BackBar label="Dashboard" />
         <ScrollView className="flex-1 px-6">
-          <Text className="pt-2 text-2xl font-bold text-text-primary">Shadow Batting</Text>
-          <Text className="mt-1 text-sm text-text-secondary">
+          <Text className="pt-2 text-2xl font-bold text-text-primary dark:text-text-primary-dark">Shadow Batting</Text>
+          <Text className="mt-1 text-sm text-text-secondary dark:text-text-secondary-dark">
             Record yourself practicing a shot without a ball -- it goes through the same real
             coaching analysis as an uploaded video.
           </Text>
@@ -159,7 +159,7 @@ export default function ShadowBattingScreen() {
               value={String(prepTime)}
               onChange={(v) => setPrepTime(Number(v))}
             />
-            {error ? <Text className="text-sm text-danger">{error}</Text> : null}
+            {error ? <Text className="text-sm text-danger dark:text-danger-dark">{error}</Text> : null}
             <Button onPress={() => void beginSession()}>Start</Button>
           </View>
         </ScrollView>
@@ -193,7 +193,7 @@ export default function ShadowBattingScreen() {
           ) : phase === "recording" ? (
             <View className="items-center gap-4">
               <View className="flex-row items-center gap-2 rounded-full bg-black/50 px-4 py-2">
-                <View className="h-2.5 w-2.5 rounded-full bg-danger" />
+                <View className="h-2.5 w-2.5 rounded-full bg-danger dark:bg-danger-dark" />
                 <Text className="font-semibold text-white">{countdown}s</Text>
               </View>
             </View>
@@ -207,7 +207,7 @@ export default function ShadowBattingScreen() {
         <View className="items-center pb-8">
           {phase === "recording" ? (
             <Pressable onPress={stopEarly} className="h-16 w-16 items-center justify-center rounded-full bg-white">
-              <View className="h-6 w-6 rounded bg-danger" />
+              <View className="h-6 w-6 rounded bg-danger dark:bg-danger-dark" />
             </Pressable>
           ) : null}
           {error ? (

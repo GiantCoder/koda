@@ -69,11 +69,11 @@ export default function LoginScreen() {
                 />
               )}
             />
-            {error ? <Text className="text-sm text-danger">{error}</Text> : null}
+            {error ? <Text className="text-sm text-danger dark:text-danger-dark">{error}</Text> : null}
             <Button onPress={handleSubmit(onSubmit)} isLoading={status === "signingIn"}>
               Sign in
             </Button>
-            <Link href="/(auth)/role" className="text-center text-sm text-text-secondary">
+            <Link href="/(auth)/role" className="text-center text-sm text-text-secondary dark:text-text-secondary-dark">
               Don't have an account? <Text className="font-medium text-primary">Create one</Text>
             </Link>
           </View>

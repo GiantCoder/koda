@@ -109,9 +109,9 @@ export default function TeamScreen() {
   }, []);
 
   return (
-    <SafeAreaView className="flex-1 bg-surface" edges={["top", "left", "right"]}>
+    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
       <View className="flex-row items-center justify-between px-6 pt-6">
-        <Text className="text-2xl font-bold text-text-primary">
+        <Text className="text-2xl font-bold text-text-primary dark:text-text-primary-dark">
           {isParent ? "Your Children" : "Team"}
         </Text>
         {isCoach ? (
@@ -139,13 +139,13 @@ export default function TeamScreen() {
         }
       >
         {loading ? (
-          <Text className="text-sm text-text-secondary">Loading…</Text>
+          <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">Loading…</Text>
         ) : error ? (
-          <Text className="text-sm text-danger">{error}</Text>
+          <Text className="text-sm text-danger dark:text-danger-dark">{error}</Text>
         ) : players.length === 0 ? (
           <Card>
             <CardContent>
-              <Text className="text-sm text-text-secondary">
+              <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">
                 {isCoach
                   ? "No players yet. Tap Add Player to create your first one."
                   : isParent
@@ -162,10 +162,10 @@ export default function TeamScreen() {
                 onPress={() => router.push(`/players/${player.id}`)}
                 className="flex-row items-center justify-between rounded-lg p-3"
               >
-                <View className="h-10 w-10 items-center justify-center rounded-full bg-surface-secondary">
+                <View className="h-10 w-10 items-center justify-center rounded-full bg-surface-secondary dark:bg-surface-secondary-dark">
                   <Text className="text-base">🏏</Text>
                 </View>
-                <Text className="ml-3 flex-1 text-text-primary">{player.displayName}</Text>
+                <Text className="ml-3 flex-1 text-text-primary dark:text-text-primary-dark">{player.displayName}</Text>
                 {isCoach || isParent ? (
                   <Pressable
                     onPress={() => void handleRemove(player.id)}
@@ -173,7 +173,7 @@ export default function TeamScreen() {
                     hitSlop={8}
                     className="p-1"
                   >
-                    <Text className="text-xs text-danger">
+                    <Text className="text-xs text-danger dark:text-danger-dark">
                       {removingId === player.id ? "…" : "Remove"}
                     </Text>
                   </Pressable>
@@ -185,9 +185,9 @@ export default function TeamScreen() {
       </ScrollView>
 
       <Modal visible={addVisible} animationType="slide" onRequestClose={() => setAddVisible(false)}>
-        <SafeAreaView className="flex-1 bg-surface">
+        <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark">
           <View className="flex-row items-center justify-between px-6 pt-4">
-            <Text className="text-xl font-bold text-text-primary">Add Player</Text>
+            <Text className="text-xl font-bold text-text-primary dark:text-text-primary-dark">Add Player</Text>
             <Button variant="ghost" size="sm" onPress={() => setAddVisible(false)}>
               Close
             </Button>
@@ -205,17 +205,17 @@ export default function TeamScreen() {
               />
               {squads && squads.length > 0 ? (
                 <View>
-                  <Text className="mb-1.5 text-sm font-medium text-text-primary">Squad (optional)</Text>
+                  <Text className="mb-1.5 text-sm font-medium text-text-primary dark:text-text-primary-dark">Squad (optional)</Text>
                   <View className="flex-row flex-wrap gap-2">
                     {squads.map((squad) => (
                       <Pressable
                         key={squad.id}
                         onPress={() => setNewSquadId(newSquadId === squad.id ? null : squad.id)}
                         className={`rounded-full border px-4 py-2 ${
-                          newSquadId === squad.id ? "border-primary bg-primary" : "border-surface-secondary bg-surface"
+                          newSquadId === squad.id ? "border-primary bg-primary" : "border-surface-secondary dark:border-surface-secondary-dark bg-surface dark:bg-surface-dark"
                         }`}
                       >
-                        <Text className={newSquadId === squad.id ? "text-sm font-medium text-white" : "text-sm text-text-primary"}>
+                        <Text className={newSquadId === squad.id ? "text-sm font-medium text-white" : "text-sm text-text-primary dark:text-text-primary-dark"}>
                           {squad.name}
                         </Text>
                       </Pressable>
@@ -224,12 +224,12 @@ export default function TeamScreen() {
                 </View>
               ) : null}
               {squads && squads.length > 0 && !newSquadId ? (
-                <Text className="text-xs text-text-secondary">
+                <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">
                   No squad selected -- you can still add them to one later from Squads, but until
                   then they won't appear anywhere in your team list.
                 </Text>
               ) : null}
-              {createError ? <Text className="text-sm text-danger">{createError}</Text> : null}
+              {createError ? <Text className="text-sm text-danger dark:text-danger-dark">{createError}</Text> : null}
               <Button onPress={() => void handleCreate()} isLoading={creating}>
                 Add Player
               </Button>

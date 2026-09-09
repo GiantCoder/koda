@@ -23,7 +23,7 @@ interface KeyboardAwareScreenProps {
 export function KeyboardAwareScreen({
   children,
   contentContainerClassName = "flex-grow justify-center px-6 py-10",
-  safeAreaClassName = "flex-1 bg-surface",
+  safeAreaClassName = "flex-1 bg-surface dark:bg-surface-dark",
   edges,
 }: KeyboardAwareScreenProps) {
   return (

@@ -227,10 +227,10 @@ export default function SquadsScreen() {
   }, [roster, detailSquad]);
 
   return (
-    <SafeAreaView className="flex-1 bg-surface" edges={["top", "left", "right"]}>
+    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
       <BackBar label="Team" />
       <View className="flex-row items-center justify-between px-6 pt-2">
-        <Text className="text-2xl font-bold text-text-primary">Squads</Text>
+        <Text className="text-2xl font-bold text-text-primary dark:text-text-primary-dark">Squads</Text>
         <Button size="sm" onPress={openCreate}>
           New Squad
         </Button>
@@ -249,13 +249,13 @@ export default function SquadsScreen() {
         }
       >
         {loading ? (
-          <Text className="text-sm text-text-secondary">Loading…</Text>
+          <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">Loading…</Text>
         ) : error ? (
-          <Text className="text-sm text-danger">{error}</Text>
+          <Text className="text-sm text-danger dark:text-danger-dark">{error}</Text>
         ) : !squads || squads.length === 0 ? (
           <Card>
             <CardContent>
-              <Text className="text-sm text-text-secondary">
+              <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">
                 No squads yet. Tap New Squad to create your first one.
               </Text>
             </CardContent>
@@ -267,18 +267,18 @@ export default function SquadsScreen() {
                 <Card>
                   <CardContent>
                     <View className="flex-row items-center justify-between">
-                      <Text className="text-base font-semibold text-text-primary">{squad.name}</Text>
+                      <Text className="text-base font-semibold text-text-primary dark:text-text-primary-dark">{squad.name}</Text>
                       {!squad.isActive ? (
-                        <View className="rounded-full bg-surface-secondary px-2 py-0.5">
-                          <Text className="text-[10px] font-medium text-text-secondary">INACTIVE</Text>
+                        <View className="rounded-full bg-surface-secondary dark:bg-surface-secondary-dark px-2 py-0.5">
+                          <Text className="text-[10px] font-medium text-text-secondary dark:text-text-secondary-dark">INACTIVE</Text>
                         </View>
                       ) : null}
                     </View>
-                    <Text className="mt-1 text-sm text-text-secondary">
+                    <Text className="mt-1 text-sm text-text-secondary dark:text-text-secondary-dark">
                       {[ageGroupLabel(squad.ageGroup), squad.clubName].filter(Boolean).join(" · ") ||
                         "No age group or club set"}
                     </Text>
-                    <Text className="mt-1 text-xs text-text-secondary">
+                    <Text className="mt-1 text-xs text-text-secondary dark:text-text-secondary-dark">
                       {squad.members.length} {squad.members.length === 1 ? "player" : "players"}
                     </Text>
                   </CardContent>
@@ -291,9 +291,9 @@ export default function SquadsScreen() {
 
       {/* Create squad modal */}
       <Modal visible={createVisible} animationType="slide" onRequestClose={() => setCreateVisible(false)}>
-        <SafeAreaView className="flex-1 bg-surface">
+        <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark">
           <View className="flex-row items-center justify-between px-6 pt-4">
-            <Text className="text-xl font-bold text-text-primary">New Squad</Text>
+            <Text className="text-xl font-bold text-text-primary dark:text-text-primary-dark">New Squad</Text>
             <Button variant="ghost" size="sm" onPress={() => setCreateVisible(false)}>
               Close
             </Button>
@@ -313,7 +313,7 @@ export default function SquadsScreen() {
                 onChangeText={setNewClubName}
                 placeholder="e.g. Riverside CC"
               />
-              {createError ? <Text className="text-sm text-danger">{createError}</Text> : null}
+              {createError ? <Text className="text-sm text-danger dark:text-danger-dark">{createError}</Text> : null}
               <Button onPress={() => void handleCreate()} isLoading={creating}>
                 Create Squad
               </Button>
@@ -324,9 +324,9 @@ export default function SquadsScreen() {
 
       {/* Squad detail modal */}
       <Modal visible={detailSquad !== null} animationType="slide" onRequestClose={closeDetail}>
-        <SafeAreaView className="flex-1 bg-surface">
+        <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark">
           <View className="flex-row items-center justify-between px-6 pt-4">
-            <Text className="text-xl font-bold text-text-primary">{detailSquad?.name ?? "Squad"}</Text>
+            <Text className="text-xl font-bold text-text-primary dark:text-text-primary-dark">{detailSquad?.name ?? "Squad"}</Text>
             <Button variant="ghost" size="sm" onPress={closeDetail}>
               Close
             </Button>
@@ -343,14 +343,14 @@ export default function SquadsScreen() {
                 />
                 <Input label="Club" value={editClubName} onChangeText={setEditClubName} />
                 <Checkbox checked={editActive} onToggle={setEditActive} label="Active squad" />
-                {editError ? <Text className="text-sm text-danger">{editError}</Text> : null}
+                {editError ? <Text className="text-sm text-danger dark:text-danger-dark">{editError}</Text> : null}
                 <Button onPress={() => void handleSaveEdit()} isLoading={savingEdit}>
                   Save Changes
                 </Button>
 
-                <View className="mt-2 border-t border-surface-secondary pt-4">
+                <View className="mt-2 border-t border-surface-secondary dark:border-surface-secondary-dark pt-4">
                   <View className="mb-2 flex-row items-center justify-between">
-                    <Text className="text-base font-semibold text-text-primary">
+                    <Text className="text-base font-semibold text-text-primary dark:text-text-primary-dark">
                       Members ({detailSquad.members.length})
                     </Text>
                     <Button variant="secondary" size="sm" onPress={() => void openAddMember()}>
@@ -358,7 +358,7 @@ export default function SquadsScreen() {
                     </Button>
                   </View>
                   {detailSquad.members.length === 0 ? (
-                    <Text className="text-sm text-text-secondary">No members yet.</Text>
+                    <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">No members yet.</Text>
                   ) : (
                     <View className="gap-1">
                       {detailSquad.members.map((member) => (
@@ -366,14 +366,14 @@ export default function SquadsScreen() {
                           key={member.id}
                           className="flex-row items-center justify-between rounded-lg p-3"
                         >
-                          <Text className="flex-1 text-text-primary">{member.displayName}</Text>
+                          <Text className="flex-1 text-text-primary dark:text-text-primary-dark">{member.displayName}</Text>
                           <Pressable
                             onPress={() => void handleRemoveMember(member.id)}
                             disabled={removingMemberId === member.id}
                             hitSlop={8}
                             className="p-1"
                           >
-                            <Text className="text-xs text-danger">
+                            <Text className="text-xs text-danger dark:text-danger-dark">
                               {removingMemberId === member.id ? "…" : "Remove"}
                             </Text>
                           </Pressable>
@@ -383,12 +383,12 @@ export default function SquadsScreen() {
                   )}
 
                   {addMemberVisible ? (
-                    <View className="mt-4 rounded-lg bg-surface-secondary p-3">
-                      <Text className="mb-2 text-sm font-medium text-text-primary">Add a player</Text>
+                    <View className="mt-4 rounded-lg bg-surface-secondary dark:bg-surface-secondary-dark p-3">
+                      <Text className="mb-2 text-sm font-medium text-text-primary dark:text-text-primary-dark">Add a player</Text>
                       {roster === null ? (
-                        <Text className="text-sm text-text-secondary">Loading…</Text>
+                        <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">Loading…</Text>
                       ) : candidateRoster.length === 0 ? (
-                        <Text className="text-sm text-text-secondary">
+                        <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">
                           Everyone on your roster is already in this squad.
                         </Text>
                       ) : (
@@ -398,9 +398,9 @@ export default function SquadsScreen() {
                               key={player.id}
                               onPress={() => void handleAddMember(player.id)}
                               disabled={addingId === player.id}
-                              className="flex-row items-center justify-between rounded-lg bg-surface p-2"
+                              className="flex-row items-center justify-between rounded-lg bg-surface dark:bg-surface-dark p-2"
                             >
-                              <Text className="text-text-primary">{player.displayName}</Text>
+                              <Text className="text-text-primary dark:text-text-primary-dark">{player.displayName}</Text>
                               <Text className="text-xs text-primary">
                                 {addingId === player.id ? "Adding…" : "Add"}
                               </Text>
@@ -412,7 +412,7 @@ export default function SquadsScreen() {
                   ) : null}
                 </View>
 
-                <View className="mt-2 border-t border-surface-secondary pt-4">
+                <View className="mt-2 border-t border-surface-secondary dark:border-surface-secondary-dark pt-4">
                   <Button variant="danger" onPress={() => void handleDelete()} isLoading={deleting}>
                     Delete Squad
                   </Button>

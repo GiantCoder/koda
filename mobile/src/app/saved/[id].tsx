@@ -188,14 +188,14 @@ export default function CollectionDetailScreen() {
 
   if (!id) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-surface">
-        <Text className="text-text-secondary">No collection specified.</Text>
+      <SafeAreaView className="flex-1 items-center justify-center bg-surface dark:bg-surface-dark">
+        <Text className="text-text-secondary dark:text-text-secondary-dark">No collection specified.</Text>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-surface" edges={["top", "left", "right"]}>
+    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
       <BackBar label="Saved" />
 
       {loading ? (
@@ -203,7 +203,7 @@ export default function CollectionDetailScreen() {
           <ActivityIndicator />
         </View>
       ) : error && !collection ? (
-        <Text className="px-6 pt-6 text-sm text-danger">{error}</Text>
+        <Text className="px-6 pt-6 text-sm text-danger dark:text-danger-dark">{error}</Text>
       ) : collection ? (
         <ScrollView
           className="flex-1 px-6"
@@ -212,11 +212,11 @@ export default function CollectionDetailScreen() {
           <View className="gap-4 pb-10 pt-2">
             <View className="flex-row items-start justify-between">
               <View className="flex-1 pr-3">
-                <Text className="text-2xl font-bold text-text-primary">{collection.name}</Text>
+                <Text className="text-2xl font-bold text-text-primary dark:text-text-primary-dark">{collection.name}</Text>
                 {collection.description ? (
-                  <Text className="mt-1 text-sm text-text-secondary">{collection.description}</Text>
+                  <Text className="mt-1 text-sm text-text-secondary dark:text-text-secondary-dark">{collection.description}</Text>
                 ) : null}
-                <Text className="mt-1 text-xs text-text-secondary">
+                <Text className="mt-1 text-xs text-text-secondary dark:text-text-secondary-dark">
                   {collection.canEdit ? "Owned by you" : `Shared by ${collection.ownerName}`}
                   {collection.isPublic ? " · Public" : ""}
                 </Text>
@@ -236,7 +236,7 @@ export default function CollectionDetailScreen() {
             {collection.clips.length === 0 ? (
               <Card>
                 <CardContent>
-                  <Text className="text-sm text-text-secondary">
+                  <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">
                     No clips saved yet. Open an analysed video and tap "Save to Collection".
                   </Text>
                 </CardContent>
@@ -247,20 +247,20 @@ export default function CollectionDetailScreen() {
                   <Pressable
                     key={clip.id}
                     onPress={() => router.push(`/analysis/${clip.videoId}`)}
-                    className="flex-row items-center justify-between rounded-lg border border-surface-secondary p-3"
+                    className="flex-row items-center justify-between rounded-lg border border-surface-secondary dark:border-surface-secondary-dark p-3"
                   >
                     <View className="flex-1 pr-2">
-                      <Text className="text-text-primary" numberOfLines={1}>
+                      <Text className="text-text-primary dark:text-text-primary-dark" numberOfLines={1}>
                         {clip.filename ?? "Untitled video"}
                       </Text>
-                      <Text className="mt-0.5 text-xs text-text-secondary">
+                      <Text className="mt-0.5 text-xs text-text-secondary dark:text-text-secondary-dark">
                         {clip.analysis?.shotType?.replace(/_/g, " ").toLowerCase() ?? "Unknown shot"}
                         {clip.notes ? ` · ${clip.notes}` : ""}
                       </Text>
                     </View>
                     {clip.analysis?.gradeLetter ? (
-                      <View className="mr-2 items-center justify-center rounded-full bg-surface-secondary px-3 py-1">
-                        <Text className="text-sm font-bold text-text-primary">{clip.analysis.gradeLetter}</Text>
+                      <View className="mr-2 items-center justify-center rounded-full bg-surface-secondary dark:bg-surface-secondary-dark px-3 py-1">
+                        <Text className="text-sm font-bold text-text-primary dark:text-text-primary-dark">{clip.analysis.gradeLetter}</Text>
                       </View>
                     ) : null}
                     {collection.canEdit ? (
@@ -269,7 +269,7 @@ export default function CollectionDetailScreen() {
                         disabled={removingClipId === clip.videoId}
                         hitSlop={8}
                       >
-                        <Text className="text-xs text-danger">
+                        <Text className="text-xs text-danger dark:text-danger-dark">
                           {removingClipId === clip.videoId ? "…" : "Remove"}
                         </Text>
                       </Pressable>
@@ -280,7 +280,7 @@ export default function CollectionDetailScreen() {
             )}
 
             {collection.canEdit ? (
-              <View className="border-t border-surface-secondary pt-4">
+              <View className="border-t border-surface-secondary dark:border-surface-secondary-dark pt-4">
                 <Button variant="danger" onPress={() => void handleDelete()} isLoading={deleting}>
                   Delete Collection
                 </Button>
@@ -291,9 +291,9 @@ export default function CollectionDetailScreen() {
       ) : null}
 
       <Modal visible={editVisible} animationType="slide" onRequestClose={() => setEditVisible(false)}>
-        <SafeAreaView className="flex-1 bg-surface">
+        <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark">
           <View className="flex-row items-center justify-between px-6 pt-4">
-            <Text className="text-xl font-bold text-text-primary">Edit Collection</Text>
+            <Text className="text-xl font-bold text-text-primary dark:text-text-primary-dark">Edit Collection</Text>
             <Button variant="ghost" size="sm" onPress={() => setEditVisible(false)}>
               Close
             </Button>
@@ -302,7 +302,7 @@ export default function CollectionDetailScreen() {
             <Input label="Name" value={editName} onChangeText={setEditName} />
             <Input label="Description" value={editDescription} onChangeText={setEditDescription} multiline />
             <Checkbox checked={editPublic} onToggle={setEditPublic} label="Make this collection public" />
-            {editError ? <Text className="text-sm text-danger">{editError}</Text> : null}
+            {editError ? <Text className="text-sm text-danger dark:text-danger-dark">{editError}</Text> : null}
             <Button onPress={() => void handleSaveEdit()} isLoading={savingEdit}>
               Save Changes
             </Button>
@@ -311,38 +311,38 @@ export default function CollectionDetailScreen() {
       </Modal>
 
       <Modal visible={shareVisible} animationType="slide" onRequestClose={() => setShareVisible(false)}>
-        <SafeAreaView className="flex-1 bg-surface">
+        <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark">
           <View className="flex-row items-center justify-between px-6 pt-4">
-            <Text className="text-xl font-bold text-text-primary">Share Collection</Text>
+            <Text className="text-xl font-bold text-text-primary dark:text-text-primary-dark">Share Collection</Text>
             <Button variant="ghost" size="sm" onPress={() => setShareVisible(false)}>
               Close
             </Button>
           </View>
           <ScrollView className="flex-1 px-6 pt-4">
-            <Text className="mb-2 text-sm font-medium text-text-primary">Shared with</Text>
+            <Text className="mb-2 text-sm font-medium text-text-primary dark:text-text-primary-dark">Shared with</Text>
             {shares === null ? (
-              <Text className="text-sm text-text-secondary">Loading…</Text>
+              <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">Loading…</Text>
             ) : shares.length === 0 ? (
-              <Text className="mb-4 text-sm text-text-secondary">Not shared with anyone yet.</Text>
+              <Text className="mb-4 text-sm text-text-secondary dark:text-text-secondary-dark">Not shared with anyone yet.</Text>
             ) : (
               <View className="mb-4 gap-1">
                 {shares.map((share) => (
-                  <View key={share.userId} className="flex-row items-center justify-between rounded-lg bg-surface-secondary p-2">
-                    <Text className="text-text-primary">{share.displayName}</Text>
+                  <View key={share.userId} className="flex-row items-center justify-between rounded-lg bg-surface-secondary dark:bg-surface-secondary-dark p-2">
+                    <Text className="text-text-primary dark:text-text-primary-dark">{share.displayName}</Text>
                     <Pressable onPress={() => void handleUnshare(share.userId)} disabled={sharingId === share.userId}>
-                      <Text className="text-xs text-danger">{sharingId === share.userId ? "…" : "Remove"}</Text>
+                      <Text className="text-xs text-danger dark:text-danger-dark">{sharingId === share.userId ? "…" : "Remove"}</Text>
                     </Pressable>
                   </View>
                 ))}
               </View>
             )}
-            <Text className="mb-2 text-sm font-medium text-text-primary">
+            <Text className="mb-2 text-sm font-medium text-text-primary dark:text-text-primary-dark">
               {isCoachOrAdmin ? "Share with a player" : "Share with your coach"}
             </Text>
             {contacts === null ? (
-              <Text className="text-sm text-text-secondary">Loading…</Text>
+              <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">Loading…</Text>
             ) : shareCandidates.length === 0 ? (
-              <Text className="text-sm text-text-secondary">No one else available to share with.</Text>
+              <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">No one else available to share with.</Text>
             ) : (
               <View className="gap-1">
                 {shareCandidates.map((c) => (
@@ -352,7 +352,7 @@ export default function CollectionDetailScreen() {
                     disabled={sharingId === c.id}
                     className="flex-row items-center justify-between rounded-lg p-2"
                   >
-                    <Text className="text-text-primary">{c.displayName}</Text>
+                    <Text className="text-text-primary dark:text-text-primary-dark">{c.displayName}</Text>
                     <Text className="text-xs text-primary">{sharingId === c.id ? "Sharing…" : "Share"}</Text>
                   </Pressable>
                 ))}

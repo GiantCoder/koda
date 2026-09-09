@@ -53,9 +53,9 @@ export default function ConversationThreadScreen() {
   }, [draft, conversationId, appendLocal]);
 
   return (
-    <SafeAreaView className="flex-1 bg-surface" edges={["top", "left", "right"]}>
+    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
       <BackBar label="Messages" />
-      <Text className="px-6 pb-2 text-xs text-text-secondary">
+      <Text className="px-6 pb-2 text-xs text-text-secondary dark:text-text-secondary-dark">
         Only people in this conversation can see these messages.
       </Text>
 
@@ -66,11 +66,11 @@ export default function ConversationThreadScreen() {
           onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}
         >
           {loading ? (
-            <Text className="text-sm text-text-secondary">Loading…</Text>
+            <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">Loading…</Text>
           ) : error ? (
-            <Text className="text-sm text-danger">{error.message}</Text>
+            <Text className="text-sm text-danger dark:text-danger-dark">{error.message}</Text>
           ) : messages.length === 0 ? (
-            <Text className="text-sm text-text-secondary">No messages yet -- say hello.</Text>
+            <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">No messages yet -- say hello.</Text>
           ) : (
             <View className="gap-2 pb-4">
               {messages.map((message) => {
@@ -78,10 +78,10 @@ export default function ConversationThreadScreen() {
                 return (
                   <View key={message.id} className={`max-w-[80%] ${mine ? "self-end" : "self-start"}`}>
                     {!mine ? (
-                      <Text className="mb-0.5 text-xs text-text-secondary">{message.senderDisplayName}</Text>
+                      <Text className="mb-0.5 text-xs text-text-secondary dark:text-text-secondary-dark">{message.senderDisplayName}</Text>
                     ) : null}
-                    <View className={`rounded-2xl px-3 py-2 ${mine ? "bg-primary" : "bg-surface-secondary"}`}>
-                      <Text className={mine ? "text-white" : "text-text-primary"}>{message.content}</Text>
+                    <View className={`rounded-2xl px-3 py-2 ${mine ? "bg-primary" : "bg-surface-secondary dark:bg-surface-secondary-dark"}`}>
+                      <Text className={mine ? "text-white" : "text-text-primary dark:text-text-primary-dark"}>{message.content}</Text>
                     </View>
                   </View>
                 );
@@ -90,13 +90,13 @@ export default function ConversationThreadScreen() {
           )}
         </ScrollView>
 
-        <View className="flex-row items-end gap-2 border-t border-surface-secondary px-6 py-3">
+        <View className="flex-row items-end gap-2 border-t border-surface-secondary dark:border-surface-secondary-dark px-6 py-3">
           <TextInput
             value={draft}
             onChangeText={setDraft}
             placeholder="Type a message…"
             multiline
-            className="max-h-24 flex-1 rounded-xl border border-surface-secondary px-3 py-2 text-text-primary"
+            className="max-h-24 flex-1 rounded-xl border border-surface-secondary dark:border-surface-secondary-dark px-3 py-2 text-text-primary dark:text-text-primary-dark"
           />
           <Button size="sm" onPress={() => void handleSend()} isLoading={sending} disabled={!draft.trim()}>
             Send

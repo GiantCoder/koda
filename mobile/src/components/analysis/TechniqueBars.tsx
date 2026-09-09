@@ -20,7 +20,7 @@ export function TechniqueBars({ data }: { data: TechniqueDataPoint[] }) {
       <CardHeader>📊 Technique Analysis</CardHeader>
       <CardContent className="gap-3">
         {data.length === 0 ? (
-          <Text className="text-sm text-text-secondary">No technique data available for this shot.</Text>
+          <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">No technique data available for this shot.</Text>
         ) : (
           data.map((item) => {
             const fullMark = item.fullMark ?? 100;
@@ -28,10 +28,10 @@ export function TechniqueBars({ data }: { data: TechniqueDataPoint[] }) {
             return (
               <View key={item.dimension}>
                 <View className="mb-1 flex-row items-center justify-between">
-                  <Text className="text-sm text-text-primary">{item.dimension}</Text>
-                  <Text className="text-sm text-text-secondary">{item.value}/{fullMark}</Text>
+                  <Text className="text-sm text-text-primary dark:text-text-primary-dark">{item.dimension}</Text>
+                  <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">{item.value}/{fullMark}</Text>
                 </View>
-                <View className="h-2 rounded-full bg-surface-secondary">
+                <View className="h-2 rounded-full bg-surface-secondary dark:bg-surface-secondary-dark">
                   <View className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
                 </View>
               </View>

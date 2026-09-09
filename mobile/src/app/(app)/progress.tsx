@@ -41,8 +41,8 @@ function formatShotType(s: string): string {
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
     <Card className="flex-1 p-4">
-      <Text className="text-xs text-text-secondary">{label}</Text>
-      <Text className="mt-1 text-xl font-bold text-text-primary">{value}</Text>
+      <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">{label}</Text>
+      <Text className="mt-1 text-xl font-bold text-text-primary dark:text-text-primary-dark">{value}</Text>
     </Card>
   );
 }
@@ -81,7 +81,7 @@ export default function ProgressScreen() {
   }, [load]);
 
   return (
-    <SafeAreaView className="flex-1 bg-surface" edges={["top", "left", "right"]}>
+    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
       <ScrollView
         className="flex-1 px-6 pt-6"
         refreshControl={
@@ -94,17 +94,17 @@ export default function ProgressScreen() {
           />
         }
       >
-        <Text className="mb-1 text-2xl font-bold text-text-primary">Progress</Text>
-        <Text className="mb-6 text-sm text-text-secondary">Track your cricket training journey</Text>
+        <Text className="mb-1 text-2xl font-bold text-text-primary dark:text-text-primary-dark">Progress</Text>
+        <Text className="mb-6 text-sm text-text-secondary dark:text-text-secondary-dark">Track your cricket training journey</Text>
 
         {loading ? (
-          <Text className="text-sm text-text-secondary">Loading…</Text>
+          <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">Loading…</Text>
         ) : error ? (
-          <Text className="text-sm text-danger">{error}</Text>
+          <Text className="text-sm text-danger dark:text-danger-dark">{error}</Text>
         ) : !summary || summary.totalSessions === 0 ? (
           <Card>
             <CardContent>
-              <Text className="text-sm text-text-secondary">
+              <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">
                 No completed analyses yet. Upload and analyze a video to start tracking your progress.
               </Text>
             </CardContent>

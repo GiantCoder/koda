@@ -3,12 +3,24 @@
  * so PoseSkeletonOverlay.tsx (react-native-svg) can draw the same skeleton
  * web draws on a <canvas>. Kept framework-agnostic and unit-testable.
  *
- * Deliberately trimmed from web's version for v1: no tracked-subject bbox
- * box (a secondary drift-tracking rectangle, not the skeleton itself) and
- * no on/off layer toggle UI -- the overlay just draws whenever pose data is
- * available. Both are easy to add back later if wanted.
+ * Phase 8: previously this assumed the video fills its container exactly
+ * (VideoView used contentFit="cover"), mapping normalized pose coordinates
+ * straight onto the container's full width/height. That's only correct
+ * when the clip's aspect ratio happens to match the container's -- for
+ * anything else, "cover" crops the video to fill the box, so the visible
+ * frame is no longer what the 0-1 pose coordinates were computed against,
+ * and the skeleton drifts off the subject. A batting clip (subject roughly
+ * centered, fixed camera) mostly got away with it; a bowling run-up moves
+ * the subject much further across frame, so the same drift became obvious
+ * there. Fixed by switching to contentFit="contain" and porting web's
+ * exact getContainedVideoContentBox letterbox math below, so every
+ * mapPoint() call goes through the actual visible video content box
+ * rather than the raw container box. Bbox support (tracked-subject box,
+ * both the real per-frame version and the legacy static fallback) is also
+ * ported in this pass -- it was deliberately trimmed in Phase 4, now
+ * needed for the Video/Skeleton/Bbox layer toggle.
  */
-import type { FrameLandmarks, PoseKeypoint } from "@/api/analysis";
+import type { FrameLandmarks, PoseKeypoint, PoseEstimateResponse } from "@/api/analysis";
 
 export const POSE_CONNECTIONS: Array<[string, string]> = [
   ["leftShoulder", "rightShoulder"],
@@ -90,13 +102,123 @@ export interface Point {
   y: number;
 }
 
-/** Maps a normalized (0-1) keypoint to pixel coordinates within a box of
- * the given width/height. Mobile assumes the video fills its container
- * exactly (VideoView uses contentFit="cover") rather than reproducing
- * web's object-fit:contain letterbox math -- a deliberate v1 simplification
- * documented in the roadmap doc; revisit if non-16:9 clips look off. */
-export function mapPoint(kp: PoseKeypoint, width: number, height: number): Point {
-  return { x: kp.x * width, y: kp.y * height };
+export interface ContentBox {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+/** Ported from web's getContainedVideoContentBox: the visible video content
+ * rectangle within a `contentFit="contain"` player, given the container's
+ * layout size and the source video's native pixel size. Letterboxes on
+ * whichever axis doesn't match the clip's aspect ratio, exactly like
+ * object-fit:contain -- this is what makes pose points land on the subject
+ * regardless of the clip's orientation/aspect ratio. */
+export function getContainedVideoContentBox(
+  containerWidth: number,
+  containerHeight: number,
+  sourceWidth: number,
+  sourceHeight: number
+): ContentBox | null {
+  if (!sourceWidth || !sourceHeight || containerWidth <= 0 || containerHeight <= 0) return null;
+  const scale = Math.min(containerWidth / sourceWidth, containerHeight / sourceHeight);
+  const width = sourceWidth * scale;
+  const height = sourceHeight * scale;
+  const left = (containerWidth - width) / 2;
+  const top = (containerHeight - height) / 2;
+  return { left, top, width, height };
+}
+
+/** Maps a normalized (0-1) keypoint into pixel coordinates within the
+ * video's actual visible content box (see getContainedVideoContentBox),
+ * not the raw container. */
+export function mapPoint(kp: PoseKeypoint, box: ContentBox): Point {
+  return { x: box.left + kp.x * box.width, y: box.top + kp.y * box.height };
+}
+
+export interface NormalizedBbox {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** Per-frame tracked-subject box computed from that frame's own visible
+ * keypoints -- ported from web verbatim. Preferred over the clip-level
+ * legacy `batsman_bbox`, which is a single static box that can drift away
+ * from early/late frames. */
+export function bboxFromFrameLandmarks(
+  frame: FrameLandmarks,
+  paddingRatio = 0.12
+): NormalizedBbox | null {
+  const xs: number[] = [];
+  const ys: number[] = [];
+  for (const kp of Object.values(frame.keypoints)) {
+    if (kp.visibility < 0.2) continue;
+    if (!Number.isFinite(kp.x) || !Number.isFinite(kp.y)) continue;
+    xs.push(kp.x);
+    ys.push(kp.y);
+  }
+  if (xs.length === 0) return null;
+
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  const padX = Math.max(0.01, (maxX - minX) * paddingRatio);
+  const padY = Math.max(0.01, (maxY - minY) * paddingRatio);
+  const x = Math.max(0, minX - padX);
+  const y = Math.max(0, minY - padY);
+  const w = Math.min(1 - x, maxX - minX + 2 * padX);
+  const h = Math.min(1 - y, maxY - minY + 2 * padY);
+  if (w <= 0 || h <= 0) return null;
+  return { x, y, w, h };
+}
+
+function isValidLegacyBbox(
+  value: Record<string, unknown> | null | undefined
+): value is { x: number; y: number; w: number; h: number } {
+  return Boolean(
+    value &&
+      typeof value.x === "number" &&
+      typeof value.y === "number" &&
+      typeof value.w === "number" &&
+      typeof value.h === "number" &&
+      value.w > 0 &&
+      value.h > 0
+  );
+}
+
+/** Resolves the tracked-subject box to draw for a frame: the per-frame
+ * normalized box when available, else the clip-level legacy pixel bbox
+ * (converted into the video's content box), else null. */
+export function resolveBboxRect(
+  frame: FrameLandmarks,
+  poseData: PoseEstimateResponse,
+  box: ContentBox,
+  sourceWidth: number,
+  sourceHeight: number
+): { x: number; y: number; w: number; h: number } | null {
+  const normalized = bboxFromFrameLandmarks(frame);
+  if (normalized) {
+    return {
+      x: box.left + normalized.x * box.width,
+      y: box.top + normalized.y * box.height,
+      w: normalized.w * box.width,
+      h: normalized.h * box.height,
+    };
+  }
+  if (isValidLegacyBbox(poseData.batsman_bbox) && sourceWidth > 0 && sourceHeight > 0) {
+    const legacy = poseData.batsman_bbox;
+    return {
+      x: box.left + (legacy.x / sourceWidth) * box.width,
+      y: box.top + (legacy.y / sourceHeight) * box.height,
+      w: (legacy.w / sourceWidth) * box.width,
+      h: (legacy.h / sourceHeight) * box.height,
+    };
+  }
+  return null;
 }
 
 export interface WristArrow {
@@ -110,8 +232,7 @@ export interface WristArrow {
 export function computeWristArrows(
   currentFrame: FrameLandmarks,
   allFrames: FrameLandmarks[],
-  width: number,
-  height: number
+  box: ContentBox
 ): WristArrow[] {
   const nextFrame = findNearestPoseFrame(allFrames, currentFrame.timestamp + 0.15);
   if (!nextFrame) return [];
@@ -121,8 +242,8 @@ export function computeWristArrows(
     const nextKp = nextFrame.keypoints[joint];
     if (!currKp || !nextKp) return;
     if (currKp.visibility < 0.25 || nextKp.visibility < 0.25) return;
-    const p1 = mapPoint(currKp, width, height);
-    const p2 = mapPoint(nextKp, width, height);
+    const p1 = mapPoint(currKp, box);
+    const p2 = mapPoint(nextKp, box);
     const dx = p2.x - p1.x;
     const dy = p2.y - p1.y;
     const magnitude = Math.sqrt(dx * dx + dy * dy);

@@ -28,7 +28,7 @@ interface OptionPickerProps {
 export function OptionPicker({ label, options, value, onChange, layout = "chips" }: OptionPickerProps) {
   return (
     <View className="w-full">
-      {label ? <Text className="mb-1.5 text-sm font-medium text-text-primary">{label}</Text> : null}
+      {label ? <Text className="mb-1.5 text-sm font-medium text-text-primary dark:text-text-primary-dark">{label}</Text> : null}
       {layout === "cards" ? (
         <View className="gap-3">
           {options.map((option) => {
@@ -38,12 +38,12 @@ export function OptionPicker({ label, options, value, onChange, layout = "chips"
                 key={option.value}
                 onPress={() => onChange(option.value)}
                 className={`rounded-lg border-2 p-4 ${
-                  selected ? "border-primary bg-surface-secondary" : "border-surface-secondary"
+                  selected ? "border-primary bg-surface-secondary dark:bg-surface-secondary-dark" : "border-surface-secondary dark:border-surface-secondary-dark"
                 }`}
               >
-                <Text className="font-semibold text-text-primary">{option.label}</Text>
+                <Text className="font-semibold text-text-primary dark:text-text-primary-dark">{option.label}</Text>
                 {option.description ? (
-                  <Text className="mt-0.5 text-sm text-text-secondary">{option.description}</Text>
+                  <Text className="mt-0.5 text-sm text-text-secondary dark:text-text-secondary-dark">{option.description}</Text>
                 ) : null}
               </Pressable>
             );
@@ -58,10 +58,10 @@ export function OptionPicker({ label, options, value, onChange, layout = "chips"
                 key={option.value}
                 onPress={() => onChange(option.value)}
                 className={`rounded-full border px-4 py-2 ${
-                  selected ? "border-primary bg-primary" : "border-surface-secondary bg-surface"
+                  selected ? "border-primary bg-primary" : "border-surface-secondary dark:border-surface-secondary-dark bg-surface dark:bg-surface-dark"
                 }`}
               >
-                <Text className={selected ? "text-sm font-medium text-white" : "text-sm text-text-primary"}>
+                <Text className={selected ? "text-sm font-medium text-white" : "text-sm text-text-primary dark:text-text-primary-dark"}>
                   {option.label}
                 </Text>
               </Pressable>

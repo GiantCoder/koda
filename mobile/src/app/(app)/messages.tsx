@@ -6,9 +6,16 @@ import { useAppSelector } from "@/store/hooks";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { ApiError } from "@/api/client";
-import { getConversations, createConversation, type ConversationSummary } from "@/api/conversations";
+import {
+  getConversations,
+  createConversation,
+  searchMessages,
+  type ConversationSummary,
+  type MessageSearchResult,
+} from "@/api/conversations";
 import { getAssignablePlayers, type AssignablePlayer } from "@/api/videos";
 import { getMyCoaches } from "@/api/team";
+import { Input } from "@/components/ui/Input";
 
 /**
  * Real Messages tab -- Phase 5. Web's equivalent page is 100% mocked
@@ -57,6 +64,30 @@ export default function MessagesScreen() {
   const [newMessageVisible, setNewMessageVisible] = useState(false);
   const [contacts, setContacts] = useState<AssignablePlayer[] | null>(null);
   const [creatingFor, setCreatingFor] = useState<string | null>(null);
+
+  // Message search -- wraps the real, working GET /api/messages/search,
+  // left unwrapped in Phase 5. Debounced so we're not firing a request on
+  // every keystroke.
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<MessageSearchResult[] | null>(null);
+  const [searching, setSearching] = useState(false);
+
+  useEffect(() => {
+    const query = searchQuery.trim();
+    if (!query) {
+      setSearchResults(null);
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
+    const timer = setTimeout(() => {
+      searchMessages(query)
+        .then(setSearchResults)
+        .catch(() => setSearchResults([]))
+        .finally(() => setSearching(false));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const isCoachOrAdmin = user?.role === "COACH" || user?.role === "ADMIN";
   const canStartConversation = true;
@@ -109,14 +140,24 @@ export default function MessagesScreen() {
   }, [load]);
 
   return (
-    <SafeAreaView className="flex-1 bg-surface" edges={["top", "left", "right"]}>
+    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
       <View className="flex-row items-center justify-between px-6 pt-6">
-        <Text className="text-2xl font-bold text-text-primary">Messages</Text>
+        <Text className="text-2xl font-bold text-text-primary dark:text-text-primary-dark">Messages</Text>
         {canStartConversation ? (
           <Button size="sm" onPress={() => void openNewMessage()}>
             New Message
           </Button>
         ) : null}
+      </View>
+
+      <View className="px-6 pt-4">
+        <Input
+          placeholder="Search messages…"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          autoCapitalize="none"
+          returnKeyType="search"
+        />
       </View>
 
       <ScrollView
@@ -131,14 +172,51 @@ export default function MessagesScreen() {
           />
         }
       >
-        {loading ? (
-          <Text className="text-sm text-text-secondary">Loading…</Text>
+        {searchQuery.trim() ? (
+          searching ? (
+            <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">Searching…</Text>
+          ) : !searchResults || searchResults.length === 0 ? (
+            <Card>
+              <CardContent>
+                <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">
+                  No messages match "{searchQuery.trim()}".
+                </Text>
+              </CardContent>
+            </Card>
+          ) : (
+            <View className="gap-1 pb-8">
+              {searchResults.map((result) => (
+                <Pressable
+                  key={result.id}
+                  onPress={() => {
+                    setSearchQuery("");
+                    router.push(`/messages/${result.conversationId}`);
+                  }}
+                  className="gap-1 rounded-lg p-3"
+                >
+                  <View className="flex-row items-center justify-between">
+                    <Text className="font-medium text-text-primary dark:text-text-primary-dark">
+                      {result.sender.displayName}
+                    </Text>
+                    <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">
+                      {formatTime(result.sentAt)}
+                    </Text>
+                  </View>
+                  <Text className="text-sm text-text-secondary dark:text-text-secondary-dark" numberOfLines={2}>
+                    {result.content}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          )
+        ) : loading ? (
+          <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">Loading…</Text>
         ) : error ? (
-          <Text className="text-sm text-danger">{error}</Text>
+          <Text className="text-sm text-danger dark:text-danger-dark">{error}</Text>
         ) : conversations.length === 0 ? (
           <Card>
             <CardContent>
-              <Text className="text-sm text-text-secondary">
+              <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">
                 {isCoachOrAdmin
                   ? "No conversations yet. Tap New Message to start one with a player."
                   : "No conversations yet. Tap New Message to start one with your coach."}
@@ -155,15 +233,15 @@ export default function MessagesScreen() {
                   onPress={() => router.push(`/messages/${conversation.id}`)}
                   className="flex-row items-center gap-3 rounded-lg p-3"
                 >
-                  <View className="h-10 w-10 items-center justify-center rounded-full bg-surface-secondary">
+                  <View className="h-10 w-10 items-center justify-center rounded-full bg-surface-secondary dark:bg-surface-secondary-dark">
                     <Text className="text-base">💬</Text>
                   </View>
                   <View className="flex-1">
-                    <Text className={`text-text-primary ${unread ? "font-bold" : "font-medium"}`} numberOfLines={1}>
+                    <Text className={`text-text-primary dark:text-text-primary-dark ${unread ? "font-bold" : "font-medium"}`} numberOfLines={1}>
                       {otherParticipantName(conversation, user?.id)}
                     </Text>
                     <Text
-                      className={`mt-0.5 text-sm ${unread ? "font-semibold text-text-primary" : "text-text-secondary"}`}
+                      className={`mt-0.5 text-sm ${unread ? "font-semibold text-text-primary dark:text-text-primary-dark" : "text-text-secondary dark:text-text-secondary-dark"}`}
                       numberOfLines={1}
                     >
                       {conversation.lastMessage?.content ?? "No messages yet"}
@@ -171,7 +249,7 @@ export default function MessagesScreen() {
                   </View>
                   <View className="items-end gap-1">
                     {conversation.lastMessage ? (
-                      <Text className="text-xs text-text-secondary">{formatTime(conversation.lastMessage.sentAt)}</Text>
+                      <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">{formatTime(conversation.lastMessage.sentAt)}</Text>
                     ) : null}
                     {unread ? <View className="h-2 w-2 rounded-full bg-primary" /> : null}
                   </View>
@@ -183,20 +261,20 @@ export default function MessagesScreen() {
       </ScrollView>
 
       <Modal visible={newMessageVisible} animationType="slide" onRequestClose={() => setNewMessageVisible(false)}>
-        <SafeAreaView className="flex-1 bg-surface">
+        <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark">
           <View className="flex-row items-center justify-between px-6 pt-4">
-            <Text className="text-xl font-bold text-text-primary">New Message</Text>
+            <Text className="text-xl font-bold text-text-primary dark:text-text-primary-dark">New Message</Text>
             <Button variant="ghost" size="sm" onPress={() => setNewMessageVisible(false)}>
               Close
             </Button>
           </View>
           <ScrollView className="flex-1 px-6 pt-4">
             {contacts === null ? (
-              <Text className="text-sm text-text-secondary">
+              <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">
                 {isCoachOrAdmin ? "Loading players…" : "Loading coaches…"}
               </Text>
             ) : contacts.length === 0 ? (
-              <Text className="text-sm text-text-secondary">
+              <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">
                 {isCoachOrAdmin
                   ? "No players to message yet."
                   : "No coach found yet -- once you're on a squad, your coach will show up here."}
@@ -210,8 +288,8 @@ export default function MessagesScreen() {
                     disabled={creatingFor === player.id}
                     className="flex-row items-center justify-between rounded-lg p-3"
                   >
-                    <Text className="text-text-primary">{player.displayName}</Text>
-                    {creatingFor === player.id ? <Text className="text-xs text-text-secondary">Starting…</Text> : null}
+                    <Text className="text-text-primary dark:text-text-primary-dark">{player.displayName}</Text>
+                    {creatingFor === player.id ? <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">Starting…</Text> : null}
                   </Pressable>
                 ))}
               </View>

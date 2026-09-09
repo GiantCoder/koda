@@ -39,9 +39,9 @@ export function ConfirmDialog({
     <Modal visible={open} transparent animationType="fade" onRequestClose={onCancel}>
       <View className="flex-1 items-center justify-center bg-black/50 px-6">
         <Pressable className="absolute inset-0" onPress={onCancel} />
-        <View className="w-full max-w-sm rounded-xl bg-surface p-6">
-          <Text className="mb-2 text-lg font-semibold text-text-primary">{title}</Text>
-          <Text className="mb-6 text-sm text-text-secondary">{message}</Text>
+        <View className="w-full max-w-sm rounded-xl bg-surface dark:bg-surface-dark p-6">
+          <Text className="mb-2 text-lg font-semibold text-text-primary dark:text-text-primary-dark">{title}</Text>
+          <Text className="mb-6 text-sm text-text-secondary dark:text-text-secondary-dark">{message}</Text>
           <View className="flex-row justify-end gap-3">
             <Button variant="ghost" onPress={onCancel} disabled={isLoading}>
               {cancelLabel}

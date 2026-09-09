@@ -17,12 +17,12 @@ export function Checkbox({ checked, onToggle, label }: CheckboxProps) {
     >
       <View
         className={`mt-0.5 h-5 w-5 items-center justify-center rounded border-2 ${
-          checked ? "border-primary bg-primary" : "border-surface-secondary bg-surface"
+          checked ? "border-primary bg-primary" : "border-surface-secondary dark:border-surface-secondary-dark bg-surface dark:bg-surface-dark"
         }`}
       >
         {checked ? <Text className="text-xs font-bold text-white">✓</Text> : null}
       </View>
-      <Text className="flex-1 text-sm text-text-secondary">{label}</Text>
+      <Text className="flex-1 text-sm text-text-secondary dark:text-text-secondary-dark">{label}</Text>
     </Pressable>
   );
 }

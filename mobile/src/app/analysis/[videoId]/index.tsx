@@ -30,6 +30,7 @@ import {
   type CoachingTip,
 } from "@/api/analysis";
 import { PoseSkeletonOverlay } from "@/components/analysis/PoseSkeletonOverlay";
+import { OverlayLayerToggleRow } from "@/components/analysis/OverlayLayerToggleRow";
 import { ShotGradeCard, type MetricScore } from "@/components/analysis/ShotGradeCard";
 import { CoachingTipsPanel } from "@/components/analysis/CoachingTipsPanel";
 import { TagStrip, type ShotTag } from "@/components/analysis/TagStrip";
@@ -161,6 +162,11 @@ export default function AnalysisResultsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [overlayLayers, setOverlayLayers] = useState({
+    showVideo: true,
+    showSkeleton: true,
+    showBbox: false,
+  });
   const [saveVisible, setSaveVisible] = useState(false);
   const [savedCollectionIds, setSavedCollectionIds] = useState<Set<string>>(new Set());
   const [collections, setCollections] = useState<CollectionSummary[] | null>(null);
@@ -264,10 +270,10 @@ export default function AnalysisResultsScreen() {
 
   if (!videoId) {
     return (
-      <SafeAreaView className="flex-1 bg-surface" edges={["top", "left", "right"]}>
+      <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
         <BackBar />
         <View className="flex-1 items-center justify-center px-6">
-          <Text className="text-sm text-danger">No video specified.</Text>
+          <Text className="text-sm text-danger dark:text-danger-dark">No video specified.</Text>
         </View>
       </SafeAreaView>
     );
@@ -275,10 +281,10 @@ export default function AnalysisResultsScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-surface" edges={["top", "left", "right"]}>
+      <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
         <BackBar />
         <View className="flex-1 items-center justify-center">
-          <Text className="text-sm text-text-secondary">Loading analysis…</Text>
+          <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">Loading analysis…</Text>
         </View>
       </SafeAreaView>
     );
@@ -286,10 +292,10 @@ export default function AnalysisResultsScreen() {
 
   if (error || !analysis) {
     return (
-      <SafeAreaView className="flex-1 bg-surface" edges={["top", "left", "right"]}>
+      <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
         <BackBar />
         <View className="flex-1 items-center justify-center px-6">
-          <Text className="mb-4 text-center text-sm text-danger">{error ?? "Analysis not found."}</Text>
+          <Text className="mb-4 text-center text-sm text-danger dark:text-danger-dark">{error ?? "Analysis not found."}</Text>
           <Button onPress={() => router.replace("/(app)/dashboard")}>Back to Dashboard</Button>
         </View>
       </SafeAreaView>
@@ -306,7 +312,7 @@ export default function AnalysisResultsScreen() {
   const canAddAnnotations = user?.role === "COACH";
 
   return (
-    <SafeAreaView className="flex-1 bg-surface" edges={["top", "left", "right"]}>
+    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
       <BackBar />
       <ScrollView
         className="flex-1 px-6 pt-6"
@@ -321,14 +327,14 @@ export default function AnalysisResultsScreen() {
         }
       >
         <View className="mb-1 flex-row items-start justify-between">
-          <Text className="flex-1 pr-3 text-2xl font-bold text-text-primary">
+          <Text className="flex-1 pr-3 text-2xl font-bold text-text-primary dark:text-text-primary-dark">
             {analysis.video?.filename?.trim() || (isBowling ? "Bowling Analysis" : "Shot Analysis")}
           </Text>
           <Button variant="secondary" size="sm" onPress={() => void openSaveModal()}>
             Save
           </Button>
         </View>
-        <Text className="mb-4 text-sm text-text-secondary">
+        <Text className="mb-4 text-sm text-text-secondary dark:text-text-secondary-dark">
           {isBowling
             ? analysis.deliveryType
               ? formatShotType(analysis.deliveryType)
@@ -342,15 +348,39 @@ export default function AnalysisResultsScreen() {
           <View style={{ width: "100%", aspectRatio: 16 / 9, backgroundColor: "black" }}>
             <VideoView
               player={player}
-              style={{ width: "100%", height: "100%" }}
-              contentFit="cover"
+              style={{ width: "100%", height: "100%", opacity: overlayLayers.showVideo ? 1 : 0 }}
+              contentFit="contain"
               nativeControls
             />
-            <PoseSkeletonOverlay player={player} poseData={poseData} />
+            {poseData ? (
+              <PoseSkeletonOverlay player={player} poseData={poseData} layers={overlayLayers} />
+            ) : null}
+            {poseData ? (
+              <View
+                className="absolute right-2 top-2 gap-1.5 rounded-lg bg-black/60 px-3 py-2"
+                pointerEvents="box-none"
+              >
+                <OverlayLayerToggleRow
+                  label="Video"
+                  checked={overlayLayers.showVideo}
+                  onToggle={() => setOverlayLayers((l) => ({ ...l, showVideo: !l.showVideo }))}
+                />
+                <OverlayLayerToggleRow
+                  label="Skeleton"
+                  checked={overlayLayers.showSkeleton}
+                  onToggle={() => setOverlayLayers((l) => ({ ...l, showSkeleton: !l.showSkeleton }))}
+                />
+                <OverlayLayerToggleRow
+                  label="Bbox"
+                  checked={overlayLayers.showBbox}
+                  onToggle={() => setOverlayLayers((l) => ({ ...l, showBbox: !l.showBbox }))}
+                />
+              </View>
+            ) : null}
           </View>
           {!poseData ? (
             <View className="p-3">
-              <Text className="text-xs text-text-secondary">
+              <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">
                 Pose overlay unavailable for this clip.
               </Text>
             </View>
@@ -381,16 +411,16 @@ export default function AnalysisResultsScreen() {
       </ScrollView>
 
       <Modal visible={saveVisible} animationType="slide" onRequestClose={() => setSaveVisible(false)}>
-        <SafeAreaView className="flex-1 bg-surface">
+        <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark">
           <View className="flex-row items-center justify-between px-6 pt-4">
-            <Text className="text-xl font-bold text-text-primary">Save to Collection</Text>
+            <Text className="text-xl font-bold text-text-primary dark:text-text-primary-dark">Save to Collection</Text>
             <Button variant="ghost" size="sm" onPress={() => setSaveVisible(false)}>
               Close
             </Button>
           </View>
           <ScrollView className="flex-1 px-6 pt-4">
             {collections === null ? (
-              <Text className="text-sm text-text-secondary">Loading…</Text>
+              <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">Loading…</Text>
             ) : (
               <View className="gap-1">
                 {collections
@@ -404,20 +434,20 @@ export default function AnalysisResultsScreen() {
                         disabled={savingToId === c.id || saved}
                         className="flex-row items-center justify-between rounded-lg p-3"
                       >
-                        <Text className="text-text-primary">{c.name}</Text>
-                        <Text className={`text-xs ${saved ? "text-success" : "text-primary"}`}>
+                        <Text className="text-text-primary dark:text-text-primary-dark">{c.name}</Text>
+                        <Text className={`text-xs ${saved ? "text-success dark:text-success-dark" : "text-primary"}`}>
                           {saved ? "Saved ✓" : savingToId === c.id ? "Saving…" : "Save"}
                         </Text>
                       </Pressable>
                     );
                   })}
                 {collections.filter((c) => c.canEdit).length === 0 ? (
-                  <Text className="text-sm text-text-secondary">You don't have any collections yet.</Text>
+                  <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">You don't have any collections yet.</Text>
                 ) : null}
               </View>
             )}
 
-            <View className="mt-4 flex-row items-end gap-2 border-t border-surface-secondary pt-4">
+            <View className="mt-4 flex-row items-end gap-2 border-t border-surface-secondary dark:border-surface-secondary-dark pt-4">
               <View className="flex-1">
                 <Input
                   label="New collection"
@@ -430,7 +460,7 @@ export default function AnalysisResultsScreen() {
                 Create &amp; Save
               </Button>
             </View>
-            {saveError ? <Text className="mt-2 text-sm text-danger">{saveError}</Text> : null}
+            {saveError ? <Text className="mt-2 text-sm text-danger dark:text-danger-dark">{saveError}</Text> : null}
           </ScrollView>
         </SafeAreaView>
       </Modal>

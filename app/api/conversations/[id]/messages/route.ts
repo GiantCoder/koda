@@ -6,6 +6,7 @@ import { MessageVisibility } from "@prisma/client";
 import { getMessageVisibilityForRecipient, getParentVisibilityMetadata } from "@/lib/messaging-safeguarding";
 import { z } from "zod";
 import { redis } from "@/src/lib/redis";
+import { notifyUser } from "@/lib/notifications";
 
 const idParamSchema = z.object({ id: z.string().uuid() });
 
@@ -181,15 +182,13 @@ export async function POST(
   // same spirit as earlier phases' small additive backend changes.
   await Promise.all(
     otherParticipants.map((p) =>
-      prisma.notification.create({
-        data: {
-          userId: p.userId,
-          type: "NEW_MESSAGE",
-          title: `New message from ${message.sender.displayName}`,
-          message: content.length > 140 ? `${content.slice(0, 140)}…` : content,
-          actionUrl: `/messages/${conversationId}`,
-          metadata: { conversationId, messageId: message.id },
-        },
+      notifyUser({
+        userId: p.userId,
+        type: "NEW_MESSAGE",
+        title: `New message from ${message.sender.displayName}`,
+        message: content.length > 140 ? `${content.slice(0, 140)}…` : content,
+        actionUrl: `/messages/${conversationId}`,
+        metadata: { conversationId, messageId: message.id },
       })
     )
   );

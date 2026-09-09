@@ -115,7 +115,7 @@ export default function ConsentScreen() {
 
   if (phase === "loading") {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-surface">
+      <SafeAreaView className="flex-1 items-center justify-center bg-surface dark:bg-surface-dark">
         <ActivityIndicator size="large" color="#208AEF" />
       </SafeAreaView>
     );
@@ -123,8 +123,8 @@ export default function ConsentScreen() {
 
   if (phase === "error") {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-surface px-6">
-        <Text className="mb-4 text-center text-sm text-danger">
+      <SafeAreaView className="flex-1 items-center justify-center bg-surface dark:bg-surface-dark px-6">
+        <Text className="mb-4 text-center text-sm text-danger dark:text-danger-dark">
           Couldn't load your consent status. Check your connection and try again.
         </Text>
         <Button onPress={refreshStatus}>Retry</Button>
@@ -134,13 +134,13 @@ export default function ConsentScreen() {
 
   if (phase === "waiting") {
     return (
-      <SafeAreaView className="flex-1 justify-center bg-surface px-6">
+      <SafeAreaView className="flex-1 justify-center bg-surface dark:bg-surface-dark px-6">
         <Card>
           <CardHeader>Waiting for Guardian Approval</CardHeader>
           <CardContent>
-            <Text className="mb-6 text-sm text-text-secondary">
+            <Text className="mb-6 text-sm text-text-secondary dark:text-text-secondary-dark">
               We've sent a consent request to{" "}
-              <Text className="font-medium text-text-primary">{status?.guardianEmail}</Text>. This
+              <Text className="font-medium text-text-primary dark:text-text-primary-dark">{status?.guardianEmail}</Text>. This
               screen checks automatically every 20 seconds, or tap below to check now.
             </Text>
             <View className="gap-3">
@@ -157,11 +157,11 @@ export default function ConsentScreen() {
 
   if (phase === "rejected") {
     return (
-      <SafeAreaView className="flex-1 justify-center bg-surface px-6">
+      <SafeAreaView className="flex-1 justify-center bg-surface dark:bg-surface-dark px-6">
         <Card>
           <CardHeader>Consent Was Declined</CardHeader>
           <CardContent>
-            <Text className="mb-6 text-sm text-text-secondary">
+            <Text className="mb-6 text-sm text-text-secondary dark:text-text-secondary-dark">
               Your guardian didn't approve this request. You can send a new request with correct
               details, or reach out to your guardian directly.
             </Text>
@@ -178,7 +178,7 @@ export default function ConsentScreen() {
       <Card>
           <CardHeader>Guardian Consent Required</CardHeader>
           <CardContent>
-            <Text className="mb-6 text-sm text-text-secondary">
+            <Text className="mb-6 text-sm text-text-secondary dark:text-text-secondary-dark">
               Because of your age, we need a parent or guardian to approve your account before you
               can continue.
             </Text>
@@ -197,7 +197,7 @@ export default function ConsentScreen() {
                 onToggle={setConfirmed}
                 label="I confirm I am providing my guardian's real contact details."
               />
-              {formError ? <Text className="text-sm text-danger">{formError}</Text> : null}
+              {formError ? <Text className="text-sm text-danger dark:text-danger-dark">{formError}</Text> : null}
               <Button onPress={handleSubmitConsentRequest} disabled={!isFormValid} isLoading={submitting}>
                 Send consent request
               </Button>

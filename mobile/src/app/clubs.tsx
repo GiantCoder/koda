@@ -34,16 +34,16 @@ export default function ClubsScreen() {
   }, [isCoachOrAdmin]);
 
   return (
-    <SafeAreaView className="flex-1 bg-surface" edges={["top", "left", "right"]}>
+    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
       <BackBar label="Dashboard" />
-      <Text className="px-6 pt-2 text-2xl font-bold text-text-primary">Clubs</Text>
+      <Text className="px-6 pt-2 text-2xl font-bold text-text-primary dark:text-text-primary-dark">Clubs</Text>
 
       <ScrollView className="flex-1 px-6">
         <View className="gap-3 pb-10 pt-3">
           {!isCoachOrAdmin ? (
             <Card>
               <CardContent>
-                <Text className="text-sm text-text-secondary">
+                <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">
                   Club management is only available to coaches right now -- there's no real "which
                   club am I in" lookup on the backend yet for players or parents.
                 </Text>
@@ -52,11 +52,11 @@ export default function ClubsScreen() {
           ) : loading ? (
             <ActivityIndicator className="pt-8" />
           ) : error ? (
-            <Text className="text-sm text-danger">{error}</Text>
+            <Text className="text-sm text-danger dark:text-danger-dark">{error}</Text>
           ) : clubs.length === 0 ? (
             <Card>
               <CardContent>
-                <Text className="text-sm text-text-secondary">
+                <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">
                   You haven't set up a club yet. Head to the web app to create one.
                 </Text>
               </CardContent>
@@ -65,23 +65,23 @@ export default function ClubsScreen() {
             clubs.map((club) => (
               <Card key={club.id}>
                 <CardContent>
-                  <Text className="text-base font-semibold text-text-primary">{club.name}</Text>
-                  <Text className="mt-0.5 text-sm text-text-secondary">
+                  <Text className="text-base font-semibold text-text-primary dark:text-text-primary-dark">{club.name}</Text>
+                  <Text className="mt-0.5 text-sm text-text-secondary dark:text-text-secondary-dark">
                     {club.address}
                     {club.postcode ? `, ${club.postcode}` : ""}
                   </Text>
                   <View className="mt-2 flex-row flex-wrap gap-2">
-                    <View className="rounded-full bg-surface-secondary px-3 py-1">
-                      <Text className="text-xs text-text-secondary">{club.stats.playersCoached} players</Text>
+                    <View className="rounded-full bg-surface-secondary dark:bg-surface-secondary-dark px-3 py-1">
+                      <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">{club.stats.playersCoached} players</Text>
                     </View>
-                    <View className="rounded-full bg-surface-secondary px-3 py-1">
-                      <Text className="text-xs text-text-secondary">{club.stats.juniors} juniors</Text>
+                    <View className="rounded-full bg-surface-secondary dark:bg-surface-secondary-dark px-3 py-1">
+                      <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">{club.stats.juniors} juniors</Text>
                     </View>
-                    <View className="rounded-full bg-surface-secondary px-3 py-1">
-                      <Text className="text-xs text-text-secondary">{club.stats.seniors} seniors</Text>
+                    <View className="rounded-full bg-surface-secondary dark:bg-surface-secondary-dark px-3 py-1">
+                      <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">{club.stats.seniors} seniors</Text>
                     </View>
-                    <View className="rounded-full bg-surface-secondary px-3 py-1">
-                      <Text className="text-xs text-text-secondary">
+                    <View className="rounded-full bg-surface-secondary dark:bg-surface-secondary-dark px-3 py-1">
+                      <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">
                         {club.stats.sessionsThisMonth} sessions this month
                       </Text>
                     </View>

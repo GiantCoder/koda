@@ -562,3 +562,196 @@ Verification note: unlike every prior phase, `npx expo export -p web`
 **completed successfully** this time (no sandbox timeout), bundling all
 15 new Phase 7 routes cleanly alongside the existing app --
 `npx tsc --noEmit` is also clean.
+
+
+## Screens (Phase 8)
+
+Not a new-screens phase in the usual sense -- Phase 8 covers four fixes/features
+the user asked for directly, spanning branding, a real playback bug, and two
+of the Phase 7 backlog items (message search, push notifications; the third,
+message attachments, was explicitly excluded -- there's no attachment upload
+path anywhere on the backend to wrap, so it would mean designing new backend
+functionality, not a mobile screen).
+
+### Branding: mobile was carrying the wrong brand entirely
+
+Before touching light/dark mode, research turned up something bigger: mobile's
+`primary` color was `#208AEF` (a blue), not Koda's real brand red (`#E63946`,
+from `app/globals.css`) -- almost certainly an unfixed placeholder from early
+scaffolding, not a deliberate choice. The app icon, splash screen, Android
+adaptive icon layers, and favicon were all still the **default Expo template
+assets** (`icon.png` was the stock blue Expo chevron; `splash-icon.png` and
+`logo-glow.png` were unbranded Expo boilerplate too) -- never replaced with
+Koda's actual mark at any point across Phases 0-7. None of this was visible in
+the JS/TSX source, which is why it survived seven phases of "check what's real
+before building."
+
+Fixed by:
+- Regenerating every icon/splash asset (`icon.png`, `splash-icon.png`,
+  `android-icon-{background,foreground,monochrome}.png`, `favicon.png`, and a
+  new `notification-icon.png` for Android's status bar) directly from
+  `public/koda.svg` -- the real "K" mark, unaltered path data, composited onto
+  brand-appropriate backgrounds rather than invented ones.
+- `mobile/app.json`: splash `backgroundColor` and the Android adaptive icon's
+  `backgroundColor` corrected from the placeholder blue/light-blue to the real
+  brand cream (`#FAF7F2`, web's `--background`); removed the `ios.icon`
+  Xcode-16 Icon Composer override (`assets/expo.icon/`), which was itself
+  unbranded default-template content (`expo-symbol.svg` + `grid.png`) -- iOS
+  now falls back to the top-level `icon` field like Android and web already
+  did, so there's one real icon source instead of two (one real, one fake).
+- `mobile/tailwind.config.js`: `primary`/`primary-hover` corrected to the real
+  red; every token that actually differs between web's light/dark themes
+  (`surface`, `surface-secondary`, `text-primary`, `text-secondary`, `danger`,
+  `success`, `warning`) got a `-dark` counterpart for NativeWind's `dark:`
+  variant. `primary`/`primary-hover`/`cricket-green` don't change between
+  themes on web either, so there's no dark variant for those -- adding one
+  would be inventing a distinction the brand doesn't have.
+
+### Light/dark mode
+
+Mobile had no dark mode at all before this phase -- zero `dark:` classes
+anywhere in the source, despite `userInterfaceStyle: "automatic"` already
+being set in `app.json` (which does nothing on its own without themed
+classes to respond to). Web's is a real, working three-state system
+(`app/hooks/useTheme.ts`: light / dark / follows `prefers-color-scheme`,
+persisted to `localStorage`) -- ported the same shape to mobile:
+
+- `src/hooks/useAppTheme.ts` wraps NativeWind v4's `colorScheme` store
+  (`nativewind`'s own light/dark switch, independent of React state) with
+  persistence to `expo-secure-store` under the same key name web uses
+  (`koda_theme`), and exposes `{ preference, activeScheme, setPreference }`
+  for a settings control. `initAppTheme()` applies the saved preference once,
+  early in `_layout.tsx`, before the first themed paint.
+- Every screen and shared UI component got the matching `dark:` variant
+  class added mechanically wherever it already used one of the app's design
+  tokens (473 replacements across 51 files) -- `bg-surface` →
+  `bg-surface dark:bg-surface-dark`, `text-text-secondary` →
+  `text-text-secondary dark:text-text-secondary-dark`, and so on for
+  `surface-secondary`, `danger`, `success`, `warning`. The four files with
+  genuinely hardcoded colors outside the token system (`shadow-batting.tsx`,
+  `ConfirmDialog.tsx`, `FrameGallery.tsx`, `AvatarPickerModal.tsx`) were
+  checked individually rather than mechanically edited -- all four turned out
+  to be intentionally theme-invariant (camera viewfinder chrome, modal
+  scrims), so nothing needed changing there.
+- New "Appearance" card on the Settings screen: a Light / Dark / Match device
+  picker, same three-way choice web offers via its header toggle plus system
+  fallback.
+
+### Pose overlay: fixed the bowling-tracking bug, added the bbox/layer toggle
+
+The reported bug ("not following the bowling action") traced to a real,
+already-documented shortcut: `PoseSkeletonOverlay.tsx`'s own comment said
+mobile "assumes the video fills its container exactly" and used
+`contentFit="cover"`, mapping normalized (0-1) pose coordinates straight onto
+the full container box. That's only correct when the clip's aspect ratio
+happens to match the container's 16:9 box -- for anything else, `cover` crops
+the video to fill the box, so the visible frame no longer matches what the
+pose coordinates were computed against, and the skeleton drifts off the
+subject. A batting clip (subject roughly centered, a fixed camera) mostly gets
+away with this by luck; a bowling run-up moves the subject much further across
+frame, which is almost certainly why the drift became obvious there
+specifically rather than a bowling-specific backend/tracking problem.
+
+Fixed by porting web's exact `getContainedVideoContentBox` letterbox math
+(`app/components/video/VideoSkeletonOverlay.tsx`) into
+`src/lib/poseOverlay.ts`, switching the video to `contentFit="contain"`, and
+reading the clip's actual native size via `expo-video`'s `videoTrackChange`
+event so every `mapPoint()` call goes through the real visible content box
+instead of the raw container. Every clip's skeleton now tracks correctly
+regardless of aspect ratio, not just 16:9 ones.
+
+While in there, also ported the tracked-subject bbox (both the real per-frame
+box computed from that frame's own keypoints, and the legacy clip-level
+pixel fallback) and added a Video / Skeleton / Bbox layer toggle panel over
+the video, matching web's `OverlayLayerControls` -- both explicitly deferred
+in Phase 4 ("no tracked-subject bbox box or overlay layer toggles") and
+called out in the roadmap as backlog. Skeleton defaults on, Bbox defaults off
+(new/supplementary, avoids clutter unless requested); Video off shows a black
+frame with skeleton/bbox still drawn over it, same as web's version.
+
+### Message search
+
+Wrapped the real, working `GET /api/messages/search` (existing endpoint, just
+never wrapped by mobile -- left unwrapped in Phase 5 on purpose to keep that
+phase focused). Added a search box under the Messages tab header; typing
+debounces 300ms then searches message content across every conversation the
+caller participates in (server-side scoped, not client-side filtering), and
+tapping a result opens that conversation.
+
+### Push notifications
+
+This was previously in-app-only (Phase 5): a real notifications list, but
+nothing that reached a user who didn't have the app open. Added:
+
+- **New backend model**: `PushToken` (`prisma/schema.prisma`) -- one row per
+  device a user has granted notification permission on, keyed by a unique
+  Expo push token. This is the **first schema change** in the whole mobile
+  project; every prior additive backend change (Phases 1, 2, 5, 6) was
+  logic-only. **The sandbox this was built in has no route to the dev
+  database and can't reach Prisma's engine-binary CDN, so the migration
+  could not be generated or applied here** -- run
+  `npx prisma migrate dev --name add_push_token` (with `make up`/the dev DB
+  running) before this feature will compile or work. Until then,
+  `prisma.pushToken` doesn't exist on the generated client, which is the
+  *only* new error `tsc` reports for the touched backend files (confirmed by
+  running `npx tsc --noEmit` and diffing against the ~350 pre-existing
+  errors Phase 6 already documented -- see below).
+- **New endpoint**: `POST`/`DELETE /api/notifications/register-device`
+  (`app/api/notifications/register-device/route.ts`) -- registers/removes a
+  device's Expo push token for the signed-in user. A token is unique per
+  *device*, not per user, so a shared/reset device re-registering under a
+  different account reassigns cleanly rather than leaving a stale mapping.
+- **New shared helper**: `lib/notifications.ts`'s `notifyUser()` wraps
+  `prisma.notification.create` and also calls `lib/push.ts`'s
+  `sendPushToUser()` (a plain `fetch` against Expo's push API -- no
+  `expo-server-sdk` dependency needed for one small helper). Refactored the
+  two existing `prisma.notification.create` call sites (the messages route
+  from Phase 5, the player-card route from Phase 2) to go through it, so
+  every notification -- present and future -- gets a push automatically
+  instead of every call site needing to remember to add one.
+- **New trigger**: `ANALYSIS_COMPLETE`, wired into both completion paths in
+  `workers/analysisWorker.ts` (batting and bowling) -- explicitly the
+  standout gap called out in the Phase 4/7 notes "(only 4 of 13
+  `NotificationType` values are ever actually generated server-side"). The
+  other 8 unwired types (`TEAM_INVITATION`, `SEASON_ENDING`,
+  `CHALLENGE_LIVE`, etc.) mostly depend on scheduled/seasonal logic that
+  doesn't exist yet either -- out of scope here, same "backlog, not broken"
+  framing as the rest of Section 5's punch list.
+- **Mobile side**: `expo-notifications` (new dependency) registers for
+  permission and fetches an Expo push token from `bootstrapAuth`/`loginThunk`
+  (best-effort, never blocks sign-in), unregisters it from `logoutThunk`
+  (before the session is invalidated, since the DELETE call needs a valid
+  access token). Tapping a delivered notification navigates to its
+  `actionUrl` the same way the in-app notifications list already does --
+  note a couple of older `actionUrl`s (e.g. `/player-card`, from Phase 2)
+  point at a path that predates a dedicated mobile route for it and will hit
+  Expo Router's not-found screen rather than crash; not something this phase
+  introduced or was asked to reconcile.
+
+### Animated cold-launch splash
+
+A one-time intro sequence, shown once between the native (static) splash
+screen and the real app -- not reused as a general in-app loading indicator,
+per the scoping decision. `src/components/AnimatedSplash.tsx`, built with
+`react-native-svg` + `react-native-reanimated` (both already dependencies,
+no new one needed): a red ball "bowls" in from off-screen and bounces its way
+down `public/koda.svg`'s real K mark (unaltered path data) via a top-to-bottom
+clip-path wipe timed to the ball's descent, the mark's 5 real accent dots
+stamp in as landing marks along the way (re-sequenced into a delivery, not
+repositioned), then "oda Cricket" fades in alongside the settled mark to
+complete "Koda Cricket". Wired into `src/app/_layout.tsx`: the native splash
+now hands off to this component (instead of straight to the app) once
+`bootstrapAuth`/theme init resolve, and the real `<Stack>` only mounts once
+the ~2s animation finishes.
+
+### Verification
+
+`npx tsc --noEmit` in `mobile/` is clean. `npx expo export -p web` completed
+successfully again (second phase in a row, after Phases 4 and 6 both timed
+out in this sandbox) -- all 47 routes bundled, including the new
+`AnimatedSplash`/dark-mode/overlay-fix/push-notification code. On the backend
+side, `npx tsc --noEmit` at the repo root shows no new errors introduced by
+this phase's changes beyond the expected, migration-blocked `pushToken`
+property errors described above -- confirmed by diffing the error list
+against the pre-existing baseline Phase 6 already documented (~350 errors,
+none in the files this phase touched).

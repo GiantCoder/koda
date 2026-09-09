@@ -19,9 +19,9 @@ export default function Gatekeeper() {
 
   if (status === "checkingSession" || (status === "signedIn" && onboardingComplete === null)) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-surface">
+      <SafeAreaView className="flex-1 items-center justify-center bg-surface dark:bg-surface-dark">
         <ActivityIndicator size="large" color="#208AEF" />
-        <Text className="mt-3 text-sm text-text-secondary">Loading…</Text>
+        <Text className="mt-3 text-sm text-text-secondary dark:text-text-secondary-dark">Loading…</Text>
       </SafeAreaView>
     );
   }

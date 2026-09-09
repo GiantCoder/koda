@@ -13,14 +13,14 @@ import { Button } from "@/components/ui/Button";
  */
 export default function WelcomeScreen() {
   return (
-    <SafeAreaView className="flex-1 justify-between bg-surface px-6 py-10">
+    <SafeAreaView className="flex-1 justify-between bg-surface dark:bg-surface-dark px-6 py-10">
       <View />
       <View className="items-center">
         <View className="mb-2 rounded-full bg-primary/10 px-4 py-1">
           <Text className="text-xs font-semibold text-primary">Ages 7-18 · Built for families</Text>
         </View>
-        <Text className="mt-4 text-center text-4xl font-bold text-text-primary">Koda Cricket</Text>
-        <Text className="mt-4 text-center text-base text-text-secondary">
+        <Text className="mt-4 text-center text-4xl font-bold text-text-primary dark:text-text-primary-dark">Koda Cricket</Text>
+        <Text className="mt-4 text-center text-base text-text-secondary dark:text-text-secondary-dark">
           The complete junior cricket development platform connecting coaches, parents, and young
           athletes.
         </Text>

@@ -96,3 +96,25 @@ export async function sendMessage(conversationId: string, content: string): Prom
 export async function markConversationRead(conversationId: string): Promise<void> {
   await apiFetch(`/api/conversations/${conversationId}/read`, { method: "PUT" });
 }
+
+export interface MessageSearchResult {
+  id: string;
+  conversationId: string;
+  content: string;
+  sentAt: string;
+  sender: { id: string; displayName: string; role: KodaRole };
+}
+
+/** Wraps the real, working GET /api/messages/search -- left unwrapped in
+ * Phase 5 to keep that phase focused. Searches message content across
+ * every conversation the caller participates in (server-side, scoped to
+ * ConversationParticipant rows for the caller -- no client-side filtering
+ * of conversations you can't see). */
+export async function searchMessages(query: string): Promise<MessageSearchResult[]> {
+  if (!query.trim()) return [];
+  const params = new URLSearchParams({ q: query });
+  const data = await apiFetch<{ query: string; messages: MessageSearchResult[] }>(
+    `/api/messages/search?${params.toString()}`
+  );
+  return data.messages;
+}

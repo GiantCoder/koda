@@ -22,9 +22,9 @@ const containerSizes: Record<Size, string> = {
 };
 const containerVariants: Record<Variant, string> = {
   primary: "bg-primary active:bg-primary-hover",
-  secondary: "bg-surface-secondary active:opacity-80",
-  ghost: "bg-transparent active:bg-surface-secondary",
-  danger: "bg-danger active:opacity-90",
+  secondary: "bg-surface-secondary dark:bg-surface-secondary-dark active:opacity-80",
+  ghost: "bg-transparent active:bg-surface-secondary dark:active:bg-surface-secondary-dark",
+  danger: "bg-danger dark:bg-danger-dark active:opacity-90",
 };
 const textSizes: Record<Size, string> = {
   sm: "text-xs",
@@ -33,8 +33,8 @@ const textSizes: Record<Size, string> = {
 };
 const textVariants: Record<Variant, string> = {
   primary: "text-white font-medium",
-  secondary: "text-text-primary font-medium",
-  ghost: "text-text-primary font-medium",
+  secondary: "text-text-primary dark:text-text-primary-dark font-medium",
+  ghost: "text-text-primary dark:text-text-primary-dark font-medium",
   danger: "text-white font-medium",
 };
 

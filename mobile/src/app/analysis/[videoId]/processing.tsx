@@ -42,8 +42,8 @@ export default function AnalysisProcessingScreen() {
 
   if (!videoId) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-surface px-6">
-        <Text className="mb-4 text-center text-sm text-danger">No video specified.</Text>
+      <SafeAreaView className="flex-1 items-center justify-center bg-surface dark:bg-surface-dark px-6">
+        <Text className="mb-4 text-center text-sm text-danger dark:text-danger-dark">No video specified.</Text>
         <Button onPress={() => router.replace("/(app)/upload")}>Go to Upload</Button>
       </SafeAreaView>
     );
@@ -51,11 +51,11 @@ export default function AnalysisProcessingScreen() {
 
   if (error && !status) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-surface px-6">
+      <SafeAreaView className="flex-1 items-center justify-center bg-surface dark:bg-surface-dark px-6">
         <Card>
           <CardHeader>Unable to Load Status</CardHeader>
           <CardContent>
-            <Text className="mb-4 text-sm text-danger">{error.message}</Text>
+            <Text className="mb-4 text-sm text-danger dark:text-danger-dark">{error.message}</Text>
             <View className="flex-row gap-3">
               <Button onPress={retry}>Retry</Button>
               <Button variant="secondary" onPress={() => router.replace("/(app)/upload")}>
@@ -76,10 +76,10 @@ export default function AnalysisProcessingScreen() {
     : null;
 
   return (
-    <SafeAreaView className="flex-1 bg-surface" edges={["top", "left", "right"]}>
+    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
       <ScrollView className="flex-1 px-6 pt-6">
-        <Text className="mb-1 text-2xl font-bold text-text-primary">Analysis in Progress</Text>
-        <Text className="mb-6 text-sm text-text-secondary">
+        <Text className="mb-1 text-2xl font-bold text-text-primary dark:text-text-primary-dark">Analysis in Progress</Text>
+        <Text className="mb-6 text-sm text-text-secondary dark:text-text-secondary-dark">
           Your video is processing in the background -- you can leave this screen and check back
           from Upload → Recent Uploads.
         </Text>
@@ -99,8 +99,8 @@ export default function AnalysisProcessingScreen() {
 
             {isComplete ? (
               <View className="mt-6 rounded-lg border border-primary/30 bg-primary/5 p-4">
-                <Text className="mb-1 font-medium text-text-primary">Analysis complete!</Text>
-                <Text className="mb-4 text-sm text-text-secondary">
+                <Text className="mb-1 font-medium text-text-primary dark:text-text-primary-dark">Analysis complete!</Text>
+                <Text className="mb-4 text-sm text-text-secondary dark:text-text-secondary-dark">
                   Your shot grade, coaching tips, and pose overlay are ready.
                 </Text>
                 <Button className="self-start" onPress={() => router.replace(`/analysis/${videoId}`)}>
@@ -108,8 +108,8 @@ export default function AnalysisProcessingScreen() {
                 </Button>
               </View>
             ) : isFailed ? (
-              <View className="mt-6 rounded-lg border border-danger/30 bg-danger/10 p-4">
-                <Text className="text-sm text-danger">{displayStatus.error ?? "Analysis failed."}</Text>
+              <View className="mt-6 rounded-lg border border-danger dark:border-danger-dark/30 bg-danger dark:bg-danger-dark/10 p-4">
+                <Text className="text-sm text-danger dark:text-danger-dark">{displayStatus.error ?? "Analysis failed."}</Text>
                 <View className="mt-4 flex-row gap-3">
                   <Button onPress={retry}>Retry</Button>
                   <Button variant="secondary" onPress={() => router.replace("/(app)/upload")}>
@@ -120,7 +120,7 @@ export default function AnalysisProcessingScreen() {
             ) : (
               <>
                 {estimatedMins !== null ? (
-                  <Text className="mt-6 text-sm text-text-secondary">
+                  <Text className="mt-6 text-sm text-text-secondary dark:text-text-secondary-dark">
                     Estimated time remaining: ~{estimatedMins} min
                   </Text>
                 ) : null}

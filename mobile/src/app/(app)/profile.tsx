@@ -157,16 +157,16 @@ export default function ProfileScreen() {
   const initials = `${fields.firstName?.[0] ?? user?.displayName?.[0] ?? "U"}${fields.lastName?.[0] ?? ""}`;
 
   return (
-    <SafeAreaView className="flex-1 bg-surface" edges={["top", "left", "right"]}>
+    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
       <ScrollView className="flex-1 px-6 pt-6">
-        <Text className="mb-6 text-2xl font-bold text-text-primary">Profile</Text>
+        <Text className="mb-6 text-2xl font-bold text-text-primary dark:text-text-primary-dark">Profile</Text>
 
         <Card className="mb-6 items-center">
           <View className="relative">
             {avatarUrl ? (
-              <Image source={{ uri: avatarUrl }} className="h-24 w-24 rounded-full bg-surface-secondary" />
+              <Image source={{ uri: avatarUrl }} className="h-24 w-24 rounded-full bg-surface-secondary dark:bg-surface-secondary-dark" />
             ) : (
-              <View className="h-24 w-24 items-center justify-center rounded-full bg-surface-secondary">
+              <View className="h-24 w-24 items-center justify-center rounded-full bg-surface-secondary dark:bg-surface-secondary-dark">
                 <Text className="text-2xl font-semibold text-primary">{initials}</Text>
               </View>
             )}
@@ -178,10 +178,10 @@ export default function ProfileScreen() {
               <Text className="text-white">📷</Text>
             </Pressable>
           </View>
-          <Text className="mt-3 text-lg font-semibold text-text-primary">
+          <Text className="mt-3 text-lg font-semibold text-text-primary dark:text-text-primary-dark">
             {fields.firstName || fields.lastName ? `${fields.firstName} ${fields.lastName}`.trim() : profile?.displayName}
           </Text>
-          <Text className="text-sm capitalize text-text-secondary">{profile?.role?.toLowerCase()}</Text>
+          <Text className="text-sm capitalize text-text-secondary dark:text-text-secondary-dark">{profile?.role?.toLowerCase()}</Text>
         </Card>
 
         <Card className="mb-6">
@@ -202,7 +202,7 @@ export default function ProfileScreen() {
                 </Button>
               </>
             ) : (
-              <Text className="text-sm text-text-secondary">
+              <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">
                 Your player card will appear here after your first completed analysis.
               </Text>
             )}
@@ -223,7 +223,7 @@ export default function ProfileScreen() {
             </Pressable>
           </View>
           <CardContent>
-            {loadError ? <Text className="mb-3 text-sm text-danger">{loadError}</Text> : null}
+            {loadError ? <Text className="mb-3 text-sm text-danger dark:text-danger-dark">{loadError}</Text> : null}
             <View className="gap-4">
               <Input
                 label="Display name"
@@ -278,20 +278,20 @@ export default function ProfileScreen() {
                 </>
               ) : (
                 <View className="gap-2">
-                  <Text className="text-sm text-text-secondary">
+                  <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">
                     Position: {POSITIONS.find((o) => o.value === fields.primaryPosition)?.label ?? "Not set"}
                   </Text>
-                  <Text className="text-sm text-text-secondary">
+                  <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">
                     Batting: {BATTING_STYLES.find((o) => o.value === fields.battingStyle)?.label ?? "Not set"}
                   </Text>
-                  <Text className="text-sm text-text-secondary">
+                  <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">
                     Bowling: {BOWLING_STYLES.find((o) => o.value === fields.bowlingStyle)?.label ?? "Not set"}
                   </Text>
                 </View>
               )}
             </View>
 
-            {saveError ? <Text className="mt-3 text-sm text-danger">{saveError}</Text> : null}
+            {saveError ? <Text className="mt-3 text-sm text-danger dark:text-danger-dark">{saveError}</Text> : null}
             {saveSuccess ? <Text className="mt-3 text-sm text-emerald-700">Profile updated.</Text> : null}
 
             {isEditing ? (

@@ -18,9 +18,9 @@ function getGreeting(): string {
 function StatBlock({ label, value }: { label: string; value: string }) {
   return (
     <View className="w-1/2 p-2">
-      <View className="rounded-lg bg-surface-secondary p-4">
-        <Text className="text-2xl font-bold text-text-primary">{value}</Text>
-        <Text className="text-xs text-text-secondary">{label}</Text>
+      <View className="rounded-lg bg-surface-secondary dark:bg-surface-secondary-dark p-4">
+        <Text className="text-2xl font-bold text-text-primary dark:text-text-primary-dark">{value}</Text>
+        <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">{label}</Text>
       </View>
     </View>
   );
@@ -78,29 +78,29 @@ export default function DashboardScreen() {
     : null;
 
   return (
-    <SafeAreaView className="flex-1 bg-surface" edges={["top", "left", "right"]}>
+    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
       <ScrollView
         className="flex-1 px-6 pt-6"
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         <View className="flex-row items-start justify-between">
           <View className="flex-1 pr-3">
-            <Text className="text-2xl font-bold text-text-primary">
+            <Text className="text-2xl font-bold text-text-primary dark:text-text-primary-dark">
               {getGreeting()}, {firstName}!
             </Text>
             {memberSince ? (
-              <Text className="mt-1 text-text-secondary">Member since {memberSince}</Text>
+              <Text className="mt-1 text-text-secondary dark:text-text-secondary-dark">Member since {memberSince}</Text>
             ) : null}
           </View>
           <Pressable
             onPress={() => router.push("/notifications")}
             hitSlop={8}
-            className="relative rounded-full bg-surface-secondary p-2.5"
+            className="relative rounded-full bg-surface-secondary dark:bg-surface-secondary-dark p-2.5"
             accessibilityLabel={unreadCount > 0 ? `${unreadCount} unread notifications` : "Notifications"}
           >
             <Text style={{ fontSize: 20 }}>🔔</Text>
             {unreadCount > 0 ? (
-              <View className="absolute -right-1 -top-1 min-w-[18px] items-center justify-center rounded-full bg-danger px-1">
+              <View className="absolute -right-1 -top-1 min-w-[18px] items-center justify-center rounded-full bg-danger dark:bg-danger-dark px-1">
                 <Text className="text-[10px] font-bold text-white">{unreadCount > 99 ? "99+" : unreadCount}</Text>
               </View>
             ) : null}
@@ -109,7 +109,7 @@ export default function DashboardScreen() {
 
         {error ? (
           <Card className="mt-6">
-            <Text className="text-sm text-danger">{error}</Text>
+            <Text className="text-sm text-danger dark:text-danger-dark">{error}</Text>
           </Card>
         ) : null}
 
@@ -123,7 +123,7 @@ export default function DashboardScreen() {
               <StatBlock label="Latest grade" value={summary?.stats.latestGrade ?? "—"} />
             </View>
             {summary && summary.stats.totalAnalyses === 0 ? (
-              <Text className="mt-4 text-sm text-text-secondary">
+              <Text className="mt-4 text-sm text-text-secondary dark:text-text-secondary-dark">
                 No analyses yet. Once video upload and coaching analysis ship (Phase 3), your
                 progress will show up here automatically.
               </Text>
@@ -131,7 +131,7 @@ export default function DashboardScreen() {
           </CardContent>
         </Card>
 
-        <Text className="mb-2 mt-6 text-lg font-semibold text-text-primary">More</Text>
+        <Text className="mb-2 mt-6 text-lg font-semibold text-text-primary dark:text-text-primary-dark">More</Text>
         <View className="mb-8 flex-row flex-wrap gap-2">
           <QuickLinkCard emoji="🏆" label="Leagues" onPress={() => router.push("/leagues")} />
           <QuickLinkCard emoji="⭐️" label="Achievements" onPress={() => router.push("/achievements")} />
@@ -151,10 +151,10 @@ function QuickLinkCard({ emoji, label, onPress }: { emoji: string; label: string
   return (
     <Pressable
       onPress={onPress}
-      className="w-[31%] items-center gap-1.5 rounded-lg bg-surface-secondary py-4"
+      className="w-[31%] items-center gap-1.5 rounded-lg bg-surface-secondary dark:bg-surface-secondary-dark py-4"
     >
       <Text style={{ fontSize: 22 }}>{emoji}</Text>
-      <Text className="text-center text-xs font-medium text-text-primary">{label}</Text>
+      <Text className="text-center text-xs font-medium text-text-primary dark:text-text-primary-dark">{label}</Text>
     </Pressable>
   );
 }

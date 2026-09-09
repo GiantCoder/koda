@@ -35,18 +35,18 @@ export function PlayerCardCompact({ card }: { card: PlayerCardDto }) {
       >
         <Text className="text-xs font-bold uppercase tracking-wide text-white">{card.tier}</Text>
       </View>
-      <Text className="text-lg font-semibold text-text-primary">{card.displayName}</Text>
+      <Text className="text-lg font-semibold text-text-primary dark:text-text-primary-dark">{card.displayName}</Text>
       <Text className="mb-4 text-3xl font-bold text-primary">{card.overall}</Text>
       <View className="w-full flex-row flex-wrap justify-center gap-2">
         {STAT_LABELS.map(({ key, label }) => (
-          <View key={key} className="w-16 items-center rounded-lg bg-surface-secondary py-2">
-            <Text className="text-sm font-bold text-text-primary">{String(card[key])}</Text>
-            <Text className="text-[10px] text-text-secondary">{label}</Text>
+          <View key={key} className="w-16 items-center rounded-lg bg-surface-secondary dark:bg-surface-secondary-dark py-2">
+            <Text className="text-sm font-bold text-text-primary dark:text-text-primary-dark">{String(card[key])}</Text>
+            <Text className="text-[10px] text-text-secondary dark:text-text-secondary-dark">{label}</Text>
           </View>
         ))}
       </View>
       {isBlankSlate ? (
-        <Text className="mt-4 text-center text-sm text-text-secondary">
+        <Text className="mt-4 text-center text-sm text-text-secondary dark:text-text-secondary-dark">
           This is a starting-point card. It'll update automatically once your first analysis
           completes.
         </Text>

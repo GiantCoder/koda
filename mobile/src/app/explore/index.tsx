@@ -63,9 +63,9 @@ export default function ExploreScreen() {
   }, [hasMore, loadingMore, search, sort, clips.length]);
 
   return (
-    <SafeAreaView className="flex-1 bg-surface" edges={["top", "left", "right"]}>
+    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
       <BackBar label="Dashboard" />
-      <Text className="px-6 pt-2 text-2xl font-bold text-text-primary">Explore</Text>
+      <Text className="px-6 pt-2 text-2xl font-bold text-text-primary dark:text-text-primary-dark">Explore</Text>
 
       <View className="gap-3 px-6 pt-3">
         <TextInput
@@ -74,7 +74,7 @@ export default function ExploreScreen() {
           onSubmitEditing={() => void load(search, sort)}
           placeholder="Search clips…"
           placeholderTextColor="#9CA3AF"
-          className="rounded-lg border border-surface-secondary px-4 py-3 text-base text-text-primary"
+          className="rounded-lg border border-surface-secondary dark:border-surface-secondary-dark px-4 py-3 text-base text-text-primary dark:text-text-primary-dark"
         />
         <OptionPicker options={SORT_OPTIONS} value={sort} onChange={(v) => setSort(v as "recent" | "top_rated")} />
       </View>
@@ -84,7 +84,7 @@ export default function ExploreScreen() {
           <ActivityIndicator />
         </View>
       ) : error ? (
-        <Text className="px-6 pt-6 text-sm text-danger">{error}</Text>
+        <Text className="px-6 pt-6 text-sm text-danger dark:text-danger-dark">{error}</Text>
       ) : (
         <FlatList
           data={clips}
@@ -93,26 +93,26 @@ export default function ExploreScreen() {
           onEndReached={() => void loadMore()}
           onEndReachedThreshold={0.4}
           ListFooterComponent={loadingMore ? <ActivityIndicator className="py-4" /> : null}
-          ListEmptyComponent={<Text className="text-sm text-text-secondary">No clips found.</Text>}
+          ListEmptyComponent={<Text className="text-sm text-text-secondary dark:text-text-secondary-dark">No clips found.</Text>}
           renderItem={({ item }) => (
             <Pressable
               onPress={() => router.push(`/explore/${item.id}`)}
-              className="mb-2 rounded-lg border border-surface-secondary p-3"
+              className="mb-2 rounded-lg border border-surface-secondary dark:border-surface-secondary-dark p-3"
             >
               <View className="flex-row items-center justify-between">
-                <Text className="flex-1 pr-2 font-semibold text-text-primary" numberOfLines={1}>
+                <Text className="flex-1 pr-2 font-semibold text-text-primary dark:text-text-primary-dark" numberOfLines={1}>
                   {item.title}
                 </Text>
                 {item.grade !== "N/A" ? (
-                  <View className="items-center justify-center rounded-full bg-surface-secondary px-3 py-1">
-                    <Text className="text-sm font-bold text-text-primary">{item.grade}</Text>
+                  <View className="items-center justify-center rounded-full bg-surface-secondary dark:bg-surface-secondary-dark px-3 py-1">
+                    <Text className="text-sm font-bold text-text-primary dark:text-text-primary-dark">{item.grade}</Text>
                   </View>
                 ) : null}
               </View>
-              <Text className="mt-0.5 text-sm text-text-secondary" numberOfLines={1}>
+              <Text className="mt-0.5 text-sm text-text-secondary dark:text-text-secondary-dark" numberOfLines={1}>
                 {item.description}
               </Text>
-              <Text className="mt-1 text-xs text-text-secondary">by {item.uploadedBy}</Text>
+              <Text className="mt-1 text-xs text-text-secondary dark:text-text-secondary-dark">by {item.uploadedBy}</Text>
             </Pressable>
           )}
         />

@@ -5,6 +5,7 @@ import { getAuthUser } from "@/lib/get-auth-user";
 import { deriveCardStats, deriveCardTier } from "@/lib/player-card-stats";
 import { getSignedUrl } from "@/src/lib/storage";
 import { updatePlayerCardSchema } from "@/types/player-card";
+import { notifyUser } from "@/lib/notifications";
 
 const idParamSchema = z.object({
   id: z.string().uuid(),
@@ -299,17 +300,15 @@ export async function PUT(
     },
   });
 
-  await prisma.notification.create({
-    data: {
-      userId: playerId,
-      type: "SYSTEM_ALERT",
-      title: "Player card updated",
-      message: "Your coach has updated your player card.",
-      actionUrl: "/player-card",
-      metadata: {
-        updatedByUserId: authz.authUser.id,
-        playerCardId: saved.id,
-      },
+  await notifyUser({
+    userId: playerId,
+    type: "SYSTEM_ALERT",
+    title: "Player card updated",
+    message: "Your coach has updated your player card.",
+    actionUrl: "/player-card",
+    metadata: {
+      updatedByUserId: authz.authUser.id,
+      playerCardId: saved.id,
     },
   });
 

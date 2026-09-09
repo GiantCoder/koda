@@ -32,7 +32,7 @@ export function FrameGallery({ frames }: { frames: AnalysisFrame[] }) {
             <Pressable
               key={frame.index}
               onPress={() => setSelected(frame)}
-              className="mr-2 overflow-hidden rounded-lg border border-surface-secondary"
+              className="mr-2 overflow-hidden rounded-lg border border-surface-secondary dark:border-surface-secondary-dark"
             >
               <Image
                 source={{ uri: `${API_BASE_URL}${frame.url}`, headers }}

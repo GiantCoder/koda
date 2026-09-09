@@ -8,7 +8,6 @@
     "scheme": "mobile",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon",
       "infoPlist": {
         "NSCameraUsageDescription": "Koda needs camera access so you can record a coaching video to upload for analysis.",
         "NSMicrophoneUsageDescription": "Koda needs microphone access to record audio with your coaching videos.",
@@ -17,7 +16,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#FAF7F2",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -33,7 +32,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
+          "backgroundColor": "#FAF7F2",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }
@@ -52,6 +51,13 @@
           "cameraPermission": "Koda needs camera access to record a shadow batting session.",
           "microphonePermission": "Koda needs microphone access to record audio with your shadow batting session.",
           "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/notification-icon.png",
+          "color": "#E63946"
         }
       ]
     ],

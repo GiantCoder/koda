@@ -60,7 +60,7 @@ export function ShotGradeCard({
             <Text className="text-3xl font-bold text-white">{gradeLetter}</Text>
           </View>
           <View>
-            <Text className="text-sm text-text-secondary">Overall Score</Text>
+            <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">Overall Score</Text>
             <Text className="text-2xl font-bold" style={{ color: scoreColor(overallScore) }}>
               {overallScore.toFixed(1)}
             </Text>
@@ -70,7 +70,7 @@ export function ShotGradeCard({
         <View className="gap-2">
           {metrics.map((m) => (
             <View key={m.label} className="flex-row items-center justify-between gap-2">
-              <Text className="text-sm text-text-secondary">{m.label}</Text>
+              <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">{m.label}</Text>
               <Text className="text-sm font-medium" style={{ color: scoreColor(m.value) }}>
                 {Math.round(m.value)}/{m.max ?? 100}
               </Text>
