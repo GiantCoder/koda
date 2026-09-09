@@ -8,7 +8,12 @@
     "scheme": "mobile",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Koda needs camera access so you can record a coaching video to upload for analysis.",
+        "NSMicrophoneUsageDescription": "Koda needs microphone access to record audio with your coaching videos.",
+        "NSPhotoLibraryUsageDescription": "Koda needs photo library access so you can choose an existing coaching video to upload."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -31,6 +36,14 @@
           "backgroundColor": "#208AEF",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Koda needs photo library access so you can choose an existing coaching video to upload.",
+          "cameraPermission": "Koda needs camera access so you can record a coaching video to upload for analysis.",
+          "microphonePermission": "Koda needs microphone access to record audio with your coaching videos."
         }
       ]
     ],

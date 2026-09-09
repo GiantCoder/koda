@@ -30,6 +30,13 @@ export default function AppLayout() {
         }}
       />
       <Tabs.Screen
+        name="upload"
+        options={{
+          title: "Upload",
+          tabBarIcon: ({ color }) => <TabIcon glyph="🎥" color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{
           title: "Profile",

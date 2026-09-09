@@ -4,7 +4,8 @@ Expo/React Native rebuild of Koda's frontend. Talks to the **same** Next.js
 backend as the web app in the parent `koda/` repo — nothing here runs its own
 server. See `../claude/koda-mobile-roadmap.md` in the project docs for the
 full phase-by-phase plan. Phase 0 (foundations), Phase 1 (auth + onboarding),
-and Phase 2 (dashboard + profile/settings) are all in.
+Phase 2 (dashboard + profile/settings), and Phase 3 (video upload +
+processing) are all in.
 
 ## What's here
 
@@ -140,6 +141,65 @@ full restart (`npx expo start -c` to clear the bundler cache) — `EXPO_PUBLIC_`
 env vars are baked into the JS bundle at build time, not read live, so a
 hot reload won't pick up the change.
 
-No camera/video work yet (that's Phase 3), so the iOS Simulator's lack of a
-real camera doesn't matter for what's here — Expo Go on your phone or either
-simulator all work fine for this phase.
+**Testing Phase 3's upload flow**: the iOS Simulator and Android emulator
+have no real camera, so "Record video" won't do anything useful there --
+use "Choose existing" with a video already in the simulator's photo library
+(drag one into the Simulator window to add it), or test recording on a
+physical phone via Expo Go. Uploads go straight to the real backend and
+kick off the real analysis pipeline (BullMQ + MediaPipe + the AI feedback
+pipeline), so processing will actually take a couple of minutes end to end,
+same as it does on web.
+
+## Screens (Phase 3)
+
+A fourth tab, Upload, plus a new stack screen at `analysis/[videoId]/processing`
+(outside the tab bar -- reached by pushing onto it, not by tapping a tab,
+same as web's equivalent URL shape).
+
+- **Upload** records or picks a video (`expo-image-picker`), validates its
+  extension/size client-side (mirrors `app/lib/video-validators.ts`'s
+  limits), lets a coach or parent pick which player it's for
+  (`GET /api/team/players` -- real, role-aware: squad members for a coach,
+  linked children for a parent, just themselves for a player, so players
+  skip this step entirely), uploads it for real to
+  `POST /api/video/upload` with progress tracking, and shows a real recent-
+  uploads list (`GET /api/videos`) below.
+- **Processing** polls `GET /api/analysis/[videoId]/status` every 3 seconds
+  (`src/lib/useAnalysisStatus.ts` -- polling-only; web also supports SSE via
+  `EventSource`, which React Native doesn't have natively, and the roadmap
+  already called for polling as the v1 approach here) and renders a stage
+  timeline plus a simple video preview (`expo-video`, streaming the
+  original upload back from `GET /api/videos/[id]/stream` with the
+  access token as a header).
+
+Deliberately narrower than web's equivalent pages, per the Phase 3 scoping
+discussion:
+- **Single video only** -- no bulk multi-select upload (web supports both).
+  Backlog item once the single-video path is proven out.
+- **No pre-upload shot-hint declaration** -- web has an optional modal where
+  a batting upload can be tagged with which shots were played, to help the
+  AI classifier. The backend already treats this as fully optional
+  (`declaredShotCount`/`playerDeclaredShotHints` can be omitted entirely),
+  so skipping it is a pure accuracy nice-to-have deferred, not a functional
+  gap. Skipping it also meant mobile didn't need web's batting/bowling/other
+  activity-type selector at all, since that selector's only two jobs on web
+  were gating access to that modal and blocking "other" uploads -- neither
+  applies here.
+- **No skeleton/pose overlay on the processing preview** -- web draws a
+  canvas overlay of MediaPipe pose data synced to video playback frames.
+  That's meaningfully more work than a plain video player and belongs with
+  Phase 4's fuller analysis-detail screen (frames, pose overlay, coaching
+  tips, shot grade), not this phase's processing screen.
+- **"Complete" shows a lightweight confirmation, not a results screen** --
+  web routes to `/analysis/[videoId]` (the full detail page) once processing
+  finishes. That page doesn't exist on mobile yet -- it's explicitly Phase 4
+  scope -- so mobile's processing screen just confirms completion and links
+  back to the dashboard instead. Revisit this once Phase 4 ships.
+
+One thing to know about `POST /api/video/upload`: it needs multipart
+`FormData` with upload-progress events, which `src/api/client.ts`'s
+`apiFetch`/`authFetch` can't do (they always JSON-encode the body, and
+`fetch()` has no upload-progress API at all). `src/api/videoUpload.ts` uses
+`XMLHttpRequest` directly instead, mirroring how web's own upload page does
+it -- same reason, not a mobile-specific workaround.
+
