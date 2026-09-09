@@ -4,8 +4,8 @@ Expo/React Native rebuild of Koda's frontend. Talks to the **same** Next.js
 backend as the web app in the parent `koda/` repo — nothing here runs its own
 server. See `../claude/koda-mobile-roadmap.md` in the project docs for the
 full phase-by-phase plan. Phase 0 (foundations), Phase 1 (auth + onboarding),
-Phase 2 (dashboard + profile/settings), and Phase 3 (video upload +
-processing) are all in.
+Phase 2 (dashboard + profile/settings), Phase 3 (video upload + processing),
+and Phase 4 (analysis results + progress/trends) are all in.
 
 ## What's here
 
@@ -27,8 +27,9 @@ processing) are all in.
 - `src/app/index.tsx` is a gatekeeper screen: redirects to `(auth)`,
   `(onboarding)`, or `(app)` based on Redux auth/onboarding state. Every
   other screen assumes it arrived through that redirect.
-- `(app)` is a tab bar (Dashboard / Profile / Settings) as of Phase 2 — the
-  first bit of tab navigation in the app, previously just a bare Stack.
+- `(app)` is a tab bar (Dashboard / Upload / Progress / Profile / Settings
+  as of Phase 4 — Progress is the newest tab) — the first bit of tab
+  navigation in the app, previously just a bare Stack.
 
 ## Screens (Phase 1)
 
@@ -203,3 +204,80 @@ One thing to know about `POST /api/video/upload`: it needs multipart
 `XMLHttpRequest` directly instead, mirroring how web's own upload page does
 it -- same reason, not a mobile-specific workaround.
 
+## Screens (Phase 4)
+
+The analysis results screen (`analysis/[videoId]` -- a stack screen, reached
+from the processing screen on completion or by tapping a completed video in
+Upload -> Recent Uploads) and a fifth tab, Progress.
+
+- **Analysis results** shows the same real, DB-backed data web's equivalent
+  page does: overall grade/score and per-metric scores
+  (`GET /api/analysis/video/[videoId]`), AI coaching tips, auto-generated
+  tags, a "technique" breakdown (progress bars -- web's component is called
+  `TechniqueRadarChart` but doesn't actually render a radar chart, so mobile's
+  version is honestly named `TechniqueBars`), per-dimension detailed
+  feedback with diagnosis/evidence/drill text when present, a frame-by-frame
+  gallery (`GET /api/analysis/[id]/frames`, authenticated `<Image>` requests
+  the same way video streaming already works), and coach comments
+  (`GET`/`POST /api/analysis/[id]/annotations`, add-a-comment restricted to
+  coaches same as the backend enforces). The video player draws a live,
+  time-synced pose skeleton overlay (`react-native-svg`, driven by
+  `expo-video`'s `timeUpdate` event) over real MediaPipe pose data from
+  `GET /api/analysis/[id]/pose` -- ported from web's canvas-based
+  `VideoSkeletonOverlay.tsx` (joint dots, bone lines, wrist velocity arrows).
+- **Progress** shows a real grade trend line and shot-type breakdown pie
+  chart (`react-native-gifted-charts`, the first charting library in the
+  app) from `GET /api/progress/[userId]`, `/trend`, and `/shots`.
+  Deliberately does **not** port web's `app/(dashboard)/progress/page.tsx`,
+  which is almost entirely a `setTimeout()`-mocked static object (fake
+  sessions, fake achievements, fake coach comments) that never calls a
+  progress endpoint at all -- the real endpoints above already exist on the
+  backend and just weren't wired up to web's UI. No achievements section:
+  `GET /api/progress/[userId]/achievements` is an explicit stub with no
+  `Achievement`/`UserAchievement` model anywhere in the Prisma schema.
+
+Deliberately narrower than web's equivalent pages, per the Phase 4 scoping
+discussion:
+- **No tracked-subject bounding box or on/off layer toggles** on the pose
+  overlay -- web draws an extra dashed "tracked subject" box and has
+  checkboxes to hide video/skeleton/bbox independently. Mobile always shows
+  the skeleton when pose data is available and skips the box; both are easy
+  follow-ups, not core to the overlay itself.
+- **No jump-to-timestamp from a coaching-feedback item or annotation to the
+  video player** -- web can seek the `<video>` element from a clicked
+  timestamp; mobile shows the same timestamps as plain text for now, since
+  wiring a seek callback into `expo-video`'s player is straightforward but
+  extra plumbing for a first pass.
+- **No "reprocess as batting/bowling" buttons** -- real backend feature
+  (`POST /api/analysis/[id]/reprocess`), but an edge-case misclassification
+  fix that adds in-flight queue-state complexity; deferred, per the user's
+  scoping decision.
+- **`/api/analysis/[id]/report`** (PDF export) isn't wrapped at all -- it's
+  an explicit backend MVP placeholder (`status: "placeholder"`, no PDF) with
+  zero UI entry points anywhere on web either.
+- **Progress is self-view only** -- web also has a real, separate coach
+  view (a player-profile screen with a genuine multi-category grade trend,
+  `GET /api/team/players/[id]/analysed-videos/trend`) that's a better model
+  to extend Phase 3's role-aware assignee pattern into. Deferred to Phase 6
+  (Team/Squads), per the user's scoping decision, rather than folded into
+  this phase.
+
+New dependencies this phase: `react-native-svg` (pose overlay drawing),
+`react-native-gifted-charts` + its `expo-linear-gradient` peer (trend/shot
+charts) -- versions pinned from `node_modules/expo/bundledNativeModules.json`
+the same way Phase 3's camera/video packages were. `tailwind.config.js`
+gained `success`/`warning` color tokens (mirroring web's
+`var(--success)`/`var(--warning)`), which the analysis screens lean on
+heavily for score coloring and didn't exist yet.
+
+**A note on this phase's verification**: `npx tsc --noEmit` is clean, but
+the usual `npx expo export -p web` bundle smoke test could not be completed
+during this phase's build -- the sandboxed dev environment used to build
+this repeatedly hit its own execution time limit and, separately, had an
+intermittent connection hiccup to this machine partway through. Since
+`react-native-svg` and `expo-linear-gradient` are both native modules being
+added for the first time, please run `npx expo start` (or your usual
+`expo run:ios`/`expo run:android` if you're on a custom dev client rather
+than Expo Go) yourself before relying on this -- if you're on a custom dev
+client you'll likely need a fresh native build to pick up the two new native
+modules, not just a JS reload.

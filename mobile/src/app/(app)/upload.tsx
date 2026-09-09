@@ -265,7 +265,13 @@ export default function UploadScreen() {
                     key={upload.id}
                     variant="ghost"
                     className="flex-row items-center justify-between px-0 py-2"
-                    onPress={() => router.push(`/analysis/${upload.id}/processing`)}
+                    onPress={() =>
+                      router.push(
+                        upload.processingState === "analyzed"
+                          ? `/analysis/${upload.id}`
+                          : `/analysis/${upload.id}/processing`
+                      )
+                    }
                   >
                     <View className="flex-1 flex-row items-center justify-between">
                       <Text className="flex-1 pr-2 text-sm text-text-primary" numberOfLines={1}>

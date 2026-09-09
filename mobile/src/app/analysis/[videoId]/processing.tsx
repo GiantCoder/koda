@@ -14,14 +14,9 @@ import { API_BASE_URL } from "@/api/client";
  * Real, polling-based processing screen (GET /api/analysis/[videoId]/status
  * every 3s -- see src/lib/useAnalysisStatus.ts for why this is polling-only,
  * no SSE). Deliberately simpler than web's equivalent page: a plain video
- * preview with native controls, no skeleton-overlay canvas -- that's a
- * meaningfully bigger feature (frame-synced pose drawing over the player)
- * that belongs with Phase 4's full analysis-detail screen, not here.
- *
- * On completion this shows a lightweight confirmation rather than routing
- * to a detail screen, because that detail screen (shot grade, coaching
- * tips, pose overlay) doesn't exist on mobile yet -- it's explicitly
- * Phase 4 scope. Revisit this screen's "complete" branch once that's built.
+ * preview with native controls, no skeleton-overlay canvas here -- that
+ * lives on the full analysis-detail screen (Phase 4) this routes to on
+ * completion.
  */
 export default function AnalysisProcessingScreen() {
   const { videoId } = useLocalSearchParams<{ videoId: string }>();
@@ -105,12 +100,11 @@ export default function AnalysisProcessingScreen() {
             {isComplete ? (
               <View className="mt-6 rounded-lg border border-primary/30 bg-primary/5 p-4">
                 <Text className="mb-1 font-medium text-text-primary">Analysis complete!</Text>
-                <Text className="text-sm text-text-secondary">
-                  The full results screen (shot grade, coaching tips, pose overlay) is coming in
-                  Phase 4. For now you can find this video's status from Upload → Recent Uploads.
+                <Text className="mb-4 text-sm text-text-secondary">
+                  Your shot grade, coaching tips, and pose overlay are ready.
                 </Text>
-                <Button className="mt-4 self-start" onPress={() => router.replace("/(app)/dashboard")}>
-                  Back to Dashboard
+                <Button className="self-start" onPress={() => router.replace(`/analysis/${videoId}`)}>
+                  View Results
                 </Button>
               </View>
             ) : isFailed ? (

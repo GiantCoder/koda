@@ -14,6 +14,12 @@ module.exports = {
         "text-primary": "#111827",
         "text-secondary": "#6B7280",
         danger: "#DC2626",
+        // Added in Phase 4: web's analysis/progress screens lean heavily on
+        // success (high scores/strengths) and warning (needs-improvement)
+        // colors (var(--success)/var(--warning) in app/globals.css) that
+        // mobile didn't need until now.
+        success: "#16a34a",
+        warning: "#F59E0B",
       },
     },
   },
