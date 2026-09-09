@@ -42,6 +42,21 @@ export const privacyUpdateSchema = z.object({
 });
 export type PrivacyUpdateInput = z.infer<typeof privacyUpdateSchema>;
 
+export interface PrivacyPreferences {
+  performanceAnalytics: boolean;
+  marketingCommunications: boolean;
+  coachParentComms: boolean;
+  profileVisibility: "COACHES_PARENTS" | "COACHES_ONLY" | "PUBLIC";
+}
+
+// GET added alongside the mobile Phase 2 Settings screen -- unlike the web
+// app's privacy toggles (local state, never read back), Settings needs to
+// show what's actually saved rather than resetting to defaults every time
+// it's opened. See app/api/onboarding/privacy/route.ts for the backend side.
+export async function getPrivacyPreferences(): Promise<PrivacyPreferences> {
+  return apiFetch<PrivacyPreferences>("/api/onboarding/privacy");
+}
+
 export async function updatePrivacyPreferences(input: PrivacyUpdateInput): Promise<void> {
   const parsed = privacyUpdateSchema.parse(input);
   await apiFetch("/api/onboarding/privacy", { method: "PUT", body: parsed });

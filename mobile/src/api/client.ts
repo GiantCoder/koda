@@ -11,7 +11,7 @@
  */
 import { getAccessToken, getRefreshToken, setAccessToken, setRefreshToken, clearTokens } from "./tokenStore";
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3050";
+export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3050";
 
 export class ApiError extends Error {
   status: number;
