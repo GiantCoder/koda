@@ -364,3 +364,78 @@ app-wide, so there was no native back button, and the screen never added
 its own). Added a shared `BackBar` component
 (`src/components/ui/BackBar.tsx`) and used it on that screen plus the two
 new Phase 5 stack screens (notifications, message thread).
+
+## Screens (Phase 6)
+
+A new Team tab (roster + a `team/squads` stack screen for full squad
+management), and a `players/[playerId]` stack screen (per-player detail,
+reached by tapping a roster row).
+
+- **Team** shows the real roster (`GET /api/team/players`, already wrapped
+  as `getAssignablePlayers()` since Phase 3 -- role-aware: coach/admin get
+  their squads' players, parent gets linked children, player gets just
+  themselves, which is why the tab is hidden entirely for PLAYER via
+  `href: null` in `(app)/_layout.tsx`). Coach/admin get real management on
+  top: **Add Player** (`POST /api/team/players`, optionally straight into a
+  squad) and **Remove** per row (`DELETE /api/team/players/[id]` -- removes
+  from the coach's squads or clears the parent's guardian link; never
+  deletes the player's account). Tapping a row opens the new player detail
+  screen.
+- **Squads** (coach/admin only, pushed from Team's "Squads" button) is full
+  CRUD against the real, working squad backend: create
+  (`POST /api/squads`), edit name/age group/club/active state
+  (`PUT /api/squads/[id]`), delete (`DELETE /api/squads/[id]`), and manage
+  membership (`POST`/`DELETE /api/squads/[id]/members[/userId]`) from a
+  squad's detail view, including an "Add Member" picker sourced from the
+  same roster `getAssignablePlayers()` call, filtered to whoever isn't
+  already in that squad.
+- **Player detail** (`players/[playerId]`) shows the real player card for
+  someone else's account (`GET /api/team/players/[id]/player-card` -- the
+  same RBAC-checked endpoint/card component from Phase 2's Profile tab,
+  reused as-is), a grade trend chart, and a paginated, category-filterable
+  list of their analysed videos (`GET /api/team/players/[id]/analysed-videos`),
+  each row linking straight into the existing Phase 4 analysis results
+  screen. Coach/admin get a **Message** button that starts a real
+  conversation (`POST /api/conversations`) and jumps into the thread.
+
+One small additive backend change, the same shape as Phase 5's: a new
+`GET /api/team/coach` endpoint, returning the caller's active coach(es)
+(via `SquadMember` for a player, or `GuardianLink` → child → `SquadMember`
+for a parent). This closes the gap Phase 5's README flagged --
+"Start new conversation" was coach/admin-only because there was no
+reciprocal "who is my coach" lookup for a player/parent. The Messages tab
+now uses it: player/parent get a **New Message** button too, picking from
+their coach(es) instead of a player roster.
+
+**A second real backend gap found this phase, worth flagging rather than
+quietly working around**: `GET /api/team/players` (the only "who is on my
+team" list the backend exposes to a coach) is derived entirely from
+`SquadMember` rows -- there is no `createdByCoachId` or equivalent on
+`User`. That means a player created via `POST /api/team/players` **without**
+a `squadId` disappears from the coach's view of their own team the moment
+the create call returns: not in the Team tab roster, not in the Messages
+"New Message" list, not in any squad's "Add Member" picker -- there is
+currently no UI path back to them at all short of the coach happening to
+remember the generated login email. Rather than silently shipping that
+trap, the Add Player form now shows an explicit warning when no squad is
+selected, so a coach who skips it knows the consequence at the moment they
+make the choice. The real fix (tracking which coach created an unassigned
+player, and/or a dedicated "unassigned players" list) is a backend change
+outside this phase's scope -- noted in the roadmap doc for whoever owns
+that area.
+
+Deliberately narrower than "complete" team management, per the user's
+Phase 6 scoping decisions:
+- **No Clubs screen.** The `Club` model and its endpoints exist and are
+  real, but nothing in this phase's roster/squad/player-detail flows
+  actually needs it (squads carry a free-text `clubName`, not a `Club`
+  relation) -- deferred to Phase 7 rather than bolted on here.
+- **No "Avg Rating" stat.** `GET /api/squads` returns a `rating` per member
+  that is a deterministic hash of the user's id -- not derived from any
+  real grade, analysis, or performance data. Per the user's decision it's
+  skipped entirely rather than ported as if real, and not replaced with a
+  different metric either (there isn't a real per-squad aggregate worth
+  showing yet).
+- **Single aggregate grade-trend line**, not web's per-category breakdown
+  chart -- reuses Phase 4's `TrendLineChart` component as-is rather than
+  building a second charting component for one screen.

@@ -1,6 +1,7 @@
 import React from "react";
 import { Text, type ColorValue } from "react-native";
 import { Tabs } from "expo-router";
+import { useAppSelector } from "@/store/hooks";
 
 /**
  * Phase 2 replaces the single placeholder screen with a real tab bar --
@@ -14,12 +15,20 @@ import { Tabs } from "expo-router";
  * -- Notifications deliberately did NOT get its own tab (six tabs felt like
  * one too many); it's reached via a bell icon on the dashboard instead
  * (src/app/notifications.tsx, a root-level stack screen).
+ *
+ * Phase 6 adds "team" -- hidden for PLAYER (a roster of "just yourself"
+ * isn't useful, and it's already covered by Profile) via `href: null`,
+ * which removes both the tab button and route access without needing a
+ * second layout tree.
  */
 function TabIcon({ glyph, color }: { glyph: string; color: ColorValue }) {
   return <Text style={{ fontSize: 20, color }}>{glyph}</Text>;
 }
 
 export default function AppLayout() {
+  const user = useAppSelector((state) => state.auth.user);
+  const showTeamTab = user?.role !== "PLAYER";
+
   return (
     <Tabs
       screenOptions={{
@@ -40,6 +49,14 @@ export default function AppLayout() {
         options={{
           title: "Upload",
           tabBarIcon: ({ color }) => <TabIcon glyph="🎥" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="team"
+        options={{
+          title: "Team",
+          href: showTeamTab ? undefined : null,
+          tabBarIcon: ({ color }) => <TabIcon glyph="🧢" color={color} />,
         }}
       />
       <Tabs.Screen

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { ApiError } from "@/api/client";
 import { getConversations, createConversation, type ConversationSummary } from "@/api/conversations";
 import { getAssignablePlayers, type AssignablePlayer } from "@/api/videos";
+import { getMyCoaches } from "@/api/team";
 
 /**
  * Real Messages tab -- Phase 5. Web's equivalent page is 100% mocked
@@ -16,13 +17,14 @@ import { getAssignablePlayers, type AssignablePlayer } from "@/api/videos";
  * /api/conversations/[id]/messages) is real and fully working. Mobile
  * wires up the real thing.
  *
- * "Start new conversation" is coach/admin-only for v1: the only real
- * "who can I message" list on the backend is GET /api/team/players
- * (a coach's squad), which Phase 3 already wraps as getAssignablePlayers().
- * There's no reciprocal "who is my coach" endpoint for a player/parent to
- * discover a contact, so they can view and reply to conversations a coach
- * starts with them, but can't start a new one themselves yet -- a real gap,
- * not a design preference, documented in the roadmap doc.
+ * "Start new conversation" originally shipped coach/admin-only in Phase 5:
+ * the only real "who can I message" list on the backend was GET
+ * /api/team/players (a coach's squad, wrapped as getAssignablePlayers() by
+ * Phase 3) -- there was no reciprocal "who is my coach" endpoint for a
+ * player/parent to discover a contact. Phase 6 adds one (GET
+ * /api/team/coach, wrapped as getMyCoaches()) specifically to close that
+ * gap, so every role can now start a conversation: coach/admin pick from
+ * their roster, player/parent pick from their coach(es).
  */
 
 function formatTime(iso: string): string {
@@ -56,7 +58,8 @@ export default function MessagesScreen() {
   const [contacts, setContacts] = useState<AssignablePlayer[] | null>(null);
   const [creatingFor, setCreatingFor] = useState<string | null>(null);
 
-  const canStartConversation = user?.role === "COACH" || user?.role === "ADMIN";
+  const isCoachOrAdmin = user?.role === "COACH" || user?.role === "ADMIN";
+  const canStartConversation = true;
 
   const load = useCallback(async () => {
     setError(null);
@@ -84,12 +87,12 @@ export default function MessagesScreen() {
     setNewMessageVisible(true);
     if (contacts === null) {
       try {
-        setContacts(await getAssignablePlayers());
+        setContacts(isCoachOrAdmin ? await getAssignablePlayers() : await getMyCoaches());
       } catch {
         setContacts([]);
       }
     }
-  }, [contacts]);
+  }, [contacts, isCoachOrAdmin]);
 
   const handleStartConversation = useCallback(async (playerId: string) => {
     setCreatingFor(playerId);
@@ -136,9 +139,9 @@ export default function MessagesScreen() {
           <Card>
             <CardContent>
               <Text className="text-sm text-text-secondary">
-                {canStartConversation
+                {isCoachOrAdmin
                   ? "No conversations yet. Tap New Message to start one with a player."
-                  : "No conversations yet. Your coach can start one with you."}
+                  : "No conversations yet. Tap New Message to start one with your coach."}
               </Text>
             </CardContent>
           </Card>
@@ -189,9 +192,15 @@ export default function MessagesScreen() {
           </View>
           <ScrollView className="flex-1 px-6 pt-4">
             {contacts === null ? (
-              <Text className="text-sm text-text-secondary">Loading players…</Text>
+              <Text className="text-sm text-text-secondary">
+                {isCoachOrAdmin ? "Loading players…" : "Loading coaches…"}
+              </Text>
             ) : contacts.length === 0 ? (
-              <Text className="text-sm text-text-secondary">No players to message yet.</Text>
+              <Text className="text-sm text-text-secondary">
+                {isCoachOrAdmin
+                  ? "No players to message yet."
+                  : "No coach found yet -- once you're on a squad, your coach will show up here."}
+              </Text>
             ) : (
               <View className="gap-1">
                 {contacts.map((player) => (
