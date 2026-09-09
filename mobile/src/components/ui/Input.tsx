@@ -10,7 +10,16 @@ interface InputProps extends TextInputProps {
 export const Input = forwardRef<TextInput, InputProps>(
   ({ label, error, className = "", ...props }, ref) => {
     return (
-      <View className="w-full">
+      // `className` is applied here too (not just on the TextInput below) so
+      // layout utilities like `flex-1`/`flex-[1.3]` -- used to lay out
+      // several Inputs side by side in a row, e.g. the register screen's
+      // day/month/year fields -- actually affect how much row width this
+      // Input takes up. Before this, the outer wrapper was hard-coded to
+      // `w-full` regardless of what was passed in, so every Input in a row
+      // claimed the *entire* row width and the row overflowed off-screen.
+      // Text-appearance classes (e.g. `capitalize`) are harmless no-ops here
+      // and still apply for real on the TextInput itself below.
+      <View className={`w-full ${className}`}>
         {label ? <Text className="mb-1.5 text-sm font-medium text-text-primary">{label}</Text> : null}
         <TextInput
           ref={ref}

@@ -1,8 +1,8 @@
 import React, { useState } from "react";
-import { ScrollView, Switch, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { Switch, Text, View } from "react-native";
 import { router } from "expo-router";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
+import { KeyboardAwareScreen } from "@/components/ui/KeyboardAwareScreen";
 import { Button } from "@/components/ui/Button";
 import { OptionPicker } from "@/components/ui/OptionPicker";
 import { updatePrivacyPreferences } from "@/api/onboarding";
@@ -68,9 +68,8 @@ export default function PrivacyScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-surface">
-      <ScrollView contentContainerClassName="flex-grow justify-center px-6 py-10">
-        <Card>
+    <KeyboardAwareScreen>
+      <Card>
           <CardHeader>Data &amp; Privacy</CardHeader>
           <CardContent>
             <Text className="mb-6 text-sm text-text-secondary">
@@ -109,8 +108,7 @@ export default function PrivacyScreen() {
               Continue
             </Button>
           </CardContent>
-        </Card>
-      </ScrollView>
-    </SafeAreaView>
+      </Card>
+    </KeyboardAwareScreen>
   );
 }

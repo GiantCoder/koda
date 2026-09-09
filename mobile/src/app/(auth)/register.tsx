@@ -1,11 +1,11 @@
 import React, { useMemo, useState } from "react";
-import { ScrollView, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { Text, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Checkbox } from "@/components/ui/Checkbox";
+import { KeyboardAwareScreen } from "@/components/ui/KeyboardAwareScreen";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { registerThunk } from "@/store/authSlice";
 
@@ -71,9 +71,8 @@ export default function RegisterScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-surface">
-      <ScrollView contentContainerClassName="flex-grow justify-center px-6 py-10">
-        <Card>
+    <KeyboardAwareScreen>
+      <Card>
           <CardHeader>Create Your Account</CardHeader>
           <CardContent>
             <View className="gap-4">
@@ -130,8 +129,7 @@ export default function RegisterScreen() {
               </Button>
             </View>
           </CardContent>
-        </Card>
-      </ScrollView>
-    </SafeAreaView>
+      </Card>
+    </KeyboardAwareScreen>
   );
 }

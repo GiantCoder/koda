@@ -1,6 +1,5 @@
 import React from "react";
 import { Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Link, router } from "expo-router";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -11,6 +10,7 @@ import { loginSchema, type LoginInput } from "@/api/auth";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
+import { KeyboardAwareScreen } from "@/components/ui/KeyboardAwareScreen";
 
 export default function LoginScreen() {
   const dispatch = useAppDispatch();
@@ -33,7 +33,7 @@ export default function LoginScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 justify-center bg-surface px-6">
+    <KeyboardAwareScreen>
       <Card>
         <CardHeader>Sign in to Koda</CardHeader>
         <CardContent>
@@ -79,6 +79,6 @@ export default function LoginScreen() {
           </View>
         </CardContent>
       </Card>
-    </SafeAreaView>
+    </KeyboardAwareScreen>
   );
 }

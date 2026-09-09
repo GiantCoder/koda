@@ -1,8 +1,8 @@
 import React, { useState } from "react";
-import { ScrollView, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { Text, View } from "react-native";
 import { router } from "expo-router";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
+import { KeyboardAwareScreen } from "@/components/ui/KeyboardAwareScreen";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { OptionPicker } from "@/components/ui/OptionPicker";
@@ -63,9 +63,8 @@ export default function ProfileScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-surface">
-      <ScrollView contentContainerClassName="flex-grow justify-center px-6 py-10">
-        <Card>
+    <KeyboardAwareScreen>
+      <Card>
           <CardHeader>Complete Your Profile</CardHeader>
           <CardContent>
             <Text className="mb-6 text-sm text-text-secondary">
@@ -83,8 +82,7 @@ export default function ProfileScreen() {
               Finish setup
             </Button>
           </CardContent>
-        </Card>
-      </ScrollView>
-    </SafeAreaView>
+      </Card>
+    </KeyboardAwareScreen>
   );
 }

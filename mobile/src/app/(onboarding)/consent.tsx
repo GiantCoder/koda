@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { OptionPicker } from "@/components/ui/OptionPicker";
+import { KeyboardAwareScreen } from "@/components/ui/KeyboardAwareScreen";
 import {
   getConsentStatus,
   requestGuardianConsent,
@@ -173,9 +174,8 @@ export default function ConsentScreen() {
 
   // phase === "form"
   return (
-    <SafeAreaView className="flex-1 bg-surface">
-      <ScrollView contentContainerClassName="flex-grow justify-center px-6 py-10">
-        <Card>
+    <KeyboardAwareScreen>
+      <Card>
           <CardHeader>Guardian Consent Required</CardHeader>
           <CardContent>
             <Text className="mb-6 text-sm text-text-secondary">
@@ -203,8 +203,7 @@ export default function ConsentScreen() {
               </Button>
             </View>
           </CardContent>
-        </Card>
-      </ScrollView>
-    </SafeAreaView>
+      </Card>
+    </KeyboardAwareScreen>
   );
 }
