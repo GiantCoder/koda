@@ -3,9 +3,13 @@ import { Modal, Pressable, RefreshControl, ScrollView, Text, View } from "react-
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { useAppSelector } from "@/store/hooks";
-import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { ScreenTitle } from "@/components/ui/ScreenTitle";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { PressableScale } from "@/components/ui/PressableScale";
+import { Ionicons } from "@expo/vector-icons";
+import { useSecondaryIconColor } from "@/components/ui/useIconColor";
 import { ApiError } from "@/api/client";
 import { getAssignablePlayers, type AssignablePlayer } from "@/api/videos";
 import { createTeamPlayer, removeTeamPlayer } from "@/api/team";
@@ -27,6 +31,7 @@ export default function TeamScreen() {
   const user = useAppSelector((state) => state.auth.user);
   const isCoach = user?.role === "COACH" || user?.role === "ADMIN";
   const isParent = user?.role === "PARENT";
+  const iconColor = useSecondaryIconColor();
 
   const [players, setPlayers] = useState<AssignablePlayer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -111,9 +116,9 @@ export default function TeamScreen() {
   return (
     <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
       <View className="flex-row items-center justify-between px-6 pt-6">
-        <Text className="text-2xl font-bold text-text-primary dark:text-text-primary-dark">
+        <ScreenTitle>
           {isParent ? "Your Children" : "Team"}
-        </Text>
+        </ScreenTitle>
         {isCoach ? (
           <View className="flex-row gap-2">
             <Button variant="secondary" size="sm" onPress={() => router.push("/team/squads")}>
@@ -143,27 +148,28 @@ export default function TeamScreen() {
         ) : error ? (
           <Text className="text-sm text-danger dark:text-danger-dark">{error}</Text>
         ) : players.length === 0 ? (
-          <Card>
-            <CardContent>
-              <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">
-                {isCoach
-                  ? "No players yet. Tap Add Player to create your first one."
-                  : isParent
-                    ? "No linked children yet."
-                    : "Nothing to show here."}
-              </Text>
-            </CardContent>
-          </Card>
+          <EmptyState
+            icon={<Ionicons name="people-outline" size={28} color={iconColor} />}
+            message={
+              isCoach
+                ? "No players yet. Tap Add Player to create your first one."
+                : isParent
+                  ? "No linked children yet."
+                  : "Nothing to show here."
+            }
+            actionLabel={isCoach ? "Add Player" : undefined}
+            onAction={isCoach ? () => void openAdd() : undefined}
+          />
         ) : (
           <View className="gap-1 pb-8">
             {players.map((player) => (
-              <Pressable
+              <PressableScale
                 key={player.id}
                 onPress={() => router.push(`/players/${player.id}`)}
                 className="flex-row items-center justify-between rounded-lg p-3"
               >
                 <View className="h-10 w-10 items-center justify-center rounded-full bg-surface-secondary dark:bg-surface-secondary-dark">
-                  <Text className="text-base">🏏</Text>
+                  <Ionicons name="baseball-outline" size={18} color={iconColor} />
                 </View>
                 <Text className="ml-3 flex-1 text-text-primary dark:text-text-primary-dark">{player.displayName}</Text>
                 {isCoach || isParent ? (
@@ -178,7 +184,7 @@ export default function TeamScreen() {
                     </Text>
                   </Pressable>
                 ) : null}
-              </Pressable>
+              </PressableScale>
             ))}
           </View>
         )}

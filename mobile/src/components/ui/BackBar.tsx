@@ -1,6 +1,8 @@
 import React from "react";
-import { Pressable, Text, View } from "react-native";
+import { Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { PressableScale } from "./PressableScale";
 
 /**
  * Shared back-navigation row for root-level stack screens (outside the tab
@@ -22,9 +24,10 @@ export function BackBar({ label = "Back" }: { label?: string }) {
 
   return (
     <View className="flex-row px-6 pt-2">
-      <Pressable onPress={handleBack} className="flex-row items-center py-2 pr-3" hitSlop={8}>
-        <Text className="text-base font-medium text-primary">← {label}</Text>
-      </Pressable>
+      <PressableScale onPress={handleBack} className="flex-row items-center py-2 pr-3" hitSlop={8}>
+        <Ionicons name="chevron-back" size={18} color="#E63946" />
+        <Text className="text-base font-medium text-primary">{label}</Text>
+      </PressableScale>
     </View>
   );
 }

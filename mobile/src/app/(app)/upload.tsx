@@ -6,6 +6,8 @@ import { router } from "expo-router";
 import { useAppSelector } from "@/store/hooks";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { ScreenTitle } from "@/components/ui/ScreenTitle";
+import { StatusBadge, type StatusTone } from "@/components/ui/StatusBadge";
 import { OptionPicker } from "@/components/ui/OptionPicker";
 import { getAssignablePlayers, getRecentUploads, type AssignablePlayer, type RecentUpload } from "@/api/videos";
 import { uploadVideo } from "@/api/videoUpload";
@@ -36,11 +38,11 @@ const STATUS_LABELS: Record<RecentUpload["processingState"], string> = {
   unsupported: "Not supported",
 };
 
-const STATUS_COLORS: Record<RecentUpload["processingState"], string> = {
-  analyzed: "bg-green-100 text-green-700",
-  processing: "bg-blue-100 text-blue-700",
-  failed: "bg-red-100 text-red-700",
-  unsupported: "bg-amber-100 text-amber-700",
+const STATUS_TONES: Record<RecentUpload["processingState"], StatusTone> = {
+  analyzed: "success",
+  processing: "info",
+  failed: "danger",
+  unsupported: "warning",
 };
 
 /**
@@ -176,7 +178,7 @@ export default function UploadScreen() {
         className="flex-1 px-6 pt-6"
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        <Text className="mb-6 text-2xl font-bold text-text-primary dark:text-text-primary-dark">Upload a Video</Text>
+        <ScreenTitle className="mb-6">Upload a Video</ScreenTitle>
 
         <Card className="mb-6">
           <CardHeader>New Upload</CardHeader>
@@ -277,9 +279,10 @@ export default function UploadScreen() {
                       <Text className="flex-1 pr-2 text-sm text-text-primary dark:text-text-primary-dark" numberOfLines={1}>
                         {upload.filename}
                       </Text>
-                      <Text className={`overflow-hidden rounded-full px-2 py-1 text-xs font-medium ${STATUS_COLORS[upload.processingState]}`}>
-                        {STATUS_LABELS[upload.processingState]}
-                      </Text>
+                      <StatusBadge
+                        label={STATUS_LABELS[upload.processingState]}
+                        tone={STATUS_TONES[upload.processingState]}
+                      />
                     </View>
                   </Button>
                 ))}

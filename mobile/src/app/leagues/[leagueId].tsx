@@ -3,15 +3,22 @@ import { ActivityIndicator, FlatList, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams } from "expo-router";
 import { BackBar } from "@/components/ui/BackBar";
+import { ScreenTitle } from "@/components/ui/ScreenTitle";
+import { Ionicons } from "@expo/vector-icons";
 import { useAppSelector } from "@/store/hooks";
 import { ApiError } from "@/api/client";
 import { getLeagueTable, type LeagueEntry } from "@/api/leagues";
 
 function RankBadge({ rank }: { rank: number | null }) {
-  const medal = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : null;
+  const medal =
+    rank === 1 ? { name: "trophy" as const, color: "#F59E0B" } : rank === 2 ? { name: "medal" as const, color: "#9CA3AF" } : rank === 3 ? { name: "medal" as const, color: "#B45309" } : null;
   return (
     <View className="w-10 items-center">
-      <Text className="text-base font-bold text-text-primary dark:text-text-primary-dark">{medal ?? (rank ?? "—")}</Text>
+      {medal ? (
+        <Ionicons name={medal.name} size={18} color={medal.color} />
+      ) : (
+        <Text className="text-base font-bold text-text-primary dark:text-text-primary-dark">{rank ?? "—"}</Text>
+      )}
     </View>
   );
 }
@@ -71,7 +78,7 @@ export default function LeagueStandingsScreen() {
   return (
     <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
       <BackBar label="Leagues" />
-      <Text className="px-6 pt-2 text-2xl font-bold text-text-primary dark:text-text-primary-dark">Standings</Text>
+      <ScreenTitle className="px-6 pt-2">Standings</ScreenTitle>
 
       {loading ? (
         <View className="items-center pt-12">
@@ -110,7 +117,10 @@ export default function LeagueStandingsScreen() {
                 {item.userId === currentUserId ? " (you)" : ""}
               </Text>
               {item.goldStars > 0 ? (
-                <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">⭐️{item.goldStars}</Text>
+                <View className="flex-row items-center gap-0.5">
+                  <Ionicons name="star" size={12} color="#F59E0B" />
+                  <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">{item.goldStars}</Text>
+                </View>
               ) : null}
               <Text className="text-sm font-medium text-text-primary dark:text-text-primary-dark">{item.points} pts</Text>
             </View>

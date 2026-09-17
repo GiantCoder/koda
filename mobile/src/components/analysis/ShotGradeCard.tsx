@@ -1,6 +1,8 @@
 import React from "react";
 import { Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { Card, CardHeader, CardContent } from "@/components/ui/Card";
+import { useSecondaryIconColor } from "@/components/ui/useIconColor";
 
 export interface MetricScore {
   label: string;
@@ -20,13 +22,13 @@ interface ShotGradeCardProps {
 // Ports web's app/components/analysis/ShotGradeCard.tsx color thresholds.
 function gradeColor(letter: string): string {
   const upper = letter.toUpperCase();
-  if (["A", "A+", "B+", "B"].includes(upper)) return "#16a34a"; // success
+  if (["A", "A+", "B+", "B"].includes(upper)) return "#2D6A4F"; // cricket-green
   if (["C+", "C"].includes(upper)) return "#F59E0B"; // warning
   return "#6B7280"; // text-secondary
 }
 
 function scoreColor(value: number): string {
-  if (value >= 85) return "#16a34a";
+  if (value >= 85) return "#2D6A4F";
   if (value >= 65) return "#F59E0B";
   return "#6B7280";
 }
@@ -39,15 +41,21 @@ export function ShotGradeCard({
   overallScore,
   title = "Shot Quality",
 }: ShotGradeCardProps) {
+  const iconColor = useSecondaryIconColor();
   return (
     <Card>
       <View className="mb-4 flex-row items-center justify-between">
-        <CardHeader className="mb-0">{title}</CardHeader>
+        <CardHeader className="mb-0" icon={<Ionicons name="ribbon-outline" size={18} color={iconColor} />}>
+          {title}
+        </CardHeader>
         <View className="flex-row gap-0.5">
           {Array.from({ length: maxStars }).map((_, i) => (
-            <Text key={i} style={{ color: i < starRating ? "#F59E0B" : "#F3F4F6", fontSize: 18 }}>
-              ★
-            </Text>
+            <Ionicons
+              key={i}
+              name={i < starRating ? "star" : "star-outline"}
+              size={16}
+              color={i < starRating ? "#F59E0B" : iconColor}
+            />
           ))}
         </View>
       </View>

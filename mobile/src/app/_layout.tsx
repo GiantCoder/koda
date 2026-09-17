@@ -5,6 +5,7 @@ import { Stack, router } from "expo-router";
 import { Provider } from "react-redux";
 import * as SplashScreen from "expo-splash-screen";
 import * as Notifications from "expo-notifications";
+import { useFonts, SplineSans_700Bold } from "@expo-google-fonts/spline-sans";
 import { store } from "@/store";
 import { useAppDispatch } from "@/store/hooks";
 import { bootstrapAuth } from "@/store/authSlice";
@@ -29,6 +30,8 @@ function AuthBootstrapper() {
   const dispatch = useAppDispatch();
   const [bootReady, setBootReady] = useState(false);
   const [introDone, setIntroDone] = useState(false);
+  const [fontsLoaded, fontError] = useFonts({ SplineSans_700Bold });
+  const fontsReady = fontsLoaded || !!fontError;
 
   useEffect(() => {
     Promise.all([dispatch(bootstrapAuth()), initAppTheme()]).finally(() => {
@@ -56,7 +59,11 @@ function AuthBootstrapper() {
     return () => subscription.remove();
   }, []);
 
-  if (!bootReady || !introDone) {
+  if (!bootReady) {
+    return null;
+  }
+
+  if (!fontsReady || !introDone) {
     return <AnimatedSplash onFinish={() => setIntroDone(true)} />;
   }
 

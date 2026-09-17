@@ -2,9 +2,12 @@ import React, { useCallback, useEffect, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { BackBar } from "@/components/ui/BackBar";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { ScreenTitle } from "@/components/ui/ScreenTitle";
+import { useSecondaryIconColor } from "@/components/ui/useIconColor";
 import { ApiError } from "@/api/client";
 import {
   getNotifications,
@@ -46,6 +49,7 @@ function NotificationRow({
   onPress: () => void;
   onDelete: () => void;
 }) {
+  const iconColor = useSecondaryIconColor();
   return (
     <Pressable
       onPress={onPress}
@@ -58,7 +62,7 @@ function NotificationRow({
         <Text className="mt-1 text-xs text-text-secondary dark:text-text-secondary-dark">{timeAgo(notification.createdAt)}</Text>
       </View>
       <Pressable onPress={onDelete} hitSlop={8} className="p-1">
-        <Text className="text-text-secondary dark:text-text-secondary-dark">✕</Text>
+        <Ionicons name="close" size={16} color={iconColor} />
       </Pressable>
     </Pressable>
   );
@@ -131,7 +135,7 @@ export default function NotificationsScreen() {
     <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
       <BackBar />
       <View className="flex-row items-center justify-between px-6 pt-2">
-        <Text className="text-2xl font-bold text-text-primary dark:text-text-primary-dark">Notifications</Text>
+        <ScreenTitle>Notifications</ScreenTitle>
         {hasUnread ? (
           <Button variant="ghost" size="sm" onPress={handleMarkAllRead}>
             Mark all read

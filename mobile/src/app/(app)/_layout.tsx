@@ -1,14 +1,11 @@
 import React from "react";
-import { Text, type ColorValue } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import { useAppSelector } from "@/store/hooks";
 
 /**
  * Phase 2 replaces the single placeholder screen with a real tab bar --
  * the first new navigation concept since Phase 0's Stack-only setup.
- * Icons are plain emoji glyphs in a Text node rather than a vector-icon
- * library: keeps the "hand-rolled, minimal deps" approach from the rest of
- * the app, and a handful of tabs isn't enough to justify a new dependency.
  *
  * Phase 4 added "progress" (grade trend + shot mix). Phase 5 adds
  * "messages" (real conversations, see src/app/messages/[conversationId].tsx)
@@ -21,10 +18,6 @@ import { useAppSelector } from "@/store/hooks";
  * which removes both the tab button and route access without needing a
  * second layout tree.
  */
-function TabIcon({ glyph, color }: { glyph: string; color: ColorValue }) {
-  return <Text style={{ fontSize: 20, color }}>{glyph}</Text>;
-}
-
 export default function AppLayout() {
   const user = useAppSelector((state) => state.auth.user);
   const showTeamTab = user?.role !== "PLAYER";
@@ -33,7 +26,7 @@ export default function AppLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: "#16a34a",
+        tabBarActiveTintColor: "#2D6A4F",
         tabBarInactiveTintColor: "#6b7280",
       }}
     >
@@ -41,14 +34,14 @@ export default function AppLayout() {
         name="dashboard"
         options={{
           title: "Dashboard",
-          tabBarIcon: ({ color }) => <TabIcon glyph="🏠" color={color} />,
+          tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="upload"
         options={{
           title: "Upload",
-          tabBarIcon: ({ color }) => <TabIcon glyph="🎥" color={color} />,
+          tabBarIcon: ({ color, size }) => <Ionicons name="videocam-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -56,35 +49,35 @@ export default function AppLayout() {
         options={{
           title: "Team",
           href: showTeamTab ? undefined : null,
-          tabBarIcon: ({ color }) => <TabIcon glyph="🧢" color={color} />,
+          tabBarIcon: ({ color, size }) => <Ionicons name="people-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="messages"
         options={{
           title: "Messages",
-          tabBarIcon: ({ color }) => <TabIcon glyph="💬" color={color} />,
+          tabBarIcon: ({ color, size }) => <Ionicons name="chatbubble-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="progress"
         options={{
           title: "Progress",
-          tabBarIcon: ({ color }) => <TabIcon glyph="📈" color={color} />,
+          tabBarIcon: ({ color, size }) => <Ionicons name="trending-up-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: "Profile",
-          tabBarIcon: ({ color }) => <TabIcon glyph="👤" color={color} />,
+          tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
           title: "Settings",
-          tabBarIcon: ({ color }) => <TabIcon glyph="⚙️" color={color} />,
+          tabBarIcon: ({ color, size }) => <Ionicons name="settings-outline" size={size} color={color} />,
         }}
       />
     </Tabs>

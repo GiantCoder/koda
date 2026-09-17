@@ -1,6 +1,8 @@
 import React from "react";
 import { Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { Card, CardHeader, CardContent } from "@/components/ui/Card";
+import { useSecondaryIconColor } from "@/components/ui/useIconColor";
 import type { CoachingTip } from "@/api/analysis";
 
 interface CoachingTipsPanelProps {
@@ -14,9 +16,12 @@ function tipBorderColor(type?: string): string {
 }
 
 export function CoachingTipsPanel({ tips }: CoachingTipsPanelProps) {
+  const iconColor = useSecondaryIconColor();
   return (
     <Card>
-      <CardHeader>💡 AI Coaching Tips</CardHeader>
+      <CardHeader icon={<Ionicons name="bulb-outline" size={18} color={iconColor} />}>
+        AI Coaching Tips
+      </CardHeader>
       <CardContent className="gap-3">
         {tips.length === 0 ? (
           <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">No coaching tips available for this shot.</Text>

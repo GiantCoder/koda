@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from "react";
 import { Image, Modal, Pressable, ScrollView, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { Card, CardHeader, CardContent } from "@/components/ui/Card";
+import { useSecondaryIconColor } from "@/components/ui/useIconColor";
 import { getAccessToken } from "@/api/tokenStore";
 import { API_BASE_URL } from "@/api/client";
 import type { AnalysisFrame } from "@/api/analysis";
@@ -14,6 +16,7 @@ import type { AnalysisFrame } from "@/api/analysis";
  */
 export function FrameGallery({ frames }: { frames: AnalysisFrame[] }) {
   const [selected, setSelected] = useState<AnalysisFrame | null>(null);
+  const iconColor = useSecondaryIconColor();
   const headers = useMemo(() => {
     const token = getAccessToken();
     return token ? { Authorization: `Bearer ${token}` } : undefined;
@@ -24,7 +27,9 @@ export function FrameGallery({ frames }: { frames: AnalysisFrame[] }) {
   return (
     <Card className="p-0 overflow-hidden">
       <View className="p-6 pb-0">
-        <CardHeader>🖼️ Frame Gallery</CardHeader>
+        <CardHeader icon={<Ionicons name="images-outline" size={18} color={iconColor} />}>
+          Frame Gallery
+        </CardHeader>
       </View>
       <CardContent className="px-6 pb-6">
         <ScrollView horizontal showsHorizontalScrollIndicator={false} className="gap-2">

@@ -7,6 +7,8 @@ import { BackBar } from "@/components/ui/BackBar";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { OptionPicker, type Option } from "@/components/ui/OptionPicker";
+import { Ionicons } from "@expo/vector-icons";
+import { useSecondaryIconColor } from "@/components/ui/useIconColor";
 import { ApiError } from "@/api/client";
 import {
   getPlayerCard,
@@ -79,6 +81,7 @@ function Stepper({ label, value, onChange }: { label: string; value: number; onC
 }
 
 export default function PlayerCardEditScreen() {
+  const iconColor = useSecondaryIconColor();
   const [card, setCard] = useState<PlayerCardDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -190,7 +193,7 @@ export default function PlayerCardEditScreen() {
                   <Image source={{ uri: card.profilePhotoUrl }} className="h-16 w-16 rounded-full bg-surface-secondary dark:bg-surface-secondary-dark" />
                 ) : (
                   <View className="h-16 w-16 items-center justify-center rounded-full bg-surface-secondary dark:bg-surface-secondary-dark">
-                    <Text className="text-2xl">🏏</Text>
+                    <Ionicons name="baseball-outline" size={28} color={iconColor} />
                   </View>
                 )}
                 <Button variant="secondary" size="sm" onPress={() => void pickImage("photo")} isLoading={uploadingPhoto}>

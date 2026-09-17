@@ -1,6 +1,8 @@
 import React from "react";
 import { Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { Card, CardHeader, CardContent } from "@/components/ui/Card";
+import { useSecondaryIconColor } from "@/components/ui/useIconColor";
 
 export interface TechniqueDataPoint {
   dimension: string;
@@ -15,9 +17,12 @@ export interface TechniqueDataPoint {
  * chart, and names the component honestly. See roadmap doc.
  */
 export function TechniqueBars({ data }: { data: TechniqueDataPoint[] }) {
+  const iconColor = useSecondaryIconColor();
   return (
     <Card>
-      <CardHeader>📊 Technique Analysis</CardHeader>
+      <CardHeader icon={<Ionicons name="bar-chart-outline" size={18} color={iconColor} />}>
+        Technique Analysis
+      </CardHeader>
       <CardContent className="gap-3">
         {data.length === 0 ? (
           <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">No technique data available for this shot.</Text>

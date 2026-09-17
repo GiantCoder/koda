@@ -1,9 +1,15 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import { RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { useColorScheme } from "nativewind";
 import { useAppSelector } from "@/store/hooks";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
+import { PressableScale } from "@/components/ui/PressableScale";
+import { ScreenTitle } from "@/components/ui/ScreenTitle";
+import { tileElevation } from "@/components/ui/elevation";
+import { useSecondaryIconColor } from "@/components/ui/useIconColor";
 import { getDashboardSummary, type DashboardSummary } from "@/api/dashboard";
 import { getNotifications } from "@/api/notifications";
 import { ApiError } from "@/api/client";
@@ -38,6 +44,7 @@ function StatBlock({ label, value }: { label: string; value: string }) {
  */
 export default function DashboardScreen() {
   const user = useAppSelector((state) => state.auth.user);
+  const iconColor = useSecondaryIconColor();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -85,26 +92,26 @@ export default function DashboardScreen() {
       >
         <View className="flex-row items-start justify-between">
           <View className="flex-1 pr-3">
-            <Text className="text-2xl font-bold text-text-primary dark:text-text-primary-dark">
+            <ScreenTitle>
               {getGreeting()}, {firstName}!
-            </Text>
+            </ScreenTitle>
             {memberSince ? (
               <Text className="mt-1 text-text-secondary dark:text-text-secondary-dark">Member since {memberSince}</Text>
             ) : null}
           </View>
-          <Pressable
+          <PressableScale
             onPress={() => router.push("/notifications")}
             hitSlop={8}
             className="relative rounded-full bg-surface-secondary dark:bg-surface-secondary-dark p-2.5"
             accessibilityLabel={unreadCount > 0 ? `${unreadCount} unread notifications` : "Notifications"}
           >
-            <Text style={{ fontSize: 20 }}>🔔</Text>
+            <Ionicons name="notifications-outline" size={20} color={iconColor} />
             {unreadCount > 0 ? (
               <View className="absolute -right-1 -top-1 min-w-[18px] items-center justify-center rounded-full bg-danger dark:bg-danger-dark px-1">
                 <Text className="text-[10px] font-bold text-white">{unreadCount > 99 ? "99+" : unreadCount}</Text>
               </View>
             ) : null}
-          </Pressable>
+          </PressableScale>
         </View>
 
         {error ? (
@@ -133,13 +140,13 @@ export default function DashboardScreen() {
 
         <Text className="mb-2 mt-6 text-lg font-semibold text-text-primary dark:text-text-primary-dark">More</Text>
         <View className="mb-8 flex-row flex-wrap gap-2">
-          <QuickLinkCard emoji="🏆" label="Leagues" onPress={() => router.push("/leagues")} />
-          <QuickLinkCard emoji="⭐️" label="Achievements" onPress={() => router.push("/achievements")} />
-          <QuickLinkCard emoji="📁" label="Saved" onPress={() => router.push("/saved")} />
-          <QuickLinkCard emoji="🔎" label="Explore" onPress={() => router.push("/explore")} />
-          <QuickLinkCard emoji="🎯" label="Shadow Batting" onPress={() => router.push("/shadow-batting")} />
+          <QuickLinkCard icon="trophy-outline" label="Leagues" onPress={() => router.push("/leagues")} />
+          <QuickLinkCard icon="ribbon-outline" label="Achievements" onPress={() => router.push("/achievements")} />
+          <QuickLinkCard icon="folder-outline" label="Saved" onPress={() => router.push("/saved")} />
+          <QuickLinkCard icon="search-outline" label="Explore" onPress={() => router.push("/explore")} />
+          <QuickLinkCard icon="locate-outline" label="Shadow Batting" onPress={() => router.push("/shadow-batting")} />
           {user?.role === "COACH" || user?.role === "ADMIN" ? (
-            <QuickLinkCard emoji="🏟️" label="Clubs" onPress={() => router.push("/clubs")} />
+            <QuickLinkCard icon="flag-outline" label="Clubs" onPress={() => router.push("/clubs")} />
           ) : null}
         </View>
       </ScrollView>
@@ -147,14 +154,27 @@ export default function DashboardScreen() {
   );
 }
 
-function QuickLinkCard({ emoji, label, onPress }: { emoji: string; label: string; onPress: () => void }) {
+function QuickLinkCard({
+  icon,
+  label,
+  onPress,
+}: {
+  icon: React.ComponentProps<typeof Ionicons>["name"];
+  label: string;
+  onPress: () => void;
+}) {
+  const iconColor = useSecondaryIconColor();
+  const { colorScheme } = useColorScheme();
+  const isDark = colorScheme === "dark";
+
   return (
-    <Pressable
+    <PressableScale
       onPress={onPress}
       className="w-[31%] items-center gap-1.5 rounded-lg bg-surface-secondary dark:bg-surface-secondary-dark py-4"
+      style={tileElevation(isDark)}
     >
-      <Text style={{ fontSize: 22 }}>{emoji}</Text>
+      <Ionicons name={icon} size={22} color={iconColor} />
       <Text className="text-center text-xs font-medium text-text-primary dark:text-text-primary-dark">{label}</Text>
-    </Pressable>
+    </PressableScale>
   );
 }

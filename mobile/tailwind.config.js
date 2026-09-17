@@ -35,6 +35,9 @@ module.exports = {
         "warning-dark": "#FBBF24",
         "cricket-green": "#2D6A4F",
       },
+      fontFamily: {
+        display: ["SplineSans_700Bold"],
+      },
     },
   },
   plugins: [],

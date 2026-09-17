@@ -1,6 +1,9 @@
 import React from "react";
 import { Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { Card, CardHeader, CardContent } from "@/components/ui/Card";
+import { StatusBadge, type StatusTone } from "@/components/ui/StatusBadge";
+import { useSecondaryIconColor } from "@/components/ui/useIconColor";
 import type { TechnicalFeedbackItem } from "@/api/analysis";
 
 /**
@@ -11,10 +14,10 @@ import type { TechnicalFeedbackItem } from "@/api/analysis";
  * both are real nice-to-haves web has, but add a meaningful chunk of extra
  * plumbing (video ref + frame lookup) for a first pass. See roadmap doc.
  */
-function confidenceColor(confidence: TechnicalFeedbackItem["confidence"]): string {
-  if (confidence === "high") return "#16a34a";
-  if (confidence === "medium") return "#F59E0B";
-  return "#6B7280";
+function confidenceTone(confidence: TechnicalFeedbackItem["confidence"]): StatusTone {
+  if (confidence === "high") return "success";
+  if (confidence === "medium") return "warning";
+  return "neutral";
 }
 
 function formatClock(seconds: number): string {
@@ -31,10 +34,13 @@ function dimensionLabel(dimension: string): string {
 }
 
 export function TechnicalFeedbackList({ items }: { items: TechnicalFeedbackItem[] }) {
+  const iconColor = useSecondaryIconColor();
   if (items.length === 0) return null;
   return (
     <Card>
-      <CardHeader>🔍 Detailed Technique Feedback</CardHeader>
+      <CardHeader icon={<Ionicons name="search-outline" size={18} color={iconColor} />}>
+        Detailed Technique Feedback
+      </CardHeader>
       <CardContent className="gap-4">
         {items.map((item, idx) => (
           <View key={idx} className="border-b border-surface-secondary dark:border-surface-secondary-dark pb-4 last:border-0 last:pb-0">
@@ -44,11 +50,7 @@ export function TechnicalFeedbackList({ items }: { items: TechnicalFeedbackItem[
                 {item.timestampSeconds != null ? (
                   <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">@ {formatClock(item.timestampSeconds)}</Text>
                 ) : null}
-                <View className="rounded-full bg-surface-secondary dark:bg-surface-secondary-dark px-2 py-0.5">
-                  <Text className="text-[10px] font-medium" style={{ color: confidenceColor(item.confidence) }}>
-                    {item.confidence} confidence
-                  </Text>
-                </View>
+                <StatusBadge label={`${item.confidence} confidence`} tone={confidenceTone(item.confidence)} />
               </View>
             </View>
             <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">{item.diagnosis}</Text>

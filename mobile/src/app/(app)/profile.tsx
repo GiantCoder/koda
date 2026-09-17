@@ -7,6 +7,9 @@ import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { OptionPicker } from "@/components/ui/OptionPicker";
+import { ScreenTitle } from "@/components/ui/ScreenTitle";
+import { PressableScale } from "@/components/ui/PressableScale";
+import { Ionicons } from "@expo/vector-icons";
 import { PlayerCardCompact } from "@/components/profile/PlayerCardCompact";
 import { AvatarPickerModal } from "@/components/profile/AvatarPickerModal";
 import { getMyProfile, updateMyProfile, type MyProfile } from "@/api/users";
@@ -159,7 +162,7 @@ export default function ProfileScreen() {
   return (
     <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
       <ScrollView className="flex-1 px-6 pt-6">
-        <Text className="mb-6 text-2xl font-bold text-text-primary dark:text-text-primary-dark">Profile</Text>
+        <ScreenTitle className="mb-6">Profile</ScreenTitle>
 
         <Card className="mb-6 items-center">
           <View className="relative">
@@ -170,13 +173,13 @@ export default function ProfileScreen() {
                 <Text className="text-2xl font-semibold text-primary">{initials}</Text>
               </View>
             )}
-            <Pressable
+            <PressableScale
               onPress={() => setAvatarModalOpen(true)}
               accessibilityLabel="Change profile photo"
               className="absolute bottom-0 right-0 h-8 w-8 items-center justify-center rounded-full bg-primary"
             >
-              <Text className="text-white">📷</Text>
-            </Pressable>
+              <Ionicons name="camera-outline" size={14} color="#FFFFFF" />
+            </PressableScale>
           </View>
           <Text className="mt-3 text-lg font-semibold text-text-primary dark:text-text-primary-dark">
             {fields.firstName || fields.lastName ? `${fields.firstName} ${fields.lastName}`.trim() : profile?.displayName}

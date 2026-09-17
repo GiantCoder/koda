@@ -1,5 +1,6 @@
 import React from "react";
 import { Pressable, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 interface OverlayLayerToggleRowProps {
   label: string;
@@ -30,7 +31,7 @@ export function OverlayLayerToggleRow({
           checked ? "border-success dark:border-success-dark bg-success dark:bg-success-dark" : "border-white/40 bg-transparent"
         }`}
       >
-        {checked ? <Text className="text-[9px] font-bold leading-none text-white">✓</Text> : null}
+        {checked ? <Ionicons name="checkmark" size={10} color="#FFFFFF" /> : null}
       </View>
       <Text className="text-xs text-white">{label}</Text>
     </Pressable>

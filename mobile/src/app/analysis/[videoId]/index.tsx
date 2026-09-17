@@ -3,10 +3,11 @@ import { Modal, Pressable, RefreshControl, ScrollView, Text, View } from "react-
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { VideoView, useVideoPlayer } from "expo-video";
-import { Card, CardContent, CardHeader } from "@/components/ui/Card";
+import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { BackBar } from "@/components/ui/BackBar";
 import { Input } from "@/components/ui/Input";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 import {
   getCollections,
   createCollection,
@@ -435,9 +436,13 @@ export default function AnalysisResultsScreen() {
                         className="flex-row items-center justify-between rounded-lg p-3"
                       >
                         <Text className="text-text-primary dark:text-text-primary-dark">{c.name}</Text>
-                        <Text className={`text-xs ${saved ? "text-success dark:text-success-dark" : "text-primary"}`}>
-                          {saved ? "Saved ✓" : savingToId === c.id ? "Saving…" : "Save"}
-                        </Text>
+                        {saved ? (
+                          <StatusBadge label="Saved" tone="success" />
+                        ) : (
+                          <Text className="text-xs text-primary">
+                            {savingToId === c.id ? "Saving…" : "Save"}
+                          </Text>
+                        )}
                       </Pressable>
                     );
                   })}

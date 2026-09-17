@@ -1,7 +1,9 @@
 import React, { useState } from "react";
 import { Text, TextInput, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { Card, CardHeader, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { useSecondaryIconColor } from "@/components/ui/useIconColor";
 import type { Annotation } from "@/api/analysis";
 
 interface AnnotationsPanelProps {
@@ -26,6 +28,7 @@ function formatTimestamp(ms: number): string {
  * from the parent screen) -- straightforward to add later.
  */
 export function AnnotationsPanel({ annotations, canCreate, onCreate }: AnnotationsPanelProps) {
+  const iconColor = useSecondaryIconColor();
   const [minutes, setMinutes] = useState("0");
   const [seconds, setSeconds] = useState("0");
   const [content, setContent] = useState("");
@@ -56,7 +59,9 @@ export function AnnotationsPanel({ annotations, canCreate, onCreate }: Annotatio
 
   return (
     <Card>
-      <CardHeader>💬 Coach Comments</CardHeader>
+      <CardHeader icon={<Ionicons name="chatbubble-ellipses-outline" size={18} color={iconColor} />}>
+        Coach Comments
+      </CardHeader>
       <CardContent className="gap-3">
         {annotations.length === 0 ? (
           <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">No comments yet.</Text>

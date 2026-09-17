@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { OptionPicker } from "@/components/ui/OptionPicker";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { ScreenTitle } from "@/components/ui/ScreenTitle";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useAppTheme, type ThemePreference } from "@/hooks/useAppTheme";
 import { getPrivacyPreferences, updatePrivacyPreferences } from "@/api/onboarding";
 import { getEcbKeyStatus, saveEcbKey, validateEcbKey, removeEcbKey, type EcbKeyStatus } from "@/api/ecbApiKey";
@@ -201,7 +203,7 @@ export default function SettingsScreen() {
   return (
     <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
       <ScrollView className="flex-1 px-6 pt-6">
-        <Text className="mb-6 text-2xl font-bold text-text-primary dark:text-text-primary-dark">Settings</Text>
+        <ScreenTitle className="mb-6">Settings</ScreenTitle>
 
         <Card className="mb-6">
           <CardHeader>Account</CardHeader>
@@ -275,15 +277,10 @@ export default function SettingsScreen() {
               {ecbKey.hasKey && !ecbShowInput ? (
                 <View className="gap-2">
                   <View className="flex-row flex-wrap items-center gap-2">
-                    <Text
-                      className={`rounded-full px-2 py-1 text-xs font-medium ${
-                        ecbKey.verifiedAt
-                          ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
-                          : "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
-                      }`}
-                    >
-                      {ecbKey.verifiedAt ? "✓ Connected" : "⚠ Not verified"}
-                    </Text>
+                    <StatusBadge
+                      label={ecbKey.verifiedAt ? "Connected" : "Not verified"}
+                      tone={ecbKey.verifiedAt ? "success" : "warning"}
+                    />
                     <Text className="font-mono text-sm text-text-secondary dark:text-text-secondary-dark">{ecbKey.maskedKey}</Text>
                   </View>
                   <View className="flex-row gap-4">

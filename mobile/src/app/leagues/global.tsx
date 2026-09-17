@@ -3,6 +3,8 @@ import { ActivityIndicator, FlatList, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BackBar } from "@/components/ui/BackBar";
 import { OptionPicker, type Option } from "@/components/ui/OptionPicker";
+import { ScreenTitle } from "@/components/ui/ScreenTitle";
+import { Ionicons } from "@expo/vector-icons";
 import { useAppSelector } from "@/store/hooks";
 import { ApiError } from "@/api/client";
 import { getMyProfile } from "@/api/users";
@@ -72,7 +74,10 @@ export default function GlobalLeaderboardScreen() {
   return (
     <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
       <BackBar label="Leagues" />
-      <Text className="px-6 pt-2 text-2xl font-bold text-text-primary dark:text-text-primary-dark">🌍 Koda Global</Text>
+      <View className="flex-row items-center gap-2 px-6 pt-2">
+        <Ionicons name="globe-outline" size={22} color="#E63946" />
+        <ScreenTitle>Koda Global</ScreenTitle>
+      </View>
       <View className="px-6 pt-3">
         <OptionPicker
           options={AGE_GROUP_OPTIONS}

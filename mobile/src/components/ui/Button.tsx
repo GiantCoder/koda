@@ -1,10 +1,11 @@
 import React from "react";
-import { ActivityIndicator, Pressable, Text, type PressableProps } from "react-native";
+import { ActivityIndicator, Text, type PressableProps } from "react-native";
+import { PressableScale } from "./PressableScale";
 
 type Variant = "primary" | "secondary" | "ghost" | "danger";
 type Size = "sm" | "md" | "lg";
 
-interface ButtonProps extends Omit<PressableProps, "children"> {
+interface ButtonProps extends Omit<PressableProps, "children" | "style"> {
   variant?: Variant;
   size?: Size;
   isLoading?: boolean;
@@ -49,7 +50,7 @@ export function Button({
 }: ButtonProps & { className?: string }) {
   const isDisabled = disabled || isLoading;
   return (
-    <Pressable
+    <PressableScale
       accessibilityRole="button"
       disabled={isDisabled}
       className={`${containerBase} ${containerSizes[size]} ${containerVariants[variant]} ${
@@ -64,6 +65,6 @@ export function Button({
       ) : (
         children
       )}
-    </Pressable>
+    </PressableScale>
   );
 }

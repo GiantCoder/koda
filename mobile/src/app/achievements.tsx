@@ -2,8 +2,10 @@ import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BackBar } from "@/components/ui/BackBar";
-import { Card, CardContent, CardHeader } from "@/components/ui/Card";
+import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { ScreenTitle } from "@/components/ui/ScreenTitle";
+import { Ionicons } from "@expo/vector-icons";
 import { ApiError } from "@/api/client";
 import {
   getGamificationSummary,
@@ -18,18 +20,18 @@ import {
 /**
  * Achievements -- Phase 7. See api/gamification.ts: this surfaces a fully
  * real backend that, until now, had no UI anywhere (web included). Badge
- * icons are rendered as a rarity-tier emoji rather than web's iconKey
+ * icons are rendered as a rarity-tier vector icon rather than web's iconKey
  * slugs (e.g. "badge-first-touch") -- those slugs have no matching art
  * asset in either codebase, just a naming convention, so a real icon set
  * would need designing regardless of platform.
  */
 
-const RARITY_EMOJI: Record<BadgeRarity, string> = {
-  COMMON: "🥉",
-  UNCOMMON: "🥈",
-  RARE: "🥇",
-  EPIC: "🏆",
-  LEGENDARY: "💎",
+const RARITY_ICON: Record<BadgeRarity, { name: React.ComponentProps<typeof Ionicons>["name"]; color: string }> = {
+  COMMON: { name: "medal-outline", color: "#B45309" },
+  UNCOMMON: { name: "medal-outline", color: "#9CA3AF" },
+  RARE: { name: "medal", color: "#F59E0B" },
+  EPIC: { name: "trophy", color: "#E63946" },
+  LEGENDARY: { name: "diamond", color: "#2D6A4F" },
 };
 
 const PAGE_SIZE = 10;
@@ -89,7 +91,7 @@ export default function AchievementsScreen() {
   return (
     <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
       <BackBar label="Dashboard" />
-      <Text className="px-6 pt-2 text-2xl font-bold text-text-primary dark:text-text-primary-dark">Achievements</Text>
+      <ScreenTitle className="px-6 pt-2">Achievements</ScreenTitle>
 
       {loading ? (
         <View className="items-center pt-12">
@@ -158,9 +160,13 @@ export default function AchievementsScreen() {
                       badge.earned ? "bg-surface-secondary dark:bg-surface-secondary-dark" : "bg-surface-secondary dark:bg-surface-secondary-dark/40"
                     }`}
                   >
-                    <Text className={`text-2xl ${badge.earned ? "" : "opacity-30"}`}>
-                      {RARITY_EMOJI[badge.definition.rarity]}
-                    </Text>
+                    <View className={`${badge.earned ? "" : "opacity-30"}`}>
+                      <Ionicons
+                        name={RARITY_ICON[badge.definition.rarity].name}
+                        size={26}
+                        color={RARITY_ICON[badge.definition.rarity].color}
+                      />
+                    </View>
                     <Text
                       className={`mt-1 text-center text-[11px] font-medium ${
                         badge.earned ? "text-text-primary dark:text-text-primary-dark" : "text-text-secondary dark:text-text-secondary-dark"

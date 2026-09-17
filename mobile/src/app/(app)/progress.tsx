@@ -3,6 +3,9 @@ import { RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAppSelector } from "@/store/hooks";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
+import { ScreenTitle } from "@/components/ui/ScreenTitle";
+import { Ionicons } from "@expo/vector-icons";
+import { useSecondaryIconColor } from "@/components/ui/useIconColor";
 import { ApiError } from "@/api/client";
 import {
   getProgressSummary,
@@ -49,6 +52,7 @@ function StatCard({ label, value }: { label: string; value: string }) {
 
 export default function ProgressScreen() {
   const user = useAppSelector((state) => state.auth.user);
+  const iconColor = useSecondaryIconColor();
   const [summary, setSummary] = useState<ProgressSummary | null>(null);
   const [trend, setTrend] = useState<ProgressTrendPoint[]>([]);
   const [shots, setShots] = useState<ShotDistributionEntry[]>([]);
@@ -94,7 +98,7 @@ export default function ProgressScreen() {
           />
         }
       >
-        <Text className="mb-1 text-2xl font-bold text-text-primary dark:text-text-primary-dark">Progress</Text>
+        <ScreenTitle className="mb-1">Progress</ScreenTitle>
         <Text className="mb-6 text-sm text-text-secondary dark:text-text-secondary-dark">Track your cricket training journey</Text>
 
         {loading ? (
@@ -124,14 +128,18 @@ export default function ProgressScreen() {
             />
 
             <Card>
-              <CardHeader>📈 Grade Trend</CardHeader>
+              <CardHeader icon={<Ionicons name="trending-up-outline" size={18} color={iconColor} />}>
+                Grade Trend
+              </CardHeader>
               <CardContent>
                 <TrendLineChart trend={trend} />
               </CardContent>
             </Card>
 
             <Card>
-              <CardHeader>🏏 Shot Mix</CardHeader>
+              <CardHeader icon={<Ionicons name="pie-chart-outline" size={18} color={iconColor} />}>
+                Shot Mix
+              </CardHeader>
               <CardContent>
                 <ShotDistributionChart shots={shots} />
               </CardContent>

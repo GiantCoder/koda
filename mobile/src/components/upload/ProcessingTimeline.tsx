@@ -1,5 +1,6 @@
 import React from "react";
 import { ActivityIndicator, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { getAllStages, getStageIndex, getStageLabel, type AnalysisStage } from "@/lib/analysisStages";
 
 interface ProcessingTimelineProps {
@@ -32,14 +33,14 @@ export function ProcessingTimeline({ currentStage, error, activityType }: Proces
             <View className="h-6 w-6 items-center justify-center">
               {failedHere ? (
                 <View className="h-5 w-5 items-center justify-center rounded-full bg-danger dark:bg-danger-dark">
-                  <Text className="text-xs font-bold text-white">✕</Text>
+                  <Ionicons name="close" size={12} color="#FFFFFF" />
                 </View>
               ) : isComplete || isDoneFinal ? (
                 <View className="h-5 w-5 items-center justify-center rounded-full bg-primary">
-                  <Text className="text-xs font-bold text-white">✓</Text>
+                  <Ionicons name="checkmark" size={12} color="#FFFFFF" />
                 </View>
               ) : isActive ? (
-                <ActivityIndicator size="small" color="#208AEF" />
+                <ActivityIndicator size="small" color="#E63946" />
               ) : (
                 <View className="h-4 w-4 rounded-full border-2 border-surface-secondary dark:border-surface-secondary-dark" />
               )}

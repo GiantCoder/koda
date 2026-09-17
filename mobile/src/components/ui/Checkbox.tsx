@@ -1,5 +1,6 @@
 import React from "react";
 import { Pressable, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 interface CheckboxProps {
   checked: boolean;
@@ -20,7 +21,7 @@ export function Checkbox({ checked, onToggle, label }: CheckboxProps) {
           checked ? "border-primary bg-primary" : "border-surface-secondary dark:border-surface-secondary-dark bg-surface dark:bg-surface-dark"
         }`}
       >
-        {checked ? <Text className="text-xs font-bold text-white">✓</Text> : null}
+        {checked ? <Ionicons name="checkmark" size={14} color="#FFFFFF" /> : null}
       </View>
       <Text className="flex-1 text-sm text-text-secondary dark:text-text-secondary-dark">{label}</Text>
     </Pressable>

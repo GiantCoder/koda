@@ -5,6 +5,9 @@ import { router } from "expo-router";
 import { BackBar } from "@/components/ui/BackBar";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { ScreenTitle } from "@/components/ui/ScreenTitle";
+import { PressableScale } from "@/components/ui/PressableScale";
+import { Ionicons } from "@expo/vector-icons";
 import { Input } from "@/components/ui/Input";
 import { OptionPicker, type Option } from "@/components/ui/OptionPicker";
 import { ApiError } from "@/api/client";
@@ -131,7 +134,7 @@ export default function LeaguesScreen() {
     <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
       <BackBar label="Dashboard" />
       <View className="flex-row items-center justify-between px-6 pt-2">
-        <Text className="text-2xl font-bold text-text-primary dark:text-text-primary-dark">Leagues</Text>
+        <ScreenTitle>Leagues</ScreenTitle>
         <View className="flex-row gap-2">
           <Button variant="secondary" size="sm" onPress={() => setJoinVisible(true)}>
             Join
@@ -154,16 +157,19 @@ export default function LeaguesScreen() {
           />
         }
       >
-        <Pressable onPress={() => router.push("/leagues/global")} className="mb-4">
+        <PressableScale onPress={() => router.push("/leagues/global")} className="mb-4">
           <Card className="bg-primary/10">
             <CardContent>
-              <Text className="text-base font-semibold text-text-primary dark:text-text-primary-dark">🌍 Koda Global Leaderboard</Text>
+              <View className="flex-row items-center gap-2">
+                <Ionicons name="globe-outline" size={18} color="#E63946" />
+                <Text className="text-base font-semibold text-text-primary dark:text-text-primary-dark">Koda Global Leaderboard</Text>
+              </View>
               <Text className="mt-1 text-sm text-text-secondary dark:text-text-secondary-dark">
                 Browse the top players in your age group across all of Koda.
               </Text>
             </CardContent>
           </Card>
-        </Pressable>
+        </PressableScale>
 
         {loading ? (
           <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">Loading…</Text>

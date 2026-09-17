@@ -3,8 +3,12 @@ import { Modal, Pressable, RefreshControl, ScrollView, Text, View } from "react-
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { useAppSelector } from "@/store/hooks";
-import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { ScreenTitle } from "@/components/ui/ScreenTitle";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { PressableScale } from "@/components/ui/PressableScale";
+import { Ionicons } from "@expo/vector-icons";
+import { useSecondaryIconColor } from "@/components/ui/useIconColor";
 import { ApiError } from "@/api/client";
 import {
   getConversations,
@@ -57,6 +61,7 @@ function isUnread(conversation: ConversationSummary, selfId: string | undefined)
 
 export default function MessagesScreen() {
   const user = useAppSelector((state) => state.auth.user);
+  const iconColor = useSecondaryIconColor();
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -142,7 +147,7 @@ export default function MessagesScreen() {
   return (
     <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
       <View className="flex-row items-center justify-between px-6 pt-6">
-        <Text className="text-2xl font-bold text-text-primary dark:text-text-primary-dark">Messages</Text>
+        <ScreenTitle>Messages</ScreenTitle>
         {canStartConversation ? (
           <Button size="sm" onPress={() => void openNewMessage()}>
             New Message
@@ -176,13 +181,10 @@ export default function MessagesScreen() {
           searching ? (
             <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">Searching…</Text>
           ) : !searchResults || searchResults.length === 0 ? (
-            <Card>
-              <CardContent>
-                <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">
-                  No messages match "{searchQuery.trim()}".
-                </Text>
-              </CardContent>
-            </Card>
+            <EmptyState
+              icon={<Ionicons name="search-outline" size={28} color={iconColor} />}
+              message={`No messages match "${searchQuery.trim()}".`}
+            />
           ) : (
             <View className="gap-1 pb-8">
               {searchResults.map((result) => (
@@ -214,27 +216,28 @@ export default function MessagesScreen() {
         ) : error ? (
           <Text className="text-sm text-danger dark:text-danger-dark">{error}</Text>
         ) : conversations.length === 0 ? (
-          <Card>
-            <CardContent>
-              <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">
-                {isCoachOrAdmin
-                  ? "No conversations yet. Tap New Message to start one with a player."
-                  : "No conversations yet. Tap New Message to start one with your coach."}
-              </Text>
-            </CardContent>
-          </Card>
+          <EmptyState
+            icon={<Ionicons name="chatbubbles-outline" size={28} color={iconColor} />}
+            message={
+              isCoachOrAdmin
+                ? "No conversations yet. Tap New Message to start one with a player."
+                : "No conversations yet. Tap New Message to start one with your coach."
+            }
+            actionLabel="New Message"
+            onAction={() => void openNewMessage()}
+          />
         ) : (
           <View className="gap-1 pb-8">
             {conversations.map((conversation) => {
               const unread = isUnread(conversation, user?.id);
               return (
-                <Pressable
+                <PressableScale
                   key={conversation.id}
                   onPress={() => router.push(`/messages/${conversation.id}`)}
                   className="flex-row items-center gap-3 rounded-lg p-3"
                 >
                   <View className="h-10 w-10 items-center justify-center rounded-full bg-surface-secondary dark:bg-surface-secondary-dark">
-                    <Text className="text-base">💬</Text>
+                    <Ionicons name="chatbubble-outline" size={18} color={iconColor} />
                   </View>
                   <View className="flex-1">
                     <Text className={`text-text-primary dark:text-text-primary-dark ${unread ? "font-bold" : "font-medium"}`} numberOfLines={1}>
@@ -253,7 +256,7 @@ export default function MessagesScreen() {
                     ) : null}
                     {unread ? <View className="h-2 w-2 rounded-full bg-primary" /> : null}
                   </View>
-                </Pressable>
+                </PressableScale>
               );
             })}
           </View>
