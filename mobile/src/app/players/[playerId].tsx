@@ -2,16 +2,22 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { BackBar } from "@/components/ui/BackBar";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { OptionPicker, type Option } from "@/components/ui/OptionPicker";
+import { PressableScale } from "@/components/ui/PressableScale";
+import { UserAvatar } from "@/components/ui/UserAvatar";
 import { PlayerCardCompact } from "@/components/profile/PlayerCardCompact";
+import { AvatarPickerModal } from "@/components/profile/AvatarPickerModal";
 import { TrendLineChart } from "@/components/progress/TrendLineChart";
 import { useAppSelector } from "@/store/hooks";
 import { ApiError } from "@/api/client";
 import { createConversation } from "@/api/conversations";
+import { getTeamPlayer, updateTeamPlayer, type TeamPlayerProfile } from "@/api/team";
 import type { PlayerCardDto } from "@/api/playerCard";
+import { toStoredAvatarUrl } from "@/lib/mediaUrl";
 import {
   getTeamPlayerCard,
   getPlayerAnalysedVideos,
@@ -52,7 +58,11 @@ export default function PlayerDetailScreen() {
   const { playerId } = useLocalSearchParams<{ playerId: string }>();
   const user = useAppSelector((state) => state.auth.user);
   const canMessage = user?.role === "COACH" || user?.role === "ADMIN";
+  const canEditAvatar = user?.role === "ADMIN" || user?.role === "COACH" || user?.role === "PARENT";
 
+  const [player, setPlayer] = useState<TeamPlayerProfile | null>(null);
+  const [avatarModalOpen, setAvatarModalOpen] = useState(false);
+  const [avatarSaving, setAvatarSaving] = useState(false);
   const [card, setCard] = useState<PlayerCardDto | null>(null);
   const [trend, setTrend] = useState<{ date: string; grade: number; analysisId: string }[]>([]);
   const [videos, setVideos] = useState<AnalysedVideo[]>([]);
@@ -69,11 +79,13 @@ export default function PlayerDetailScreen() {
     if (!playerId) return;
     setError(null);
     try {
-      const [cardData, trendPoints] = await Promise.all([
+      const [cardData, trendPoints, playerData] = await Promise.all([
         getTeamPlayerCard(playerId),
         getPlayerTrend(playerId),
+        getTeamPlayer(playerId).catch(() => null),
       ]);
       setCard(cardData);
+      setPlayer(playerData);
       setTrend(
         trendPoints
           .filter((p) => p.gradeOverall !== null)
@@ -123,6 +135,24 @@ export default function PlayerDetailScreen() {
     void loadVideos(page, category);
   }, [loadOverview, loadVideos, page, category]);
 
+  const handleSelectAvatar = useCallback(
+    async (fullUrl: string) => {
+      if (!playerId) return;
+      setAvatarSaving(true);
+      try {
+        const avatarUrl = toStoredAvatarUrl(fullUrl);
+        await updateTeamPlayer(playerId, { avatarUrl });
+        setPlayer((prev) => (prev ? { ...prev, avatarUrl } : { id: playerId, displayName: card?.displayName ?? "", email: "", avatarUrl }));
+        setAvatarModalOpen(false);
+      } catch (e) {
+        setError(e instanceof ApiError ? e.message : "Failed to update avatar");
+      } finally {
+        setAvatarSaving(false);
+      }
+    },
+    [playerId, card?.displayName]
+  );
+
   const handleMessage = useCallback(async () => {
     if (!playerId) return;
     setMessaging(true);
@@ -147,7 +177,7 @@ export default function PlayerDetailScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
+    <SafeAreaView className="flex-1 bg-surface-secondary dark:bg-surface-secondary-dark" edges={["top", "left", "right"]}>
       <BackBar label="Team" />
       <ScrollView
         className="flex-1 px-6"
@@ -161,6 +191,32 @@ export default function PlayerDetailScreen() {
           <Text className="pt-6 text-sm text-danger dark:text-danger-dark">{error}</Text>
         ) : card ? (
           <View className="gap-4 pb-10 pt-2">
+            <View className="flex-row items-center gap-3">
+              <View className="relative">
+                <UserAvatar
+                  name={player?.displayName ?? card.displayName}
+                  uri={player?.avatarUrl}
+                  size={72}
+                />
+                {canEditAvatar ? (
+                  <PressableScale
+                    onPress={() => setAvatarModalOpen(true)}
+                    disabled={avatarSaving}
+                    accessibilityLabel="Edit avatar"
+                    className="absolute -bottom-1 -right-1 h-8 w-8 items-center justify-center rounded-full bg-primary"
+                  >
+                    <Ionicons name="camera-outline" size={14} color="#FFFFFF" />
+                  </PressableScale>
+                ) : null}
+              </View>
+              <View className="flex-1">
+                <Text className="text-xl font-semibold text-text-primary dark:text-text-primary-dark">
+                  {player?.displayName ?? card.displayName}
+                </Text>
+                <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">Player profile</Text>
+              </View>
+            </View>
+
             <Card>
               <CardContent>
                 <PlayerCardCompact card={card} />
@@ -253,6 +309,15 @@ export default function PlayerDetailScreen() {
           </View>
         ) : null}
       </ScrollView>
+
+      {canEditAvatar ? (
+        <AvatarPickerModal
+          visible={avatarModalOpen}
+          selectedUrl={player?.avatarUrl ?? null}
+          onClose={() => setAvatarModalOpen(false)}
+          onSelect={(url) => void handleSelectAvatar(url)}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }

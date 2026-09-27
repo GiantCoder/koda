@@ -25,7 +25,23 @@ export interface ClubSummary {
   name: string;
   address: string;
   postcode: string;
+  badgeFileName?: string;
+  bannerFileName?: string;
+  badgeImageUrl?: string;
+  bannerImageUrl?: string;
   stats: ClubStats;
+}
+
+export function getClubBannerUrl(club: ClubSummary): string | null {
+  if (club.bannerImageUrl) return club.bannerImageUrl;
+  if (club.bannerFileName) return `/avatars/${club.bannerFileName}`;
+  return null;
+}
+
+export function getClubBadgeUrl(club: ClubSummary): string | null {
+  if (club.badgeImageUrl) return club.badgeImageUrl;
+  if (club.badgeFileName) return `/avatars/${club.badgeFileName}`;
+  return null;
 }
 
 export async function getMyClubs(): Promise<ClubSummary[]> {

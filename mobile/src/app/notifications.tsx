@@ -132,7 +132,7 @@ export default function NotificationsScreen() {
   const hasUnread = notifications.some((n) => !n.isRead);
 
   return (
-    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
+    <SafeAreaView className="flex-1 bg-surface-secondary dark:bg-surface-secondary-dark" edges={["top", "left", "right"]}>
       <BackBar />
       <View className="flex-row items-center justify-between px-6 pt-2">
         <ScreenTitle>Notifications</ScreenTitle>

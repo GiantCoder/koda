@@ -53,7 +53,7 @@ export default function ConversationThreadScreen() {
   }, [draft, conversationId, appendLocal]);
 
   return (
-    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
+    <SafeAreaView className="flex-1 bg-surface-secondary dark:bg-surface-secondary-dark" edges={["top", "left", "right"]}>
       <BackBar label="Messages" />
       <Text className="px-6 pb-2 text-xs text-text-secondary dark:text-text-secondary-dark">
         Only people in this conversation can see these messages.

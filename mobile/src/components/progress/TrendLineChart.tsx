@@ -20,9 +20,18 @@ export function TrendLineChart({ trend }: { trend: ProgressTrendPoint[] }) {
     return <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">No completed analyses yet -- your grade trend will appear here once you have a few.</Text>;
   }
 
-  const data = trend.map((point) => ({
+  const lastIndex = trend.length - 1;
+  const tickIndexes = new Set<number>([0, lastIndex]);
+  if (trend.length > 2) {
+    const midCount = Math.min(3, trend.length - 2);
+    for (let i = 1; i <= midCount; i += 1) {
+      tickIndexes.add(Math.round((i * lastIndex) / (midCount + 1)));
+    }
+  }
+
+  const data = trend.map((point, index) => ({
     value: point.grade,
-    label: point.date.slice(5), // MM-DD, keeps x-axis labels short
+    label: tickIndexes.has(index) ? point.date.slice(5) : "",
   }));
 
   return (

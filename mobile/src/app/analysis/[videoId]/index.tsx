@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Modal, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
-import { VideoView, useVideoPlayer } from "expo-video";
+import { useVideoPlayer } from "expo-video";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { FullScreenModal } from "@/components/ui/FullScreenModal";
 import { BackBar } from "@/components/ui/BackBar";
 import { Input } from "@/components/ui/Input";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -30,8 +31,7 @@ import {
   type Annotation,
   type CoachingTip,
 } from "@/api/analysis";
-import { PoseSkeletonOverlay } from "@/components/analysis/PoseSkeletonOverlay";
-import { OverlayLayerToggleRow } from "@/components/analysis/OverlayLayerToggleRow";
+import { AnalysisVideoStage } from "@/components/analysis/AnalysisVideoStage";
 import { ShotGradeCard, type MetricScore } from "@/components/analysis/ShotGradeCard";
 import { CoachingTipsPanel } from "@/components/analysis/CoachingTipsPanel";
 import { TagStrip, type ShotTag } from "@/components/analysis/TagStrip";
@@ -168,6 +168,7 @@ export default function AnalysisResultsScreen() {
     showSkeleton: true,
     showBbox: false,
   });
+  const [playerFullscreen, setPlayerFullscreen] = useState(false);
   const [saveVisible, setSaveVisible] = useState(false);
   const [savedCollectionIds, setSavedCollectionIds] = useState<Set<string>>(new Set());
   const [collections, setCollections] = useState<CollectionSummary[] | null>(null);
@@ -258,6 +259,7 @@ export default function AnalysisResultsScreen() {
   }, [videoId]);
   const player = useVideoPlayer(streamSource, (p) => {
     p.loop = false;
+    p.timeUpdateEventInterval = 0.05;
   });
 
   const handleCreateAnnotation = useCallback(
@@ -271,7 +273,7 @@ export default function AnalysisResultsScreen() {
 
   if (!videoId) {
     return (
-      <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
+      <SafeAreaView className="flex-1 bg-surface-secondary dark:bg-surface-secondary-dark" edges={["top", "left", "right"]}>
         <BackBar />
         <View className="flex-1 items-center justify-center px-6">
           <Text className="text-sm text-danger dark:text-danger-dark">No video specified.</Text>
@@ -282,7 +284,7 @@ export default function AnalysisResultsScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
+      <SafeAreaView className="flex-1 bg-surface-secondary dark:bg-surface-secondary-dark" edges={["top", "left", "right"]}>
         <BackBar />
         <View className="flex-1 items-center justify-center">
           <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">Loading analysis…</Text>
@@ -293,7 +295,7 @@ export default function AnalysisResultsScreen() {
 
   if (error || !analysis) {
     return (
-      <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
+      <SafeAreaView className="flex-1 bg-surface-secondary dark:bg-surface-secondary-dark" edges={["top", "left", "right"]}>
         <BackBar />
         <View className="flex-1 items-center justify-center px-6">
           <Text className="mb-4 text-center text-sm text-danger dark:text-danger-dark">{error ?? "Analysis not found."}</Text>
@@ -313,7 +315,7 @@ export default function AnalysisResultsScreen() {
   const canAddAnnotations = user?.role === "COACH";
 
   return (
-    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
+    <SafeAreaView className="flex-1 bg-surface-secondary dark:bg-surface-secondary-dark" edges={["top", "left", "right"]}>
       <BackBar />
       <ScrollView
         className="flex-1 px-6 pt-6"
@@ -332,7 +334,7 @@ export default function AnalysisResultsScreen() {
             {analysis.video?.filename?.trim() || (isBowling ? "Bowling Analysis" : "Shot Analysis")}
           </Text>
           <Button variant="secondary" size="sm" onPress={() => void openSaveModal()}>
-            Save
+            + Collection
           </Button>
         </View>
         <Text className="mb-4 text-sm text-text-secondary dark:text-text-secondary-dark">
@@ -346,39 +348,14 @@ export default function AnalysisResultsScreen() {
         </Text>
 
         <Card className="mb-6 overflow-hidden p-0">
-          <View style={{ width: "100%", aspectRatio: 16 / 9, backgroundColor: "black" }}>
-            <VideoView
-              player={player}
-              style={{ width: "100%", height: "100%", opacity: overlayLayers.showVideo ? 1 : 0 }}
-              contentFit="contain"
-              nativeControls
-            />
-            {poseData ? (
-              <PoseSkeletonOverlay player={player} poseData={poseData} layers={overlayLayers} />
-            ) : null}
-            {poseData ? (
-              <View
-                className="absolute right-2 top-2 gap-1.5 rounded-lg bg-black/60 px-3 py-2"
-                pointerEvents="box-none"
-              >
-                <OverlayLayerToggleRow
-                  label="Video"
-                  checked={overlayLayers.showVideo}
-                  onToggle={() => setOverlayLayers((l) => ({ ...l, showVideo: !l.showVideo }))}
-                />
-                <OverlayLayerToggleRow
-                  label="Skeleton"
-                  checked={overlayLayers.showSkeleton}
-                  onToggle={() => setOverlayLayers((l) => ({ ...l, showSkeleton: !l.showSkeleton }))}
-                />
-                <OverlayLayerToggleRow
-                  label="Bbox"
-                  checked={overlayLayers.showBbox}
-                  onToggle={() => setOverlayLayers((l) => ({ ...l, showBbox: !l.showBbox }))}
-                />
-              </View>
-            ) : null}
-          </View>
+          <AnalysisVideoStage
+            player={player}
+            poseData={poseData}
+            overlayLayers={overlayLayers}
+            onOverlayLayersChange={setOverlayLayers}
+            fullscreen={playerFullscreen}
+            onToggleFullscreen={() => setPlayerFullscreen((open) => !open)}
+          />
           {!poseData ? (
             <View className="p-3">
               <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">
@@ -411,10 +388,9 @@ export default function AnalysisResultsScreen() {
         </View>
       </ScrollView>
 
-      <Modal visible={saveVisible} animationType="slide" onRequestClose={() => setSaveVisible(false)}>
-        <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark">
-          <View className="flex-row items-center justify-between px-6 pt-4">
-            <Text className="text-xl font-bold text-text-primary dark:text-text-primary-dark">Save to Collection</Text>
+      <FullScreenModal visible={saveVisible} onRequestClose={() => setSaveVisible(false)}>
+          <View className="flex-row items-center justify-between px-6 pt-2">
+            <Text className="text-xl font-bold text-text-primary dark:text-text-primary-dark">Add to Collection</Text>
             <Button variant="ghost" size="sm" onPress={() => setSaveVisible(false)}>
               Close
             </Button>
@@ -467,8 +443,7 @@ export default function AnalysisResultsScreen() {
             </View>
             {saveError ? <Text className="mt-2 text-sm text-danger dark:text-danger-dark">{saveError}</Text> : null}
           </ScrollView>
-        </SafeAreaView>
-      </Modal>
+      </FullScreenModal>
     </SafeAreaView>
   );
 }

@@ -76,7 +76,7 @@ export default function AnalysisProcessingScreen() {
     : null;
 
   return (
-    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
+    <SafeAreaView className="flex-1 bg-surface-secondary dark:bg-surface-secondary-dark" edges={["top", "left", "right"]}>
       <ScrollView className="flex-1 px-6 pt-6">
         <Text className="mb-1 text-2xl font-bold text-text-primary dark:text-text-primary-dark">Analysis in Progress</Text>
         <Text className="mb-6 text-sm text-text-secondary dark:text-text-secondary-dark">

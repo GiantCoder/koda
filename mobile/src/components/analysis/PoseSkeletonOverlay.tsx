@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { View, LayoutChangeEvent } from "react-native";
 import Svg, { Circle, Line, Polygon, Rect, Text as SvgText } from "react-native-svg";
 import { useEvent } from "expo";
@@ -30,11 +30,9 @@ interface PoseSkeletonOverlayProps {
 /**
  * Draws the same skeleton web's <canvas>-based VideoSkeletonOverlay draws,
  * using react-native-svg absolutely positioned over the video. Syncs to
- * playback via expo-video's `timeUpdate` event (fires a few times a second
- * by default) rather than a requestAnimationFrame loop -- RN has no native
- * rAF tied to video frame decode, and this is smooth enough for a coaching
- * review use case (pausing/scrubbing to inspect a position), which is the
- * primary use case here anyway.
+ * playback via expo-video's `timeUpdate` event. That event is off by
+ * default (`timeUpdateEventInterval` is 0), so we enable it here --
+ * otherwise the overlay stays on the first pose frame forever.
  *
  * Phase 8: points are now mapped through the video's actual visible
  * content box (see lib/poseOverlay.ts), not the raw container -- the
@@ -44,15 +42,41 @@ interface PoseSkeletonOverlayProps {
  */
 export function PoseSkeletonOverlay({ player, poseData, layers }: PoseSkeletonOverlayProps) {
   const [size, setSize] = useState({ width: 0, height: 0 });
-  const timeUpdate = useEvent(player, "timeUpdate", {
-    currentTime: 0,
-    currentLiveTimestamp: 0,
-    currentOffsetFromLive: 0,
-    bufferedPosition: 0,
-  });
+  const [currentTime, setCurrentTime] = useState(() => player.currentTime);
   const trackChange = useEvent(player, "videoTrackChange", { videoTrack: player.videoTrack });
   const sourceWidth = trackChange.videoTrack?.size.width ?? 0;
   const sourceHeight = trackChange.videoTrack?.size.height ?? 0;
+
+  useEffect(() => {
+    player.timeUpdateEventInterval = 0.05;
+    const syncTime = (seconds?: number) => {
+      setCurrentTime(typeof seconds === "number" ? seconds : player.currentTime);
+    };
+    let poll: ReturnType<typeof setInterval> | null = null;
+    const startPoll = () => {
+      if (poll) return;
+      poll = setInterval(() => syncTime(), 50);
+    };
+    const stopPoll = () => {
+      if (!poll) return;
+      clearInterval(poll);
+      poll = null;
+    };
+
+    const timeSub = player.addListener("timeUpdate", (event) => syncTime(event.currentTime));
+    const playSub = player.addListener("playingChange", ({ isPlaying }) => {
+      syncTime();
+      if (isPlaying) startPoll();
+      else stopPoll();
+    });
+    if (player.playing) startPoll();
+
+    return () => {
+      timeSub.remove();
+      playSub.remove();
+      stopPoll();
+    };
+  }, [player]);
 
   const onLayout = (e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
@@ -68,7 +92,7 @@ export function PoseSkeletonOverlay({ player, poseData, layers }: PoseSkeletonOv
     width > 0 && height > 0
       ? getContainedVideoContentBox(width, height, sourceWidth, sourceHeight)
       : null;
-  const frame = box ? findNearestPoseFrame(poseData.landmarks, timeUpdate.currentTime) : null;
+  const frame = box ? findNearestPoseFrame(poseData.landmarks, currentTime) : null;
 
   return (
     <View className="absolute inset-0" onLayout={onLayout} pointerEvents="none">

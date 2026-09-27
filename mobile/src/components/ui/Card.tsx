@@ -22,7 +22,7 @@ export function Card({ children, className = "", style, ...props }: CardProps) {
 
   return (
     <View
-      className={`rounded-lg bg-surface dark:bg-surface-dark p-6 ${className}`}
+      className={`rounded-2xl bg-surface dark:bg-surface-dark p-6 ${className}`}
       style={[cardElevation(isDark, { clipped }), style]}
       {...props}
     >

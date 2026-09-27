@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
+import { Avatar } from "@/app/components/ui/Avatar";
 
 const AGE_GROUPS = [
   { value: "UNDER_10", label: "Under 10" },
@@ -151,7 +152,14 @@ export default function GlobalLeaderboardPage() {
                           {entry.currentRank ?? index + 1}
                         </td>
                         <td className="py-3 pr-4 text-[var(--text-primary)]">
-                          {entry.user.displayName || "Player"}
+                          <div className="flex items-center gap-2">
+                            <Avatar
+                              name={entry.user.displayName || "Player"}
+                              src={entry.user.avatarUrl}
+                              size="sm"
+                            />
+                            <span>{entry.user.displayName || "Player"}</span>
+                          </div>
                         </td>
                         <td className="py-3 pr-4 text-[var(--text-primary)]">{entry.points}</td>
                         <td className="py-3 pr-4 text-[var(--text-primary)]">{entry.goldStars}</td>

@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Modal, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BackBar } from "@/components/ui/BackBar";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { FullScreenModal } from "@/components/ui/FullScreenModal";
 import { Input } from "@/components/ui/Input";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { OptionPicker, type Option } from "@/components/ui/OptionPicker";
@@ -227,7 +228,7 @@ export default function SquadsScreen() {
   }, [roster, detailSquad]);
 
   return (
-    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
+    <SafeAreaView className="flex-1 bg-surface-secondary dark:bg-surface-secondary-dark" edges={["top", "left", "right"]}>
       <BackBar label="Team" />
       <View className="flex-row items-center justify-between px-6 pt-2">
         <Text className="text-2xl font-bold text-text-primary dark:text-text-primary-dark">Squads</Text>
@@ -289,10 +290,8 @@ export default function SquadsScreen() {
         )}
       </ScrollView>
 
-      {/* Create squad modal */}
-      <Modal visible={createVisible} animationType="slide" onRequestClose={() => setCreateVisible(false)}>
-        <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark">
-          <View className="flex-row items-center justify-between px-6 pt-4">
+      <FullScreenModal visible={createVisible} onRequestClose={() => setCreateVisible(false)}>
+          <View className="flex-row items-center justify-between px-6 pt-2">
             <Text className="text-xl font-bold text-text-primary dark:text-text-primary-dark">New Squad</Text>
             <Button variant="ghost" size="sm" onPress={() => setCreateVisible(false)}>
               Close
@@ -319,13 +318,10 @@ export default function SquadsScreen() {
               </Button>
             </View>
           </ScrollView>
-        </SafeAreaView>
-      </Modal>
+      </FullScreenModal>
 
-      {/* Squad detail modal */}
-      <Modal visible={detailSquad !== null} animationType="slide" onRequestClose={closeDetail}>
-        <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark">
-          <View className="flex-row items-center justify-between px-6 pt-4">
+      <FullScreenModal visible={detailSquad !== null} onRequestClose={closeDetail}>
+          <View className="flex-row items-center justify-between px-6 pt-2">
             <Text className="text-xl font-bold text-text-primary dark:text-text-primary-dark">{detailSquad?.name ?? "Squad"}</Text>
             <Button variant="ghost" size="sm" onPress={closeDetail}>
               Close
@@ -420,8 +416,7 @@ export default function SquadsScreen() {
               </View>
             </ScrollView>
           ) : null}
-        </SafeAreaView>
-      </Modal>
+      </FullScreenModal>
     </SafeAreaView>
   );
 }

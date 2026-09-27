@@ -7,9 +7,11 @@ import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { OptionPicker } from "@/components/ui/OptionPicker";
+import { BackBar } from "@/components/ui/BackBar";
 import { ScreenTitle } from "@/components/ui/ScreenTitle";
 import { PressableScale } from "@/components/ui/PressableScale";
 import { Ionicons } from "@expo/vector-icons";
+import { useSecondaryIconColor } from "@/components/ui/useIconColor";
 import { PlayerCardCompact } from "@/components/profile/PlayerCardCompact";
 import { AvatarPickerModal } from "@/components/profile/AvatarPickerModal";
 import { getMyProfile, updateMyProfile, type MyProfile } from "@/api/users";
@@ -56,6 +58,7 @@ type FormFields = {
  */
 export default function ProfileScreen() {
   const user = useAppSelector((state) => state.auth.user);
+  const iconColor = useSecondaryIconColor();
 
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [avatarModalOpen, setAvatarModalOpen] = useState(false);
@@ -160,8 +163,19 @@ export default function ProfileScreen() {
   const initials = `${fields.firstName?.[0] ?? user?.displayName?.[0] ?? "U"}${fields.lastName?.[0] ?? ""}`;
 
   return (
-    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
-      <ScrollView className="flex-1 px-6 pt-6">
+    <SafeAreaView className="flex-1 bg-surface-secondary dark:bg-surface-secondary-dark" edges={["top", "left", "right"]}>
+      <View className="flex-row items-center justify-between pr-6">
+        <BackBar />
+        <PressableScale
+          onPress={() => router.push("/settings")}
+          hitSlop={8}
+          className="rounded-full bg-surface dark:bg-surface-dark p-2.5"
+          accessibilityLabel="Settings"
+        >
+          <Ionicons name="settings-outline" size={20} color={iconColor} />
+        </PressableScale>
+      </View>
+      <ScrollView className="flex-1 px-6 pt-2">
         <ScreenTitle className="mb-6">Profile</ScreenTitle>
 
         <Card className="mb-6 items-center">

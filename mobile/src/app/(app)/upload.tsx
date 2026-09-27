@@ -173,7 +173,7 @@ export default function UploadScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
+    <SafeAreaView className="flex-1 bg-surface-secondary dark:bg-surface-secondary-dark" edges={["top", "left", "right"]}>
       <ScrollView
         className="flex-1 px-6 pt-6"
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}

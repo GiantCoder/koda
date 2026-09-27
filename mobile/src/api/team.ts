@@ -8,6 +8,18 @@
 import { apiFetch } from "./client";
 import type { AgeGroup } from "./squads";
 
+export interface TeamPlayerProfile {
+  id: string;
+  displayName: string;
+  email: string;
+  avatarUrl?: string | null;
+}
+
+export async function getTeamPlayer(id: string): Promise<TeamPlayerProfile> {
+  const data = await apiFetch<{ player: TeamPlayerProfile }>(`/api/team/players/${id}`);
+  return data.player;
+}
+
 export interface TeamPlayerUpdate {
   displayName?: string;
   firstName?: string | null;

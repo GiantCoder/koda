@@ -7,6 +7,7 @@ import { useMockAuth } from "@/app/hooks/useMockAuth";
 import { buildMockAuthHeaders } from "@/app/lib/mock-auth-headers";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
+import { Avatar } from "@/app/components/ui/Avatar";
 
 interface TableUser {
   id: string;
@@ -155,7 +156,14 @@ export default function LeagueTablePage() {
                           {entry.currentRank ?? index + 1}
                         </td>
                         <td className="py-3 pr-4 text-[var(--text-primary)]">
-                          {entry.user.displayName || "Player"}
+                          <div className="flex items-center gap-2">
+                            <Avatar
+                              name={entry.user.displayName || "Player"}
+                              src={entry.user.avatarUrl}
+                              size="sm"
+                            />
+                            <span>{entry.user.displayName || "Player"}</span>
+                          </div>
                         </td>
                         <td className="py-3 pr-4 text-[var(--text-primary)]">{entry.points}</td>
                         <td className="py-3 pr-4 text-[var(--text-primary)]">{entry.goldStars}</td>

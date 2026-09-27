@@ -39,6 +39,20 @@ const textVariants: Record<Variant, string> = {
   danger: "text-white font-medium",
 };
 
+function isTextOnly(node: React.ReactNode): boolean {
+  if (node == null || typeof node === "boolean") return true;
+  if (typeof node === "string" || typeof node === "number") return true;
+  if (Array.isArray(node)) return node.every(isTextOnly);
+  return false;
+}
+
+function flattenText(node: React.ReactNode): string {
+  if (node == null || typeof node === "boolean") return "";
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(flattenText).join("");
+  return "";
+}
+
 export function Button({
   variant = "primary",
   size = "md",
@@ -60,8 +74,8 @@ export function Button({
     >
       {isLoading ? (
         <ActivityIndicator color={variant === "secondary" || variant === "ghost" ? "#111827" : "#FFFFFF"} />
-      ) : typeof children === "string" ? (
-        <Text className={`${textVariants[variant]} ${textSizes[size]}`}>{children}</Text>
+      ) : isTextOnly(children) ? (
+        <Text className={`${textVariants[variant]} ${textSizes[size]}`}>{flattenText(children)}</Text>
       ) : (
         children
       )}

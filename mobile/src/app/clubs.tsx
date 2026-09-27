@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Image, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BackBar } from "@/components/ui/BackBar";
 import { Card, CardContent } from "@/components/ui/Card";
+import { UserAvatar } from "@/components/ui/UserAvatar";
 import { useAppSelector } from "@/store/hooks";
 import { ApiError } from "@/api/client";
-import { getMyClubs, type ClubSummary } from "@/api/clubs";
+import { getClubBadgeUrl, getClubBannerUrl, getMyClubs, type ClubSummary } from "@/api/clubs";
+import { resolveAssetUrl } from "@/lib/mediaUrl";
 
 /**
  * Clubs -- Phase 7, deliberately minimal per both the user's decision and
@@ -34,7 +36,7 @@ export default function ClubsScreen() {
   }, [isCoachOrAdmin]);
 
   return (
-    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
+    <SafeAreaView className="flex-1 bg-surface-secondary dark:bg-surface-secondary-dark" edges={["top", "left", "right"]}>
       <BackBar label="Dashboard" />
       <Text className="px-6 pt-2 text-2xl font-bold text-text-primary dark:text-text-primary-dark">Clubs</Text>
 
@@ -62,33 +64,64 @@ export default function ClubsScreen() {
               </CardContent>
             </Card>
           ) : (
-            clubs.map((club) => (
-              <Card key={club.id}>
-                <CardContent>
-                  <Text className="text-base font-semibold text-text-primary dark:text-text-primary-dark">{club.name}</Text>
-                  <Text className="mt-0.5 text-sm text-text-secondary dark:text-text-secondary-dark">
-                    {club.address}
-                    {club.postcode ? `, ${club.postcode}` : ""}
-                  </Text>
-                  <View className="mt-2 flex-row flex-wrap gap-2">
-                    <View className="rounded-full bg-surface-secondary dark:bg-surface-secondary-dark px-3 py-1">
-                      <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">{club.stats.playersCoached} players</Text>
-                    </View>
-                    <View className="rounded-full bg-surface-secondary dark:bg-surface-secondary-dark px-3 py-1">
-                      <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">{club.stats.juniors} juniors</Text>
-                    </View>
-                    <View className="rounded-full bg-surface-secondary dark:bg-surface-secondary-dark px-3 py-1">
-                      <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">{club.stats.seniors} seniors</Text>
-                    </View>
-                    <View className="rounded-full bg-surface-secondary dark:bg-surface-secondary-dark px-3 py-1">
-                      <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">
-                        {club.stats.sessionsThisMonth} sessions this month
+            clubs.map((club) => {
+              const bannerUri = resolveAssetUrl(getClubBannerUrl(club));
+              const badgeUri = resolveAssetUrl(getClubBadgeUrl(club));
+              return (
+                <Card key={club.id} className="overflow-hidden p-0">
+                  <View className="relative min-h-40">
+                    {bannerUri ? (
+                      <Image source={{ uri: bannerUri }} className="absolute inset-0 h-full w-full" resizeMode="cover" />
+                    ) : null}
+                    {bannerUri ? <View className="absolute inset-0 bg-black/35" /> : null}
+                    <CardContent className="relative p-5">
+                      <View className="flex-row items-center gap-3">
+                        <UserAvatar name={club.name} uri={badgeUri} size={44} />
+                        <Text
+                          className={`flex-1 text-base font-semibold ${
+                            bannerUri
+                              ? "text-white"
+                              : "text-text-primary dark:text-text-primary-dark"
+                          }`}
+                        >
+                          {club.name}
+                        </Text>
+                      </View>
+                      <Text
+                        className={`mt-1 text-sm ${
+                          bannerUri ? "text-white/85" : "text-text-secondary dark:text-text-secondary-dark"
+                        }`}
+                      >
+                        {club.address}
+                        {club.postcode ? `, ${club.postcode}` : ""}
                       </Text>
-                    </View>
+                      <View className="mt-3 flex-row flex-wrap gap-2">
+                        <View className="rounded-full bg-surface/90 dark:bg-surface-dark/90 px-3 py-1">
+                          <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">
+                            {club.stats.playersCoached} players
+                          </Text>
+                        </View>
+                        <View className="rounded-full bg-surface/90 dark:bg-surface-dark/90 px-3 py-1">
+                          <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">
+                            {club.stats.juniors} juniors
+                          </Text>
+                        </View>
+                        <View className="rounded-full bg-surface/90 dark:bg-surface-dark/90 px-3 py-1">
+                          <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">
+                            {club.stats.seniors} seniors
+                          </Text>
+                        </View>
+                        <View className="rounded-full bg-surface/90 dark:bg-surface-dark/90 px-3 py-1">
+                          <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">
+                            {club.stats.sessionsThisMonth} sessions this month
+                          </Text>
+                        </View>
+                      </View>
+                    </CardContent>
                   </View>
-                </CardContent>
-              </Card>
-            ))
+                </Card>
+              );
+            })
           )}
         </View>
       </ScrollView>

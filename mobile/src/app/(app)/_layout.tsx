@@ -1,39 +1,36 @@
 import React from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
+import { useColorScheme } from "nativewind";
 import { useAppSelector } from "@/store/hooks";
 
 /**
- * Phase 2 replaces the single placeholder screen with a real tab bar --
- * the first new navigation concept since Phase 0's Stack-only setup.
- *
- * Phase 4 added "progress" (grade trend + shot mix). Phase 5 adds
- * "messages" (real conversations, see src/app/messages/[conversationId].tsx)
- * -- Notifications deliberately did NOT get its own tab (six tabs felt like
- * one too many); it's reached via a bell icon on the dashboard instead
- * (src/app/notifications.tsx, a root-level stack screen).
- *
- * Phase 6 adds "team" -- hidden for PLAYER (a roster of "just yourself"
- * isn't useful, and it's already covered by Profile) via `href: null`,
- * which removes both the tab button and route access without needing a
- * second layout tree.
+ * Daily jobs live in the tab bar. Progress, Profile, and Settings stay
+ * routed (href: null) and open from Home / the profile gear so the bar
+ * stays at four items on a phone.
  */
 export default function AppLayout() {
   const user = useAppSelector((state) => state.auth.user);
   const showTeamTab = user?.role !== "PLAYER";
+  const { colorScheme } = useColorScheme();
+  const isDark = colorScheme === "dark";
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: "#2D6A4F",
-        tabBarInactiveTintColor: "#6b7280",
+        tabBarActiveTintColor: "#E63946",
+        tabBarInactiveTintColor: isDark ? "#9CA3AF" : "#6B7280",
+        tabBarStyle: {
+          backgroundColor: isDark ? "#252836" : "#F5F0E8",
+          borderTopColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(26,26,46,0.08)",
+        },
       }}
     >
       <Tabs.Screen
         name="dashboard"
         options={{
-          title: "Dashboard",
+          title: "Home",
           tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />,
         }}
       />
@@ -63,6 +60,7 @@ export default function AppLayout() {
         name="progress"
         options={{
           title: "Progress",
+          href: null,
           tabBarIcon: ({ color, size }) => <Ionicons name="trending-up-outline" size={size} color={color} />,
         }}
       />
@@ -70,6 +68,7 @@ export default function AppLayout() {
         name="profile"
         options={{
           title: "Profile",
+          href: null,
           tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size} color={color} />,
         }}
       />
@@ -77,6 +76,7 @@ export default function AppLayout() {
         name="settings"
         options={{
           title: "Settings",
+          href: null,
           tabBarIcon: ({ color, size }) => <Ionicons name="settings-outline" size={size} color={color} />,
         }}
       />

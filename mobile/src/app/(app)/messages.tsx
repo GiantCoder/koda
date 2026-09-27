@@ -1,11 +1,14 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Modal, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { useAppSelector } from "@/store/hooks";
 import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { FullScreenModal } from "@/components/ui/FullScreenModal";
 import { ScreenTitle } from "@/components/ui/ScreenTitle";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { InitialsAvatar } from "@/components/ui/InitialsAvatar";
 import { PressableScale } from "@/components/ui/PressableScale";
 import { Ionicons } from "@expo/vector-icons";
 import { useSecondaryIconColor } from "@/components/ui/useIconColor";
@@ -145,7 +148,7 @@ export default function MessagesScreen() {
   }, [load]);
 
   return (
-    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
+    <SafeAreaView className="flex-1 bg-surface-secondary dark:bg-surface-secondary-dark" edges={["top", "left", "right"]}>
       <View className="flex-row items-center justify-between px-6 pt-6">
         <ScreenTitle>Messages</ScreenTitle>
         {canStartConversation ? (
@@ -186,30 +189,32 @@ export default function MessagesScreen() {
               message={`No messages match "${searchQuery.trim()}".`}
             />
           ) : (
-            <View className="gap-1 pb-8">
-              {searchResults.map((result) => (
-                <Pressable
-                  key={result.id}
-                  onPress={() => {
-                    setSearchQuery("");
-                    router.push(`/messages/${result.conversationId}`);
-                  }}
-                  className="gap-1 rounded-lg p-3"
-                >
-                  <View className="flex-row items-center justify-between">
-                    <Text className="font-medium text-text-primary dark:text-text-primary-dark">
-                      {result.sender.displayName}
+            <Card className="mb-8 overflow-hidden p-0">
+              {searchResults.map((result, index) => (
+                <View key={result.id}>
+                  {index > 0 ? <View className="mx-4 h-px bg-surface-secondary dark:bg-surface-secondary-dark" /> : null}
+                  <Pressable
+                    onPress={() => {
+                      setSearchQuery("");
+                      router.push(`/messages/${result.conversationId}`);
+                    }}
+                    className="gap-1 px-4 py-3.5"
+                  >
+                    <View className="flex-row items-center justify-between">
+                      <Text className="font-medium text-text-primary dark:text-text-primary-dark">
+                        {result.sender.displayName}
+                      </Text>
+                      <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">
+                        {formatTime(result.sentAt)}
+                      </Text>
+                    </View>
+                    <Text className="text-sm text-text-secondary dark:text-text-secondary-dark" numberOfLines={2}>
+                      {result.content}
                     </Text>
-                    <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">
-                      {formatTime(result.sentAt)}
-                    </Text>
-                  </View>
-                  <Text className="text-sm text-text-secondary dark:text-text-secondary-dark" numberOfLines={2}>
-                    {result.content}
-                  </Text>
-                </Pressable>
+                  </Pressable>
+                </View>
               ))}
-            </View>
+            </Card>
           )
         ) : loading ? (
           <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">Loading…</Text>
@@ -227,45 +232,45 @@ export default function MessagesScreen() {
             onAction={() => void openNewMessage()}
           />
         ) : (
-          <View className="gap-1 pb-8">
-            {conversations.map((conversation) => {
+          <Card className="mb-8 overflow-hidden p-0">
+            {conversations.map((conversation, index) => {
               const unread = isUnread(conversation, user?.id);
+              const name = otherParticipantName(conversation, user?.id);
               return (
-                <PressableScale
-                  key={conversation.id}
-                  onPress={() => router.push(`/messages/${conversation.id}`)}
-                  className="flex-row items-center gap-3 rounded-lg p-3"
-                >
-                  <View className="h-10 w-10 items-center justify-center rounded-full bg-surface-secondary dark:bg-surface-secondary-dark">
-                    <Ionicons name="chatbubble-outline" size={18} color={iconColor} />
-                  </View>
-                  <View className="flex-1">
-                    <Text className={`text-text-primary dark:text-text-primary-dark ${unread ? "font-bold" : "font-medium"}`} numberOfLines={1}>
-                      {otherParticipantName(conversation, user?.id)}
-                    </Text>
-                    <Text
-                      className={`mt-0.5 text-sm ${unread ? "font-semibold text-text-primary dark:text-text-primary-dark" : "text-text-secondary dark:text-text-secondary-dark"}`}
-                      numberOfLines={1}
-                    >
-                      {conversation.lastMessage?.content ?? "No messages yet"}
-                    </Text>
-                  </View>
-                  <View className="items-end gap-1">
-                    {conversation.lastMessage ? (
-                      <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">{formatTime(conversation.lastMessage.sentAt)}</Text>
-                    ) : null}
-                    {unread ? <View className="h-2 w-2 rounded-full bg-primary" /> : null}
-                  </View>
-                </PressableScale>
+                <View key={conversation.id}>
+                  {index > 0 ? <View className="mx-4 h-px bg-surface-secondary dark:bg-surface-secondary-dark" /> : null}
+                  <PressableScale
+                    onPress={() => router.push(`/messages/${conversation.id}`)}
+                    className="flex-row items-center gap-3 px-4 py-3.5"
+                  >
+                    <InitialsAvatar name={name} />
+                    <View className="min-w-0 flex-1">
+                      <Text className={`text-text-primary dark:text-text-primary-dark ${unread ? "font-bold" : "font-medium"}`} numberOfLines={1}>
+                        {name}
+                      </Text>
+                      <Text
+                        className={`mt-0.5 text-sm ${unread ? "font-semibold text-text-primary dark:text-text-primary-dark" : "text-text-secondary dark:text-text-secondary-dark"}`}
+                        numberOfLines={1}
+                      >
+                        {conversation.lastMessage?.content ?? "No messages yet"}
+                      </Text>
+                    </View>
+                    <View className="items-end gap-1">
+                      {conversation.lastMessage ? (
+                        <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">{formatTime(conversation.lastMessage.sentAt)}</Text>
+                      ) : null}
+                      {unread ? <View className="h-2 w-2 rounded-full bg-primary" /> : null}
+                    </View>
+                  </PressableScale>
+                </View>
               );
             })}
-          </View>
+          </Card>
         )}
       </ScrollView>
 
-      <Modal visible={newMessageVisible} animationType="slide" onRequestClose={() => setNewMessageVisible(false)}>
-        <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark">
-          <View className="flex-row items-center justify-between px-6 pt-4">
+      <FullScreenModal visible={newMessageVisible} onRequestClose={() => setNewMessageVisible(false)}>
+          <View className="flex-row items-center justify-between px-6 pt-2">
             <Text className="text-xl font-bold text-text-primary dark:text-text-primary-dark">New Message</Text>
             <Button variant="ghost" size="sm" onPress={() => setNewMessageVisible(false)}>
               Close
@@ -283,23 +288,31 @@ export default function MessagesScreen() {
                   : "No coach found yet -- once you're on a squad, your coach will show up here."}
               </Text>
             ) : (
-              <View className="gap-1">
-                {contacts.map((player) => (
-                  <Pressable
-                    key={player.id}
-                    onPress={() => void handleStartConversation(player.id)}
-                    disabled={creatingFor === player.id}
-                    className="flex-row items-center justify-between rounded-lg p-3"
-                  >
-                    <Text className="text-text-primary dark:text-text-primary-dark">{player.displayName}</Text>
-                    {creatingFor === player.id ? <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">Starting…</Text> : null}
-                  </Pressable>
+              <Card className="overflow-hidden p-0">
+                {contacts.map((player, index) => (
+                  <View key={player.id}>
+                    {index > 0 ? <View className="mx-4 h-px bg-surface-secondary dark:bg-surface-secondary-dark" /> : null}
+                    <Pressable
+                      onPress={() => void handleStartConversation(player.id)}
+                      disabled={creatingFor === player.id}
+                      className="flex-row items-center justify-between px-4 py-3.5"
+                    >
+                      <View className="min-w-0 flex-1 flex-row items-center gap-3">
+                        <InitialsAvatar name={player.displayName} />
+                        <Text className="flex-1 text-text-primary dark:text-text-primary-dark" numberOfLines={1}>
+                          {player.displayName}
+                        </Text>
+                      </View>
+                      {creatingFor === player.id ? (
+                        <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">Starting…</Text>
+                      ) : null}
+                    </Pressable>
+                  </View>
                 ))}
-              </View>
+              </Card>
             )}
           </ScrollView>
-        </SafeAreaView>
-      </Modal>
+      </FullScreenModal>
     </SafeAreaView>
   );
 }

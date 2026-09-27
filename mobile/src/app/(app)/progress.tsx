@@ -3,6 +3,7 @@ import { RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAppSelector } from "@/store/hooks";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
+import { BackBar } from "@/components/ui/BackBar";
 import { ScreenTitle } from "@/components/ui/ScreenTitle";
 import { Ionicons } from "@expo/vector-icons";
 import { useSecondaryIconColor } from "@/components/ui/useIconColor";
@@ -35,6 +36,7 @@ import { ShotDistributionChart } from "@/components/progress/ShotDistributionCha
  */
 
 function formatShotType(s: string): string {
+  if (s.toUpperCase() === "UNKNOWN") return "Unclassified";
   return s
     .split("_")
     .map((w) => w.charAt(0) + w.slice(1).toLowerCase())
@@ -85,9 +87,10 @@ export default function ProgressScreen() {
   }, [load]);
 
   return (
-    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
+    <SafeAreaView className="flex-1 bg-surface-secondary dark:bg-surface-secondary-dark" edges={["top", "left", "right"]}>
+      <BackBar />
       <ScrollView
-        className="flex-1 px-6 pt-6"
+        className="flex-1 px-6 pt-2"
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Modal, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { BackBar } from "@/components/ui/BackBar";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { FullScreenModal } from "@/components/ui/FullScreenModal";
 import { Input } from "@/components/ui/Input";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { useAppSelector } from "@/store/hooks";
@@ -195,7 +196,7 @@ export default function CollectionDetailScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
+    <SafeAreaView className="flex-1 bg-surface-secondary dark:bg-surface-secondary-dark" edges={["top", "left", "right"]}>
       <BackBar label="Saved" />
 
       {loading ? (
@@ -290,9 +291,8 @@ export default function CollectionDetailScreen() {
         </ScrollView>
       ) : null}
 
-      <Modal visible={editVisible} animationType="slide" onRequestClose={() => setEditVisible(false)}>
-        <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark">
-          <View className="flex-row items-center justify-between px-6 pt-4">
+      <FullScreenModal visible={editVisible} onRequestClose={() => setEditVisible(false)}>
+          <View className="flex-row items-center justify-between px-6 pt-2">
             <Text className="text-xl font-bold text-text-primary dark:text-text-primary-dark">Edit Collection</Text>
             <Button variant="ghost" size="sm" onPress={() => setEditVisible(false)}>
               Close
@@ -307,12 +307,10 @@ export default function CollectionDetailScreen() {
               Save Changes
             </Button>
           </View>
-        </SafeAreaView>
-      </Modal>
+      </FullScreenModal>
 
-      <Modal visible={shareVisible} animationType="slide" onRequestClose={() => setShareVisible(false)}>
-        <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark">
-          <View className="flex-row items-center justify-between px-6 pt-4">
+      <FullScreenModal visible={shareVisible} onRequestClose={() => setShareVisible(false)}>
+          <View className="flex-row items-center justify-between px-6 pt-2">
             <Text className="text-xl font-bold text-text-primary dark:text-text-primary-dark">Share Collection</Text>
             <Button variant="ghost" size="sm" onPress={() => setShareVisible(false)}>
               Close
@@ -359,8 +357,7 @@ export default function CollectionDetailScreen() {
               </View>
             )}
           </ScrollView>
-        </SafeAreaView>
-      </Modal>
+      </FullScreenModal>
     </SafeAreaView>
   );
 }

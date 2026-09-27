@@ -1,12 +1,16 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Modal, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { useAppSelector } from "@/store/hooks";
 import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { FullScreenModal } from "@/components/ui/FullScreenModal";
 import { Input } from "@/components/ui/Input";
 import { ScreenTitle } from "@/components/ui/ScreenTitle";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { InitialsAvatar } from "@/components/ui/InitialsAvatar";
 import { PressableScale } from "@/components/ui/PressableScale";
 import { Ionicons } from "@expo/vector-icons";
 import { useSecondaryIconColor } from "@/components/ui/useIconColor";
@@ -46,6 +50,7 @@ export default function TeamScreen() {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<AssignablePlayer | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -101,20 +106,23 @@ export default function TeamScreen() {
     }
   }, [newName, newEmail, newSquadId, load]);
 
-  const handleRemove = useCallback(async (playerId: string) => {
+  const handleRemove = useCallback(async () => {
+    if (!removeTarget) return;
+    const playerId = removeTarget.id;
     setRemovingId(playerId);
     try {
       await removeTeamPlayer(playerId);
       setPlayers((prev) => prev.filter((p) => p.id !== playerId));
+      setRemoveTarget(null);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Failed to remove player");
     } finally {
       setRemovingId(null);
     }
-  }, []);
+  }, [removeTarget]);
 
   return (
-    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
+    <SafeAreaView className="flex-1 bg-surface-secondary dark:bg-surface-secondary-dark" edges={["top", "left", "right"]}>
       <View className="flex-row items-center justify-between px-6 pt-6">
         <ScreenTitle>
           {isParent ? "Your Children" : "Team"}
@@ -161,38 +169,57 @@ export default function TeamScreen() {
             onAction={isCoach ? () => void openAdd() : undefined}
           />
         ) : (
-          <View className="gap-1 pb-8">
-            {players.map((player) => (
-              <PressableScale
-                key={player.id}
-                onPress={() => router.push(`/players/${player.id}`)}
-                className="flex-row items-center justify-between rounded-lg p-3"
-              >
-                <View className="h-10 w-10 items-center justify-center rounded-full bg-surface-secondary dark:bg-surface-secondary-dark">
-                  <Ionicons name="baseball-outline" size={18} color={iconColor} />
-                </View>
-                <Text className="ml-3 flex-1 text-text-primary dark:text-text-primary-dark">{player.displayName}</Text>
-                {isCoach || isParent ? (
-                  <Pressable
-                    onPress={() => void handleRemove(player.id)}
-                    disabled={removingId === player.id}
-                    hitSlop={8}
-                    className="p-1"
+          <Card className="mb-8 overflow-hidden p-0">
+            {players.map((player, index) => (
+              <View key={player.id}>
+                {index > 0 ? <View className="mx-4 h-px bg-surface-secondary dark:bg-surface-secondary-dark" /> : null}
+                <View className="flex-row items-center px-4 py-3.5">
+                  <PressableScale
+                    onPress={() => router.push(`/players/${player.id}`)}
+                    className="min-w-0 flex-1 flex-row items-center"
                   >
-                    <Text className="text-xs text-danger dark:text-danger-dark">
-                      {removingId === player.id ? "…" : "Remove"}
+                    <InitialsAvatar name={player.displayName} />
+                    <Text className="ml-3 flex-1 text-base text-text-primary dark:text-text-primary-dark" numberOfLines={1}>
+                      {player.displayName}
                     </Text>
-                  </Pressable>
-                ) : null}
-              </PressableScale>
+                  </PressableScale>
+                  {isCoach || isParent ? (
+                    <Pressable
+                      onPress={() => setRemoveTarget(player)}
+                      disabled={removingId === player.id}
+                      hitSlop={8}
+                      className="p-1"
+                      accessibilityLabel={`More actions for ${player.displayName}`}
+                    >
+                      <Ionicons name="ellipsis-horizontal" size={18} color={iconColor} />
+                    </Pressable>
+                  ) : (
+                    <Ionicons name="chevron-forward" size={16} color={iconColor} />
+                  )}
+                </View>
+              </View>
             ))}
-          </View>
+          </Card>
         )}
       </ScrollView>
 
-      <Modal visible={addVisible} animationType="slide" onRequestClose={() => setAddVisible(false)}>
-        <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark">
-          <View className="flex-row items-center justify-between px-6 pt-4">
+      <ConfirmDialog
+        open={removeTarget != null}
+        title="Remove player?"
+        message={
+          removeTarget
+            ? `Remove ${removeTarget.displayName} from your team?`
+            : "Remove this player from your team?"
+        }
+        confirmLabel="Remove"
+        variant="danger"
+        isLoading={removingId != null}
+        onCancel={() => setRemoveTarget(null)}
+        onConfirm={() => void handleRemove()}
+      />
+
+      <FullScreenModal visible={addVisible} onRequestClose={() => setAddVisible(false)}>
+          <View className="flex-row items-center justify-between px-6 pt-2">
             <Text className="text-xl font-bold text-text-primary dark:text-text-primary-dark">Add Player</Text>
             <Button variant="ghost" size="sm" onPress={() => setAddVisible(false)}>
               Close
@@ -241,8 +268,7 @@ export default function TeamScreen() {
               </Button>
             </View>
           </ScrollView>
-        </SafeAreaView>
-      </Modal>
+      </FullScreenModal>
     </SafeAreaView>
   );
 }

@@ -37,6 +37,7 @@ async function main(): Promise<void> {
   await upsertUser("parent@test.com", Role.PARENT, "Michael Thompson");
   await upsertUser("junior@test.com", Role.PLAYER, "Jake Thompson");
   await upsertUser("admin@test.com", Role.ADMIN, "Admin User");
+  await upsertUser("mattjotoole@gmail.com", Role.ADMIN, "Matt O'Toole");
 
   await seedBadges(prisma);
 }

@@ -89,7 +89,7 @@ export default function AchievementsScreen() {
   }, [historyCursor, historyLoading]);
 
   return (
-    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
+    <SafeAreaView className="flex-1 bg-surface-secondary dark:bg-surface-secondary-dark" edges={["top", "left", "right"]}>
       <BackBar label="Dashboard" />
       <ScreenTitle className="px-6 pt-2">Achievements</ScreenTitle>
 

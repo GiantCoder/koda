@@ -30,6 +30,62 @@ async function canParentManagePlayer(parentId: string, playerId: string): Promis
   return Boolean(link);
 }
 
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const authUser = await getAuthUser(request);
+  if (!authUser) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (authUser.role !== "COACH" && authUser.role !== "ADMIN" && authUser.role !== "PARENT") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const parsedParams = idParamSchema.safeParse(await params);
+  if (!parsedParams.success) {
+    return NextResponse.json({ error: "Invalid player id" }, { status: 400 });
+  }
+  const playerId = parsedParams.data.id;
+
+  const player = await prisma.user.findUnique({
+    where: { id: playerId },
+    select: {
+      id: true,
+      displayName: true,
+      email: true,
+      avatarUrl: true,
+      role: true,
+      isActive: true,
+    },
+  });
+  if (!player || player.role !== "PLAYER" || !player.isActive) {
+    return NextResponse.json({ error: "Player not found" }, { status: 404 });
+  }
+
+  if (authUser.role === "COACH") {
+    const allowed = await canCoachManagePlayer(authUser.id, playerId);
+    if (!allowed) {
+      return NextResponse.json({ error: "Forbidden: Player is not in your squads" }, { status: 403 });
+    }
+  }
+  if (authUser.role === "PARENT") {
+    const allowed = await canParentManagePlayer(authUser.id, playerId);
+    if (!allowed) {
+      return NextResponse.json({ error: "Forbidden: Player is not linked to your account" }, { status: 403 });
+    }
+  }
+
+  return NextResponse.json({
+    player: {
+      id: player.id,
+      displayName: player.displayName,
+      email: player.email,
+      avatarUrl: player.avatarUrl,
+    },
+  });
+}
+
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

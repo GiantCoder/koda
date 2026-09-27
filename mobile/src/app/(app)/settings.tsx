@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { OptionPicker } from "@/components/ui/OptionPicker";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { BackBar } from "@/components/ui/BackBar";
 import { ScreenTitle } from "@/components/ui/ScreenTitle";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useAppTheme, type ThemePreference } from "@/hooks/useAppTheme";
@@ -201,8 +202,9 @@ export default function SettingsScreen() {
   const [isSigningOut, setIsSigningOut] = useState(false);
 
   return (
-    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
-      <ScrollView className="flex-1 px-6 pt-6">
+    <SafeAreaView className="flex-1 bg-surface-secondary dark:bg-surface-secondary-dark" edges={["top", "left", "right"]}>
+      <BackBar />
+      <ScrollView className="flex-1 px-6 pt-2">
         <ScreenTitle className="mb-6">Settings</ScreenTitle>
 
         <Card className="mb-6">

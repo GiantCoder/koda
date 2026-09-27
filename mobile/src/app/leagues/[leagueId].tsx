@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams } from "expo-router";
 import { BackBar } from "@/components/ui/BackBar";
 import { ScreenTitle } from "@/components/ui/ScreenTitle";
+import { UserAvatar } from "@/components/ui/UserAvatar";
 import { Ionicons } from "@expo/vector-icons";
 import { useAppSelector } from "@/store/hooks";
 import { ApiError } from "@/api/client";
@@ -76,7 +77,7 @@ export default function LeagueStandingsScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
+    <SafeAreaView className="flex-1 bg-surface-secondary dark:bg-surface-secondary-dark" edges={["top", "left", "right"]}>
       <BackBar label="Leagues" />
       <ScreenTitle className="px-6 pt-2">Standings</ScreenTitle>
 
@@ -99,6 +100,7 @@ export default function LeagueStandingsScreen() {
               {userEntry ? (
                 <View className="mt-4 flex-row items-center gap-3 rounded-lg bg-primary/10 p-3">
                   <RankBadge rank={userEntry.currentRank} />
+                  <UserAvatar name={userEntry.user.displayName} uri={userEntry.user.avatarUrl} size={32} />
                   <Text className="flex-1 font-semibold text-text-primary dark:text-text-primary-dark">{userEntry.user.displayName} (you)</Text>
                   <Text className="text-sm font-medium text-text-primary dark:text-text-primary-dark">{userEntry.points} pts</Text>
                 </View>
@@ -112,6 +114,7 @@ export default function LeagueStandingsScreen() {
               }`}
             >
               <RankBadge rank={item.currentRank} />
+              <UserAvatar name={item.user.displayName} uri={item.user.avatarUrl} size={32} />
               <Text className="flex-1 text-text-primary dark:text-text-primary-dark" numberOfLines={1}>
                 {item.user.displayName}
                 {item.userId === currentUserId ? " (you)" : ""}

@@ -37,11 +37,18 @@ export function PlayerCardCompact({ card }: { card: PlayerCardDto }) {
       </View>
       <Text className="text-lg font-semibold text-text-primary dark:text-text-primary-dark">{card.displayName}</Text>
       <Text className="mb-4 text-3xl font-bold text-primary">{card.overall}</Text>
-      <View className="w-full flex-row flex-wrap justify-center gap-2">
-        {STAT_LABELS.map(({ key, label }) => (
-          <View key={key} className="w-16 items-center rounded-lg bg-surface-secondary dark:bg-surface-secondary-dark py-2">
-            <Text className="text-sm font-bold text-text-primary dark:text-text-primary-dark">{String(card[key])}</Text>
-            <Text className="text-[10px] text-text-secondary dark:text-text-secondary-dark">{label}</Text>
+      <View className="w-full gap-2">
+        {[STAT_LABELS.slice(0, 3), STAT_LABELS.slice(3, 6)].map((row, rowIndex) => (
+          <View key={rowIndex} className="flex-row gap-2">
+            {row.map(({ key, label }) => (
+              <View
+                key={key}
+                className="flex-1 items-center rounded-lg bg-surface-secondary dark:bg-surface-secondary-dark py-2"
+              >
+                <Text className="text-sm font-bold text-text-primary dark:text-text-primary-dark">{String(card[key])}</Text>
+                <Text className="text-[10px] text-text-secondary dark:text-text-secondary-dark">{label}</Text>
+              </View>
+            ))}
           </View>
         ))}
       </View>

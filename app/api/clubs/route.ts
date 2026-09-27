@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getAuthUser } from "@/lib/get-auth-user";
 import { prisma } from "@/prisma/client";
-import type { ClubRecord } from "@/app/lib/club-data";
+import { pickCanonicalClubs, type ClubRecord } from "@/app/lib/club-data";
 
 const createClubSchema = z.object({
   name: z.string().min(1).max(200),
@@ -35,10 +35,12 @@ export async function GET(request: NextRequest) {
   }
 
   const whereClause = authUser.role === "ADMIN" ? {} : { coachId: authUser.id };
-  const clubs = await prisma.club.findMany({
+  const loadedClubs = await prisma.club.findMany({
     where: whereClause,
     orderBy: { createdAt: "desc" },
   });
+  const clubs =
+    authUser.role === "ADMIN" ? pickCanonicalClubs(loadedClubs, authUser.id) : loadedClubs;
 
   const clubNames = clubs.map((club) => club.name).filter(Boolean);
   const players = clubNames.length

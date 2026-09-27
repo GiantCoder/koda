@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, FlatList, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BackBar } from "@/components/ui/BackBar";
+import { UserAvatar } from "@/components/ui/UserAvatar";
 import { OptionPicker, type Option } from "@/components/ui/OptionPicker";
 import { ScreenTitle } from "@/components/ui/ScreenTitle";
 import { Ionicons } from "@expo/vector-icons";
@@ -72,7 +73,7 @@ export default function GlobalLeaderboardScreen() {
   }, [ageGroup, nextCursor, loadingMore]);
 
   return (
-    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
+    <SafeAreaView className="flex-1 bg-surface-secondary dark:bg-surface-secondary-dark" edges={["top", "left", "right"]}>
       <BackBar label="Leagues" />
       <View className="flex-row items-center gap-2 px-6 pt-2">
         <Ionicons name="globe-outline" size={22} color="#E63946" />
@@ -109,6 +110,7 @@ export default function GlobalLeaderboardScreen() {
               <View className="w-10 items-center">
                 <Text className="text-base font-bold text-text-primary dark:text-text-primary-dark">{index + 1}</Text>
               </View>
+              <UserAvatar name={item.user.displayName} uri={item.user.avatarUrl} size={32} />
               <Text className="flex-1 text-text-primary dark:text-text-primary-dark" numberOfLines={1}>
                 {item.user.displayName}
                 {item.userId === currentUserId ? " (you)" : ""}

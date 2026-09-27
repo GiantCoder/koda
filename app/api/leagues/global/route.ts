@@ -91,7 +91,7 @@ export async function GET(request: NextRequest) {
     ...(cursor && { cursor: { id: cursor }, skip: 1 }),
     include: {
       user: {
-        select: { id: true, displayName: true },
+        select: { id: true, displayName: true, avatarUrl: true },
       },
     },
   });
@@ -103,7 +103,11 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     entries: items.map((e) => ({
       ...e,
-      user: { id: e.user.id, displayName: e.user.displayName ?? "Player" },
+      user: {
+        id: e.user.id,
+        displayName: e.user.displayName ?? "Player",
+        avatarUrl: e.user.avatarUrl,
+      },
     })),
     nextCursor,
   });

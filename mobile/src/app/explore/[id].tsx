@@ -54,7 +54,7 @@ export default function ExploreClipDetailScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
+    <SafeAreaView className="flex-1 bg-surface-secondary dark:bg-surface-secondary-dark" edges={["top", "left", "right"]}>
       <BackBar label="Explore" />
       {loading ? (
         <View className="items-center pt-12">

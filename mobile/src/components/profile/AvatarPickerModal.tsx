@@ -61,7 +61,10 @@ export function AvatarPickerModal({ visible, selectedUrl, onClose, onSelect }: A
                   <View className="flex-row flex-wrap gap-3">
                     {category.avatars.map((avatar) => {
                       const fullUrl = `${API_BASE_URL}${avatar.url}`;
-                      const selected = fullUrl === selectedUrl;
+                      const selected =
+                        selectedUrl === fullUrl ||
+                        selectedUrl === avatar.url ||
+                        selectedUrl === `${API_BASE_URL}${avatar.url}`;
                       return (
                         <Pressable
                           key={avatar.id}

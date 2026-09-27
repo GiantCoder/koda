@@ -137,7 +137,7 @@ export default function ShadowBattingScreen() {
 
   if (phase === "setup") {
     return (
-      <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
+      <SafeAreaView className="flex-1 bg-surface-secondary dark:bg-surface-secondary-dark" edges={["top", "left", "right"]}>
         <BackBar label="Dashboard" />
         <ScrollView className="flex-1 px-6">
           <Text className="pt-2 text-2xl font-bold text-text-primary dark:text-text-primary-dark">Shadow Batting</Text>

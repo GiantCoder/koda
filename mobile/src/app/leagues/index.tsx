@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Modal, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { BackBar } from "@/components/ui/BackBar";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { FullScreenModal } from "@/components/ui/FullScreenModal";
 import { ScreenTitle } from "@/components/ui/ScreenTitle";
 import { PressableScale } from "@/components/ui/PressableScale";
 import { Ionicons } from "@expo/vector-icons";
@@ -131,7 +132,7 @@ export default function LeaguesScreen() {
   }, [newName, newAgeGroup, newSeasonLength, load]);
 
   return (
-    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark" edges={["top", "left", "right"]}>
+    <SafeAreaView className="flex-1 bg-surface-secondary dark:bg-surface-secondary-dark" edges={["top", "left", "right"]}>
       <BackBar label="Dashboard" />
       <View className="flex-row items-center justify-between px-6 pt-2">
         <ScreenTitle>Leagues</ScreenTitle>
@@ -208,9 +209,8 @@ export default function LeaguesScreen() {
         )}
       </ScrollView>
 
-      <Modal visible={joinVisible} animationType="slide" onRequestClose={() => setJoinVisible(false)}>
-        <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark">
-          <View className="flex-row items-center justify-between px-6 pt-4">
+      <FullScreenModal visible={joinVisible} onRequestClose={() => setJoinVisible(false)}>
+          <View className="flex-row items-center justify-between px-6 pt-2">
             <Text className="text-xl font-bold text-text-primary dark:text-text-primary-dark">Join a League</Text>
             <Button variant="ghost" size="sm" onPress={() => setJoinVisible(false)}>
               Close
@@ -230,12 +230,10 @@ export default function LeaguesScreen() {
               Join League
             </Button>
           </View>
-        </SafeAreaView>
-      </Modal>
+      </FullScreenModal>
 
-      <Modal visible={createVisible} animationType="slide" onRequestClose={() => setCreateVisible(false)}>
-        <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark">
-          <View className="flex-row items-center justify-between px-6 pt-4">
+      <FullScreenModal visible={createVisible} onRequestClose={() => setCreateVisible(false)}>
+          <View className="flex-row items-center justify-between px-6 pt-2">
             <Text className="text-xl font-bold text-text-primary dark:text-text-primary-dark">Create a League</Text>
             <Button
               variant="ghost"
@@ -284,8 +282,7 @@ export default function LeaguesScreen() {
               </View>
             )}
           </ScrollView>
-        </SafeAreaView>
-      </Modal>
+      </FullScreenModal>
     </SafeAreaView>
   );
 }

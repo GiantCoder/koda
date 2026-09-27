@@ -4,9 +4,8 @@ import { PieChart } from "react-native-gifted-charts";
 import type { ShotDistributionEntry } from "@/api/progress";
 import { assignCategoryColors } from "./chartColors";
 
-const INLINE_LABEL_THRESHOLD = 8;
-
 function formatShotType(s: string): string {
+  if (s.toUpperCase() === "UNKNOWN") return "Unclassified";
   return s
     .split("_")
     .map((w) => w.charAt(0) + w.slice(1).toLowerCase())
@@ -21,20 +20,14 @@ export function ShotDistributionChart({ shots }: { shots: ShotDistributionEntry[
     return <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">No completed analyses yet -- your shot mix will appear here once you have a few.</Text>;
   }
 
-  const data = shots.map((s) => {
-    const percentage = s.percentage ?? 0;
-    return {
-      value: s.count,
-      color: colors.get(s.shotType) ?? "#6B7280",
-      text: percentage >= INLINE_LABEL_THRESHOLD ? `${percentage}%` : "",
-    };
-  });
-
-  const hasInlineLabels = data.some((d) => d.text.length > 0);
+  const data = shots.map((s) => ({
+    value: s.count,
+    color: colors.get(s.shotType) ?? "#6B7280",
+  }));
 
   return (
     <View className="flex-row items-center gap-4">
-      <PieChart data={data} radius={70} showText={hasInlineLabels} textColor="#FFFFFF" textSize={10} />
+      <PieChart data={data} radius={70} showText={false} />
       <View className="flex-1 gap-1.5">
         {shots.map((s) => (
           <View key={s.shotType} className="flex-row items-center gap-2">
