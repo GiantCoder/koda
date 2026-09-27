@@ -1,5 +1,36 @@
 import { z } from "zod";
 
+// Phone autofill rarely submits the address alone. Common wrappers are
+// "mailto:user@gmail.com", "Name <user@gmail.com>", a trailing ".", or
+// fullwidth punctuation. Pull the address out of that text, then let
+// z.string().email() check what remains.
+function isSkippableEmailChar(code: number): boolean {
+  return (
+    code <= 0x20 ||
+    code === 0x7f ||
+    code === 0xa0 ||
+    code === 0xad ||
+    code === 0xfeff ||
+    (code >= 0x2000 && code <= 0x200f) ||
+    (code >= 0x2028 && code <= 0x202f) ||
+    (code >= 0x205f && code <= 0x2069) ||
+    code === 0x3000
+  );
+}
+
+function normalizeEmail(value: string): string {
+  const compat = typeof value.normalize === "function" ? value.normalize("NFKC") : value;
+  let cleaned = "";
+  for (const char of compat) {
+    const code = char.codePointAt(0) ?? 0;
+    if (!isSkippableEmailChar(code)) cleaned += char;
+  }
+  const match = cleaned.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
+  return (match?.[0] ?? cleaned).replace(/\.{2,}/g, ".").replace(/^\.+|\.+$/g, "").toLowerCase();
+}
+
+const emailSchema = z.string().overwrite(normalizeEmail).email();
+
 const roleEnum = z.enum(["PLAYER", "PARENT", "COACH"]);
 const privacySchema = z.object({
   performanceAnalytics: z.boolean().default(true),
@@ -8,7 +39,7 @@ const privacySchema = z.object({
 });
 
 export const registerSchema = z.object({
-  email: z.string().email(),
+  email: emailSchema,
   password: z.string().min(8, "Password must be at least 8 characters"),
   phoneNumber: z.string().optional(),
   displayName: z.string().min(1, "Display name is required"),
@@ -34,7 +65,7 @@ export const registerSchema = z.object({
 });
 
 export const loginSchema = z.object({
-  email: z.string().email(),
+  email: emailSchema,
   password: z.string().min(1, "Password is required"),
 });
 

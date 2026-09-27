@@ -121,8 +121,10 @@ no backend changes: `getAuthUser()` already accepted
 ## Running it
 
 From the repo root, get the backend running first (mobile is useless without
-it): `make up` (docker compose — brings up the `app` service on :3050 plus
+it): `make up` (docker compose — brings up the `app` service on **:3005** plus
 Redis, MariaDB, MinIO, etc. together; `make status` to check what's running).
+If you skip Docker and run `npm run dev` on the host instead, that listens on
+**:3050**.
 
 Then, from `mobile/`:
 
@@ -135,15 +137,16 @@ That prints a QR code and a menu. Press `i` for the iOS Simulator, `a` for
 the Android emulator, or scan the QR code with the **Expo Go** app on your
 phone.
 
-**Before that works, check `.env`** — `EXPO_PUBLIC_API_URL` needs to be
-`http://localhost:3050` for a simulator (both proxy localhost back to your
-Mac), but your Mac's LAN IP (e.g. `http://192.168.0.6:3050` — find it with
-`ipconfig getifaddr en0`, or read it off the `exp://` address Metro prints
-on startup) for a physical phone in Expo Go, since `localhost` there means
-the phone itself. Whichever you're using, after changing `.env` you need a
-full restart (`npx expo start -c` to clear the bundler cache) — `EXPO_PUBLIC_`
-env vars are baked into the JS bundle at build time, not read live, so a
-hot reload won't pick up the change.
+**Before that works, check `.env`** — `EXPO_PUBLIC_API_URL` needs the right
+host *and* port. Host: `http://localhost:<port>` for a simulator (both proxy
+localhost back to your Mac), or your Mac's LAN IP (e.g.
+`http://192.168.0.6:3005` — find it with `ipconfig getifaddr en0`, or read it
+off the `exp://` address Metro prints on startup) for a physical phone in
+Expo Go, since `localhost` there means the phone itself. Port: **3005** when
+the backend is Docker (`make up`), **3050** when it's `npm run dev` on the
+host. After changing `.env` you need a full restart (`npx expo start -c` to
+clear the bundler cache) — `EXPO_PUBLIC_` env vars are baked into the JS
+bundle at build time, not read live, so a hot reload won't pick up the change.
 
 **Testing Phase 3's upload flow**: the iOS Simulator and Android emulator
 have no real camera, so "Record video" won't do anything useful there --

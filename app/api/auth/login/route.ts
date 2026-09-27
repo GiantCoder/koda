@@ -18,6 +18,14 @@ export async function POST(request: NextRequest) {
 
   const validation = loginSchema.safeParse(body);
   if (!validation.success) {
+    const rawEmail =
+      typeof body === "object" && body !== null && "email" in body ? (body as { email: unknown }).email : undefined;
+    const emailText = typeof rawEmail === "string" ? rawEmail : "";
+    console.error(
+      "[auth/login] rejected email",
+      JSON.stringify(emailText),
+      [...emailText].map((char) => char.codePointAt(0)?.toString(16)).join(" ")
+    );
     return NextResponse.json(
       { error: "Validation failed", code: "VALIDATION_ERROR", details: validation.error.flatten() },
       { status: 400 }

@@ -48,6 +48,23 @@ async function rawRequest(path: string, options: RequestOptions = {}): Promise<R
   });
 }
 
+function messageFromErrorBody(
+  errorBody: { error?: string; details?: unknown } | null,
+  path: string,
+  status: number
+): string {
+  const details = errorBody?.details as
+    | { fieldErrors?: Record<string, string[]>; formErrors?: string[] }
+    | undefined;
+  const fieldError = details?.fieldErrors
+    ? Object.values(details.fieldErrors)
+        .flat()
+        .find((message) => typeof message === "string" && message.length > 0)
+    : undefined;
+  const formError = details?.formErrors?.find((message) => message.length > 0);
+  return fieldError ?? formError ?? errorBody?.error ?? `Request to ${path} failed with status ${status}`;
+}
+
 async function parseJsonSafe(response: Response): Promise<unknown> {
   const text = await response.text();
   if (!text) return null;
@@ -108,7 +125,7 @@ export async function apiFetch<T = unknown>(path: string, options: RequestOption
       | { error?: string; code?: string; details?: unknown }
       | null;
     throw new ApiError(
-      errorBody?.error ?? `Request to ${path} failed with status ${response.status}`,
+      messageFromErrorBody(errorBody, path, response.status),
       response.status,
       errorBody?.code,
       errorBody?.details

@@ -21,7 +21,8 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.kodacricketcom.kodacricket"
     },
     "web": {
       "output": "static",
@@ -60,7 +61,11 @@
           "icon": "./assets/images/notification-icon.png",
           "color": "#E63946"
         }
-      ]
+      ],
+      "expo-image",
+      "expo-secure-store",
+      "expo-video",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,

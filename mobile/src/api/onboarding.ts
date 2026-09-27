@@ -6,10 +6,11 @@
  */
 import { z } from "zod";
 import { apiFetch } from "./client";
+import { emailField } from "./auth";
 
 export const consentRequestSchema = z.object({
   guardianName: z.string().min(1, "Guardian name is required"),
-  guardianEmail: z.string().email(),
+  guardianEmail: emailField,
   guardianRelationship: z.enum(["mother", "father", "guardian", "other"]).default("guardian"),
 });
 export type ConsentRequestInput = z.infer<typeof consentRequestSchema>;
