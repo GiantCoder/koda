@@ -11,6 +11,15 @@ export function resolveAssetUrl(url: string | null | undefined): string | null {
   return value;
 }
 
+export function getCoverSrc(entity: {
+  bannerImageUrl?: string | null;
+  bannerFileName?: string | null;
+}): string | null {
+  if (entity.bannerImageUrl) return resolveAssetUrl(entity.bannerImageUrl);
+  if (entity.bannerFileName) return resolveAssetUrl(`/avatars/${entity.bannerFileName}`);
+  return null;
+}
+
 /** Persist gallery picks as site-relative paths so web and mobile both resolve them. */
 export function toStoredAvatarUrl(url: string): string {
   if (url.startsWith(API_BASE_URL)) {

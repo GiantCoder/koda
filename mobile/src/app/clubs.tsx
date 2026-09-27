@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Image, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BackBar } from "@/components/ui/BackBar";
 import { Card, CardContent } from "@/components/ui/Card";
-import { UserAvatar } from "@/components/ui/UserAvatar";
+import { GroupCoverCard } from "@/components/ui/GroupCoverCard";
 import { useAppSelector } from "@/store/hooks";
 import { ApiError } from "@/api/client";
 import { getClubBadgeUrl, getClubBannerUrl, getMyClubs, type ClubSummary } from "@/api/clubs";
@@ -67,59 +67,23 @@ export default function ClubsScreen() {
             clubs.map((club) => {
               const bannerUri = resolveAssetUrl(getClubBannerUrl(club));
               const badgeUri = resolveAssetUrl(getClubBadgeUrl(club));
+              const address = `${club.address}${club.postcode ? `, ${club.postcode}` : ""}`;
               return (
-                <Card key={club.id} className="overflow-hidden p-0">
-                  <View className="relative min-h-40">
-                    {bannerUri ? (
-                      <Image source={{ uri: bannerUri }} className="absolute inset-0 h-full w-full" resizeMode="cover" />
-                    ) : null}
-                    {bannerUri ? <View className="absolute inset-0 bg-black/35" /> : null}
-                    <CardContent className="relative p-5">
-                      <View className="flex-row items-center gap-3">
-                        <UserAvatar name={club.name} uri={badgeUri} size={44} />
-                        <Text
-                          className={`flex-1 text-base font-semibold ${
-                            bannerUri
-                              ? "text-white"
-                              : "text-text-primary dark:text-text-primary-dark"
-                          }`}
-                        >
-                          {club.name}
-                        </Text>
-                      </View>
-                      <Text
-                        className={`mt-1 text-sm ${
-                          bannerUri ? "text-white/85" : "text-text-secondary dark:text-text-secondary-dark"
-                        }`}
-                      >
-                        {club.address}
-                        {club.postcode ? `, ${club.postcode}` : ""}
-                      </Text>
-                      <View className="mt-3 flex-row flex-wrap gap-2">
-                        <View className="rounded-full bg-surface/90 dark:bg-surface-dark/90 px-3 py-1">
-                          <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">
-                            {club.stats.playersCoached} players
-                          </Text>
-                        </View>
-                        <View className="rounded-full bg-surface/90 dark:bg-surface-dark/90 px-3 py-1">
-                          <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">
-                            {club.stats.juniors} juniors
-                          </Text>
-                        </View>
-                        <View className="rounded-full bg-surface/90 dark:bg-surface-dark/90 px-3 py-1">
-                          <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">
-                            {club.stats.seniors} seniors
-                          </Text>
-                        </View>
-                        <View className="rounded-full bg-surface/90 dark:bg-surface-dark/90 px-3 py-1">
-                          <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">
-                            {club.stats.sessionsThisMonth} sessions this month
-                          </Text>
-                        </View>
-                      </View>
-                    </CardContent>
-                  </View>
-                </Card>
+                <GroupCoverCard
+                  key={club.id}
+                  title={club.name}
+                  subtitle={address}
+                  coverUri={bannerUri}
+                  avatarUri={badgeUri}
+                  avatarName={club.name}
+                  avatarId={club.id}
+                  badges={[
+                    `${club.stats.playersCoached} players`,
+                    `${club.stats.juniors} juniors`,
+                    `${club.stats.seniors} seniors`,
+                    `${club.stats.sessionsThisMonth} sessions this month`,
+                  ]}
+                />
               );
             })
           )}

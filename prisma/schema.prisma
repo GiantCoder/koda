@@ -187,6 +187,7 @@ model User {
   squadMemberships   SquadMember[]
   coachSquads        Squad[]
   coachClubs         Club[]
+  coachTeams         Team[]
   sessions           Session[]      @relation("PlayerSessions")
   coachSessions      Session[]     @relation("CoachSessions")
   annotationsAuthored Annotation[] @relation("AnnotationAuthor")
@@ -425,18 +426,36 @@ model AuditLog {
 }
 
 model Squad {
-  id        String     @id @default(uuid())
-  name      String
-  coachId   String
-  ageGroup  AgeGroup?
-  clubName  String?
-  isActive  Boolean    @default(true)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id             String     @id @default(uuid())
+  name           String
+  coachId        String
+  ageGroup       AgeGroup?
+  clubName       String?
+  isActive       Boolean    @default(true)
+  bannerFileName String?
+  bannerImageUrl String?    @db.LongText
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
 
   coach    User          @relation(fields: [coachId], references: [id], onDelete: Cascade)
   members  SquadMember[]
   sessions Session[]
+
+  @@index([coachId])
+}
+
+model Team {
+  id             String   @id @default(uuid())
+  coachId        String
+  name           String
+  clubName       String
+  squadHint      String?
+  bannerFileName String?
+  bannerImageUrl String?  @db.LongText
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  coach User @relation(fields: [coachId], references: [id], onDelete: Cascade)
 
   @@index([coachId])
 }

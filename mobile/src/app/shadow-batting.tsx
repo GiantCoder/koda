@@ -10,6 +10,7 @@ import { ApiError } from "@/api/client";
 import {
   uploadShadowBattingClip,
   SHOT_TYPES,
+  SHOT_TYPE_GROUPS,
   DURATION_OPTIONS,
   PREP_TIME_OPTIONS,
 } from "@/api/shadowBatting";
@@ -24,9 +25,10 @@ import {
  * hands off to the existing processing/results screens unchanged.
  */
 
-const SHOT_TYPE_OPTIONS: Option[] = SHOT_TYPES.map((s) => ({ value: s.value, label: s.label }));
 const DURATION_PICKER_OPTIONS: Option[] = DURATION_OPTIONS.map((d) => ({ value: String(d), label: `${d}s` }));
 const PREP_PICKER_OPTIONS: Option[] = PREP_TIME_OPTIONS.map((p) => ({ value: String(p), label: `${p}s` }));
+
+const SHOT_LABEL_BY_VALUE = Object.fromEntries(SHOT_TYPES.map((s) => [s.value, s.label]));
 
 type Phase = "setup" | "countdown" | "recording" | "uploading";
 
@@ -146,7 +148,24 @@ export default function ShadowBattingScreen() {
             coaching analysis as an uploaded video.
           </Text>
           <View className="mt-6 gap-4 pb-10">
-            <OptionPicker label="Shot type" options={SHOT_TYPE_OPTIONS} value={shotType} onChange={setShotType} />
+            <View>
+              <Text className="mb-1.5 text-sm font-medium text-text-primary dark:text-text-primary-dark">Shot type</Text>
+              {SHOT_TYPE_GROUPS.map((group) => (
+                <View key={group.label} className="mt-3">
+                  <Text className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-text-secondary dark:text-text-secondary-dark">
+                    {group.label}
+                  </Text>
+                  <OptionPicker
+                    options={group.values.map((value) => ({
+                      value,
+                      label: SHOT_LABEL_BY_VALUE[value] ?? value,
+                    }))}
+                    value={shotType}
+                    onChange={setShotType}
+                  />
+                </View>
+              ))}
+            </View>
             <OptionPicker
               label="Recording length"
               options={DURATION_PICKER_OPTIONS}

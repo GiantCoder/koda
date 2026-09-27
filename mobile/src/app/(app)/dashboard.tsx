@@ -146,7 +146,10 @@ export default function DashboardScreen() {
               {avatarUrl ? (
                 <Image source={{ uri: avatarUrl }} className="h-10 w-10 rounded-full bg-surface dark:bg-surface-dark" />
               ) : (
-                <InitialsAvatar name={summary?.user.displayName ?? user?.displayName ?? "You"} />
+                <InitialsAvatar
+                  name={summary?.user.displayName ?? user?.displayName ?? "You"}
+                  id={summary?.user.id ?? user?.id}
+                />
               )}
             </PressableScale>
           </View>
@@ -185,8 +188,8 @@ export default function DashboardScreen() {
                 onPress={() => router.push(link.href as never)}
                 className="flex-row items-center px-4 py-3.5"
               >
-                <View className="mr-3 h-9 w-9 items-center justify-center rounded-full bg-surface-secondary dark:bg-surface-secondary-dark">
-                  <Ionicons name={link.icon} size={18} color={iconColor} />
+                <View className="mr-3 h-9 w-9 items-center justify-center rounded-full bg-primary/10">
+                  <Ionicons name={link.icon} size={18} color="#E63946" />
                 </View>
                 <Text className="flex-1 text-base text-text-primary dark:text-text-primary-dark">{link.label}</Text>
                 <Ionicons name="chevron-forward" size={16} color={iconColor} />

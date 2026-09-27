@@ -3,11 +3,15 @@ import { Pressable, RefreshControl, ScrollView, Text, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BackBar } from "@/components/ui/BackBar";
 import { Card, CardContent } from "@/components/ui/Card";
+import { GroupCoverCard } from "@/components/ui/GroupCoverCard";
 import { Button } from "@/components/ui/Button";
 import { FullScreenModal } from "@/components/ui/FullScreenModal";
 import { Input } from "@/components/ui/Input";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { OptionPicker, type Option } from "@/components/ui/OptionPicker";
+import { CoverImagePicker } from "@/components/ui/CoverImagePicker";
+import { getCoverSrc } from "@/lib/mediaUrl";
+import { pickCoverImage } from "@/lib/pickCoverImage";
 import { ApiError } from "@/api/client";
 import { getAssignablePlayers, type AssignablePlayer } from "@/api/videos";
 import {
@@ -56,6 +60,9 @@ export default function SquadsScreen() {
   const [newName, setNewName] = useState("");
   const [newAgeGroup, setNewAgeGroup] = useState<AgeGroup | null>(null);
   const [newClubName, setNewClubName] = useState("");
+  const [newBannerFileName, setNewBannerFileName] = useState("");
+  const [newBannerImageUrl, setNewBannerImageUrl] = useState("");
+  const [pickingCreateBanner, setPickingCreateBanner] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
@@ -64,6 +71,9 @@ export default function SquadsScreen() {
   const [editAgeGroup, setEditAgeGroup] = useState<AgeGroup | null>(null);
   const [editClubName, setEditClubName] = useState("");
   const [editActive, setEditActive] = useState(true);
+  const [editBannerFileName, setEditBannerFileName] = useState("");
+  const [editBannerImageUrl, setEditBannerImageUrl] = useState("");
+  const [pickingEditBanner, setPickingEditBanner] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -99,7 +109,24 @@ export default function SquadsScreen() {
     setNewName("");
     setNewAgeGroup(null);
     setNewClubName("");
+    setNewBannerFileName("");
+    setNewBannerImageUrl("");
     setCreateVisible(true);
+  }, []);
+
+  const pickNewBanner = useCallback(async () => {
+    setPickingCreateBanner(true);
+    setCreateError(null);
+    try {
+      const picked = await pickCoverImage();
+      if (!picked) return;
+      setNewBannerFileName(picked.fileName);
+      setNewBannerImageUrl(picked.dataUrl);
+    } catch (e) {
+      setCreateError(e instanceof Error ? e.message : "Failed to pick image");
+    } finally {
+      setPickingCreateBanner(false);
+    }
   }, []);
 
   const handleCreate = useCallback(async () => {
@@ -115,6 +142,8 @@ export default function SquadsScreen() {
         name,
         ageGroup: newAgeGroup ?? undefined,
         clubName: newClubName.trim() || undefined,
+        bannerFileName: newBannerFileName || undefined,
+        bannerImageUrl: newBannerImageUrl || undefined,
       });
       setCreateVisible(false);
       void load();
@@ -123,7 +152,7 @@ export default function SquadsScreen() {
     } finally {
       setCreating(false);
     }
-  }, [newName, newAgeGroup, newClubName, load]);
+  }, [newName, newAgeGroup, newClubName, newBannerFileName, newBannerImageUrl, load]);
 
   const openDetail = useCallback((squad: Squad) => {
     setDetailSquadId(squad.id);
@@ -131,8 +160,25 @@ export default function SquadsScreen() {
     setEditAgeGroup(squad.ageGroup);
     setEditClubName(squad.clubName ?? "");
     setEditActive(squad.isActive);
+    setEditBannerFileName(squad.bannerFileName ?? "");
+    setEditBannerImageUrl(squad.bannerImageUrl ?? "");
     setEditError(null);
     setAddMemberVisible(false);
+  }, []);
+
+  const pickEditBanner = useCallback(async () => {
+    setPickingEditBanner(true);
+    setEditError(null);
+    try {
+      const picked = await pickCoverImage();
+      if (!picked) return;
+      setEditBannerFileName(picked.fileName);
+      setEditBannerImageUrl(picked.dataUrl);
+    } catch (e) {
+      setEditError(e instanceof Error ? e.message : "Failed to pick image");
+    } finally {
+      setPickingEditBanner(false);
+    }
   }, []);
 
   const closeDetail = useCallback(() => {
@@ -156,6 +202,8 @@ export default function SquadsScreen() {
         ageGroup: editAgeGroup,
         clubName: editClubName.trim() || null,
         isActive: editActive,
+        bannerFileName: editBannerFileName || null,
+        bannerImageUrl: editBannerImageUrl || null,
       });
       void load();
     } catch (e) {
@@ -163,7 +211,7 @@ export default function SquadsScreen() {
     } finally {
       setSavingEdit(false);
     }
-  }, [detailSquad, editName, editAgeGroup, editClubName, editActive, load]);
+  }, [detailSquad, editName, editAgeGroup, editClubName, editActive, editBannerFileName, editBannerImageUrl, load]);
 
   const handleDelete = useCallback(async () => {
     if (!detailSquad) return;
@@ -264,27 +312,23 @@ export default function SquadsScreen() {
         ) : (
           <View className="gap-3 pb-8">
             {squads.map((squad) => (
-              <Pressable key={squad.id} onPress={() => openDetail(squad)}>
-                <Card>
-                  <CardContent>
-                    <View className="flex-row items-center justify-between">
-                      <Text className="text-base font-semibold text-text-primary dark:text-text-primary-dark">{squad.name}</Text>
-                      {!squad.isActive ? (
-                        <View className="rounded-full bg-surface-secondary dark:bg-surface-secondary-dark px-2 py-0.5">
-                          <Text className="text-[10px] font-medium text-text-secondary dark:text-text-secondary-dark">INACTIVE</Text>
-                        </View>
-                      ) : null}
-                    </View>
-                    <Text className="mt-1 text-sm text-text-secondary dark:text-text-secondary-dark">
-                      {[ageGroupLabel(squad.ageGroup), squad.clubName].filter(Boolean).join(" · ") ||
-                        "No age group or club set"}
-                    </Text>
-                    <Text className="mt-1 text-xs text-text-secondary dark:text-text-secondary-dark">
-                      {squad.members.length} {squad.members.length === 1 ? "player" : "players"}
-                    </Text>
-                  </CardContent>
-                </Card>
-              </Pressable>
+              <GroupCoverCard
+                key={squad.id}
+                title={squad.name}
+                subtitle={
+                  [ageGroupLabel(squad.ageGroup), squad.clubName].filter(Boolean).join(" · ") ||
+                  "No age group or club set"
+                }
+                coverUri={getCoverSrc(squad)}
+                avatarName={squad.name}
+                avatarId={squad.id}
+                badges={[
+                  `${squad.members.length} ${squad.members.length === 1 ? "player" : "players"}`,
+                  ...(!squad.isActive ? ["INACTIVE"] : []),
+                ]}
+                fallbackTint="rgba(45, 106, 79, 0.22)"
+                onPress={() => openDetail(squad)}
+              />
             ))}
           </View>
         )}
@@ -312,6 +356,11 @@ export default function SquadsScreen() {
                 onChangeText={setNewClubName}
                 placeholder="e.g. Riverside CC"
               />
+              <CoverImagePicker
+                previewUri={newBannerImageUrl}
+                isLoading={pickingCreateBanner}
+                onPick={() => void pickNewBanner()}
+              />
               {createError ? <Text className="text-sm text-danger dark:text-danger-dark">{createError}</Text> : null}
               <Button onPress={() => void handleCreate()} isLoading={creating}>
                 Create Squad
@@ -338,6 +387,11 @@ export default function SquadsScreen() {
                   onChange={(v) => setEditAgeGroup(v as AgeGroup)}
                 />
                 <Input label="Club" value={editClubName} onChangeText={setEditClubName} />
+                <CoverImagePicker
+                  previewUri={editBannerImageUrl}
+                  isLoading={pickingEditBanner}
+                  onPick={() => void pickEditBanner()}
+                />
                 <Checkbox checked={editActive} onToggle={setEditActive} label="Active squad" />
                 {editError ? <Text className="text-sm text-danger dark:text-danger-dark">{editError}</Text> : null}
                 <Button onPress={() => void handleSaveEdit()} isLoading={savingEdit}>

@@ -100,7 +100,7 @@ export default function LeagueStandingsScreen() {
               {userEntry ? (
                 <View className="mt-4 flex-row items-center gap-3 rounded-lg bg-primary/10 p-3">
                   <RankBadge rank={userEntry.currentRank} />
-                  <UserAvatar name={userEntry.user.displayName} uri={userEntry.user.avatarUrl} size={32} />
+                  <UserAvatar name={userEntry.user.displayName} uri={userEntry.user.avatarUrl} id={userEntry.user.id} size={32} />
                   <Text className="flex-1 font-semibold text-text-primary dark:text-text-primary-dark">{userEntry.user.displayName} (you)</Text>
                   <Text className="text-sm font-medium text-text-primary dark:text-text-primary-dark">{userEntry.points} pts</Text>
                 </View>
@@ -114,7 +114,7 @@ export default function LeagueStandingsScreen() {
               }`}
             >
               <RankBadge rank={item.currentRank} />
-              <UserAvatar name={item.user.displayName} uri={item.user.avatarUrl} size={32} />
+              <UserAvatar name={item.user.displayName} uri={item.user.avatarUrl} id={item.user.id} size={32} />
               <Text className="flex-1 text-text-primary dark:text-text-primary-dark" numberOfLines={1}>
                 {item.user.displayName}
                 {item.userId === currentUserId ? " (you)" : ""}

@@ -12,6 +12,8 @@ import { Avatar } from "@/app/components/ui/Avatar";
 import { useMockAuth } from "@/app/hooks/useMockAuth";
 import { buildMockAuthHeaders } from "@/app/lib/mock-auth-headers";
 import type { ClubRecord } from "@/app/lib/club-data";
+import { CoverImageField } from "@/app/components/ui/CoverImageField";
+import { getCoverSrc, readCoverImage } from "@/app/lib/cover-image";
 
 interface SquadMember {
   id: string;
@@ -26,6 +28,8 @@ interface SquadRecord {
   name: string;
   ageGroup?: string | null;
   clubName?: string | null;
+  bannerFileName?: string | null;
+  bannerImageUrl?: string | null;
   members: SquadMember[];
 }
 
@@ -107,6 +111,10 @@ export default function SquadsPage() {
   const [name, setName] = useState("");
   const [ageGroup, setAgeGroup] = useState("");
   const [clubName, setClubName] = useState("");
+  const [bannerFileName, setBannerFileName] = useState("");
+  const [bannerImageUrl, setBannerImageUrl] = useState("");
+  const [bannerError, setBannerError] = useState<string | null>(null);
+  const [updatingBannerId, setUpdatingBannerId] = useState<string | null>(null);
   const [movePlayerBySquad, setMovePlayerBySquad] = useState<Record<string, string>>({});
   const [moveTargetBySquad, setMoveTargetBySquad] = useState<Record<string, string>>({});
   const [addPlayerBySquad, setAddPlayerBySquad] = useState<Record<string, string>>({});
@@ -189,6 +197,8 @@ export default function SquadsPage() {
           name: name.trim(),
           ageGroup: ageGroup || undefined,
           clubName: clubName.trim() || undefined,
+          bannerFileName: bannerFileName || undefined,
+          bannerImageUrl: bannerImageUrl || undefined,
         }),
       });
       if (!response.ok) {
@@ -197,6 +207,9 @@ export default function SquadsPage() {
       setName("");
       setAgeGroup("");
       setClubName("");
+      setBannerFileName("");
+      setBannerImageUrl("");
+      setBannerError(null);
       await loadData();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to create squad");
@@ -284,6 +297,47 @@ export default function SquadsPage() {
     }
   }
 
+  async function handleCreateBanner(file: File | null) {
+    if (!file) return;
+    try {
+      const result = await readCoverImage(file);
+      setBannerFileName(result.fileName);
+      setBannerImageUrl(result.dataUrl);
+      setBannerError(null);
+    } catch (error) {
+      setBannerError(error instanceof Error ? error.message : "Unable to read selected file.");
+    }
+  }
+
+  async function handleSquadBannerChange(squad: SquadRecord, file: File | null) {
+    if (!user || !file) return;
+    setUpdatingBannerId(squad.id);
+    setErrorMessage(null);
+    try {
+      const result = await readCoverImage(file);
+      const response = await fetch(`/api/squads/${squad.id}`, {
+        method: "PUT",
+        headers: {
+          ...buildMockAuthHeaders(user),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          bannerFileName: result.fileName,
+          bannerImageUrl: result.dataUrl,
+        }),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error ?? "Failed to update background");
+      }
+      await loadData();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Failed to update background");
+    } finally {
+      setUpdatingBannerId(null);
+    }
+  }
+
   function requestDeleteSquad(squad: SquadRecord) {
     setDeleteModalSquad(squad);
   }
@@ -349,10 +403,16 @@ export default function SquadsPage() {
               value={clubName}
               onChange={(event) => setClubName(event.target.value)}
             />
-            <div className="flex items-end">
+            <CoverImageField
+              bannerFileName={bannerFileName}
+              bannerImageUrl={bannerImageUrl}
+              error={bannerError}
+              onFile={(file) => void handleCreateBanner(file)}
+            />
+            <div className="flex items-end sm:col-span-2 lg:col-span-4">
               <Button
                 onClick={() => void createSquad()}
-                className="w-full"
+                className="w-full sm:w-auto"
                 disabled={!name.trim() || isCreating || (role !== "coach" && role !== "admin")}
               >
                 {isCreating ? "Creating..." : "Add Squad"}
@@ -416,9 +476,20 @@ export default function SquadsPage() {
               {filteredSquads.map((squad) => (
                 <div
                   key={squad.id}
-                  className="rounded-xl border border-[var(--surface-secondary)] bg-[var(--surface)] p-4"
+                  className="relative overflow-hidden rounded-xl border border-[var(--surface-secondary)] bg-[var(--surface)] p-4"
                 >
-                  <div className="flex items-center justify-between gap-2">
+                  {getCoverSrc(squad) ? (
+                    <>
+                      <img
+                        src={getCoverSrc(squad) ?? ""}
+                        alt=""
+                        aria-hidden
+                        className="absolute inset-0 h-full w-full object-cover opacity-20"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-[var(--surface)]" />
+                    </>
+                  ) : null}
+                  <div className="relative flex items-center justify-between gap-2">
                     <div>
                       <div className="flex items-center gap-2">
                         <h3 className="text-lg font-semibold text-[var(--text-primary)]">{squad.name}</h3>
@@ -447,7 +518,16 @@ export default function SquadsPage() {
                       </span>
                     </div>
                   </div>
-                  <div className="mt-4 border-t border-[var(--surface-secondary)] pt-3">
+                  <div className="relative mt-3">
+                    <CoverImageField
+                      label="Background image"
+                      bannerFileName={squad.bannerFileName}
+                      bannerImageUrl={squad.bannerImageUrl}
+                      disabled={updatingBannerId === squad.id || (role !== "coach" && role !== "admin")}
+                      onFile={(file) => void handleSquadBannerChange(squad, file)}
+                    />
+                  </div>
+                  <div className="relative mt-4 border-t border-[var(--surface-secondary)] pt-3">
                     <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-secondary)]">
                       Squad Players
                     </p>

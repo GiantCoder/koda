@@ -42,6 +42,30 @@ export const SHOT_TYPES: { value: string; label: string }[] = [
   { value: "LEAVE", label: "Leave" },
 ];
 
+/** UI-only grouping — the shot-type model is a flat enum with no category field. */
+export const SHOT_TYPE_GROUPS: { label: string; values: string[] }[] = [
+  {
+    label: "Front foot drives",
+    values: ["COVER_DRIVE", "OFF_DRIVE", "STRAIGHT_DRIVE", "ON_DRIVE", "LOFTED_DRIVE", "CHECK_DRIVE"],
+  },
+  {
+    label: "Sweeps & ramps",
+    values: ["SWEEP", "REVERSE_SWEEP", "PADDLE_SWEEP", "SCOOP", "RAMP"],
+  },
+  {
+    label: "Back foot attacking",
+    values: ["PULL", "HOOK", "CUT", "LATE_CUT", "SQUARE_CUT", "UPPER_CUT"],
+  },
+  {
+    label: "Glance & flick",
+    values: ["GLANCE", "FLICK", "LEG_GLANCE"],
+  },
+  {
+    label: "Defence",
+    values: ["DEFENSIVE", "FORWARD_DEFENCE", "BACK_FOOT_DEFENCE", "LEAVE"],
+  },
+];
+
 export const DURATION_OPTIONS = [5, 10, 15, 30, 45, 60];
 export const PREP_TIME_OPTIONS = [3, 5, 10];
 

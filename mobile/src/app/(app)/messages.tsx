@@ -55,6 +55,10 @@ function otherParticipantName(conversation: ConversationSummary, selfId: string 
   return others.map((p) => p.displayName).join(", ");
 }
 
+function otherParticipantId(conversation: ConversationSummary, selfId: string | undefined): string | undefined {
+  return conversation.participants.find((p) => p.id !== selfId)?.id;
+}
+
 function isUnread(conversation: ConversationSummary, selfId: string | undefined): boolean {
   const last = conversation.lastMessage;
   if (!last || last.senderId === selfId) return false;
@@ -243,7 +247,7 @@ export default function MessagesScreen() {
                     onPress={() => router.push(`/messages/${conversation.id}`)}
                     className="flex-row items-center gap-3 px-4 py-3.5"
                   >
-                    <InitialsAvatar name={name} />
+                    <InitialsAvatar name={name} id={otherParticipantId(conversation, user?.id)} />
                     <View className="min-w-0 flex-1">
                       <Text className={`text-text-primary dark:text-text-primary-dark ${unread ? "font-bold" : "font-medium"}`} numberOfLines={1}>
                         {name}
@@ -298,7 +302,7 @@ export default function MessagesScreen() {
                       className="flex-row items-center justify-between px-4 py-3.5"
                     >
                       <View className="min-w-0 flex-1 flex-row items-center gap-3">
-                        <InitialsAvatar name={player.displayName} />
+                        <InitialsAvatar name={player.displayName} id={player.id} />
                         <Text className="flex-1 text-text-primary dark:text-text-primary-dark" numberOfLines={1}>
                           {player.displayName}
                         </Text>

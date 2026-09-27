@@ -110,7 +110,7 @@ export default function GlobalLeaderboardScreen() {
               <View className="w-10 items-center">
                 <Text className="text-base font-bold text-text-primary dark:text-text-primary-dark">{index + 1}</Text>
               </View>
-              <UserAvatar name={item.user.displayName} uri={item.user.avatarUrl} size={32} />
+              <UserAvatar name={item.user.displayName} uri={item.user.avatarUrl} id={item.user.id} size={32} />
               <Text className="flex-1 text-text-primary dark:text-text-primary-dark" numberOfLines={1}>
                 {item.user.displayName}
                 {item.userId === currentUserId ? " (you)" : ""}

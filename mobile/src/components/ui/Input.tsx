@@ -24,8 +24,10 @@ export const Input = forwardRef<TextInput, InputProps>(
         <TextInput
           ref={ref}
           placeholderTextColor="#9CA3AF"
-          className={`w-full rounded-lg border px-4 py-3 text-base text-text-primary dark:text-text-primary-dark ${
-            error ? "border-danger dark:border-danger-dark" : "border-surface-secondary dark:border-surface-secondary-dark"
+          className={`w-full rounded-lg border bg-surface px-4 py-3 text-base text-text-primary dark:bg-surface-dark dark:text-text-primary-dark ${
+            error
+              ? "border-danger dark:border-danger-dark"
+              : "border-text-secondary/25 dark:border-white/20"
           } ${className}`}
           {...props}
         />

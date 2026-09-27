@@ -128,7 +128,10 @@ export default function TeamScreen() {
           {isParent ? "Your Children" : "Team"}
         </ScreenTitle>
         {isCoach ? (
-          <View className="flex-row gap-2">
+          <View className="max-w-[60%] flex-row flex-wrap justify-end gap-2">
+            <Button variant="secondary" size="sm" onPress={() => router.push("/team/teams")}>
+              Teams
+            </Button>
             <Button variant="secondary" size="sm" onPress={() => router.push("/team/squads")}>
               Squads
             </Button>
@@ -178,7 +181,7 @@ export default function TeamScreen() {
                     onPress={() => router.push(`/players/${player.id}`)}
                     className="min-w-0 flex-1 flex-row items-center"
                   >
-                    <InitialsAvatar name={player.displayName} />
+                    <InitialsAvatar name={player.displayName} id={player.id} />
                     <Text className="ml-3 flex-1 text-base text-text-primary dark:text-text-primary-dark" numberOfLines={1}>
                       {player.displayName}
                     </Text>

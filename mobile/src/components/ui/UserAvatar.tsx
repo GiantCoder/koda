@@ -6,10 +6,12 @@ import { resolveAssetUrl } from "@/lib/mediaUrl";
 export function UserAvatar({
   name,
   uri,
+  id,
   size = 32,
 }: {
   name: string;
   uri?: string | null;
+  id?: string;
   size?: number;
 }) {
   const resolved = resolveAssetUrl(uri);
@@ -22,5 +24,5 @@ export function UserAvatar({
       />
     );
   }
-  return <InitialsAvatar name={name} size={size} />;
+  return <InitialsAvatar name={name} id={id} size={size} />;
 }

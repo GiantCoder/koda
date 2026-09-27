@@ -196,6 +196,7 @@ export default function PlayerDetailScreen() {
                 <UserAvatar
                   name={player?.displayName ?? card.displayName}
                   uri={player?.avatarUrl}
+                  id={player?.id ?? playerId}
                   size={72}
                 />
                 {canEditAvatar ? (

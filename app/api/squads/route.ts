@@ -55,6 +55,8 @@ export async function GET(request: NextRequest) {
     ageGroup: squad.ageGroup,
     clubName: squad.clubName,
     isActive: squad.isActive,
+    bannerFileName: squad.bannerFileName,
+    bannerImageUrl: squad.bannerImageUrl,
     createdAt: squad.createdAt,
     updatedAt: squad.updatedAt,
     members: squad.members.map((m) => {
@@ -104,6 +106,8 @@ export async function POST(request: NextRequest) {
       coachId: user.id,
       ageGroup: parsed.data.ageGroup ?? null,
       clubName: parsed.data.clubName ?? null,
+      bannerFileName: parsed.data.bannerFileName ?? null,
+      bannerImageUrl: parsed.data.bannerImageUrl ?? null,
     },
   });
 

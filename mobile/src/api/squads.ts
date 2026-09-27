@@ -30,6 +30,8 @@ export interface Squad {
   ageGroup: AgeGroup | null;
   clubName: string | null;
   isActive: boolean;
+  bannerFileName?: string | null;
+  bannerImageUrl?: string | null;
   createdAt: string;
   updatedAt: string;
   members: SquadMember[];
@@ -44,6 +46,8 @@ export interface CreateSquadInput {
   name: string;
   ageGroup?: AgeGroup;
   clubName?: string;
+  bannerFileName?: string;
+  bannerImageUrl?: string;
 }
 
 export async function createSquad(input: CreateSquadInput): Promise<Squad> {
@@ -55,6 +59,8 @@ export interface UpdateSquadInput {
   ageGroup?: AgeGroup | null;
   clubName?: string | null;
   isActive?: boolean;
+  bannerFileName?: string | null;
+  bannerImageUrl?: string | null;
 }
 
 export async function updateSquad(id: string, input: UpdateSquadInput): Promise<Squad> {

@@ -18,6 +18,8 @@ import { LoadingSpinner } from "@/app/components/common/LoadingSpinner";
 import { AvatarGalleryModal } from "@/app/components/avatar/AvatarGalleryModal";
 import { type MockPlayer, type PlayerStatus } from "@/app/lib/mock-roster";
 import type { PlayerCardDto, UpdatePlayerCardInput } from "@/types/player-card";
+import { CoverImageField } from "@/app/components/ui/CoverImageField";
+import { getCoverSrc, readCoverImage } from "@/app/lib/cover-image";
 
 function SearchIcon() {
   return (
@@ -353,12 +355,17 @@ interface PlayCricketTeam {
   name: string;
   clubName: string;
   squadHint?: string;
+  bannerFileName?: string;
+  bannerImageUrl?: string;
+  persisted?: boolean;
 }
 
 interface TeamFormState {
   name: string;
   clubName: string;
   squadHint: string;
+  bannerFileName: string;
+  bannerImageUrl: string;
 }
 const STORAGE_FULL_MESSAGE =
   "Image uploads are temporarily unavailable because local storage is full. Please contact support or try again after cleanup.";
@@ -392,7 +399,10 @@ export default function CoachRosterPage() {
     name: "",
     clubName: "",
     squadHint: "",
+    bannerFileName: "",
+    bannerImageUrl: "",
   });
+  const [updatingTeamBannerId, setUpdatingTeamBannerId] = useState<string | null>(null);
   const [assignPlayerSearch, setAssignPlayerSearch] = useState("");
   const [assignSquadSearch, setAssignSquadSearch] = useState("");
   const [assignPlayerId, setAssignPlayerId] = useState("");
@@ -594,7 +604,7 @@ export default function CoachRosterPage() {
       try {
         const [squadsResponse, teamsResponse] = await Promise.all([
           fetch("/api/squads", { headers: buildMockAuthHeaders(user) }),
-          fetch("/api/play-cricket/teams"),
+          fetch("/api/play-cricket/teams", { headers: buildMockAuthHeaders(user) }),
         ]);
         if (!squadsResponse.ok || !teamsResponse.ok) {
           return;
@@ -801,6 +811,8 @@ export default function CoachRosterPage() {
           name: teamFormState.name.trim(),
           clubName: teamFormState.clubName.trim(),
           squadHint: teamFormState.squadHint.trim() || undefined,
+          bannerFileName: teamFormState.bannerFileName || undefined,
+          bannerImageUrl: teamFormState.bannerImageUrl || undefined,
         }),
       });
       if (!response.ok) {
@@ -813,7 +825,7 @@ export default function CoachRosterPage() {
         setPlayCricketTeams((current) => [created, ...current]);
         setTeamFilter(created.id);
       }
-      setTeamFormState({ name: "", clubName: "", squadHint: "" });
+      setTeamFormState({ name: "", clubName: "", squadHint: "", bannerFileName: "", bannerImageUrl: "" });
       setIsCreateTeamModalOpen(false);
     } catch (error) {
       setTeamFormError(error instanceof Error ? error.message : "Failed to create team");
@@ -848,6 +860,58 @@ export default function CoachRosterPage() {
       setIsAssigningPlayer(false);
     }
   }, [assignPlayerId, assignSquadId, refreshRoster, user]);
+
+  const handleTeamBannerFile = useCallback(async (file: File | null) => {
+    if (!file) return;
+    try {
+      const result = await readCoverImage(file);
+      setTeamFormState((current) => ({
+        ...current,
+        bannerFileName: result.fileName,
+        bannerImageUrl: result.dataUrl,
+      }));
+      setTeamFormError(null);
+    } catch (error) {
+      setTeamFormError(error instanceof Error ? error.message : "Unable to read selected file.");
+    }
+  }, []);
+
+  const handleExistingTeamBanner = useCallback(
+    async (team: PlayCricketTeam, file: File | null) => {
+      if (!user || !file) return;
+      setUpdatingTeamBannerId(team.id);
+      setErrorMessage(null);
+      try {
+        const result = await readCoverImage(file);
+        const response = await fetch(`/api/play-cricket/teams/${team.id}`, {
+          method: "PUT",
+          headers: {
+            ...buildMockAuthHeaders(user),
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            bannerFileName: result.fileName,
+            bannerImageUrl: result.dataUrl,
+          }),
+        });
+        if (!response.ok) {
+          const body = await response.json().catch(() => ({}));
+          throw new Error(body.error ?? "Failed to update background");
+        }
+        const data = (await response.json()) as { team?: PlayCricketTeam };
+        if (data.team) {
+          setPlayCricketTeams((current) =>
+            current.map((item) => (item.id === team.id ? { ...item, ...data.team } : item))
+          );
+        }
+      } catch (error) {
+        setErrorMessage(error instanceof Error ? error.message : "Failed to update background");
+      } finally {
+        setUpdatingTeamBannerId(null);
+      }
+    },
+    [user]
+  );
 
   const requestDeleteTeam = useCallback((team: PlayCricketTeam) => {
     setDeleteModalTeam(team);
@@ -1239,6 +1303,7 @@ export default function CoachRosterPage() {
           <Button
             variant="secondary"
             onClick={() => {
+              setTeamFormState({ name: "", clubName: "", squadHint: "", bannerFileName: "", bannerImageUrl: "" });
               setIsCreateTeamModalOpen(true);
               setTeamFormError(null);
             }}
@@ -1344,9 +1409,20 @@ export default function CoachRosterPage() {
                   {filteredPlayCricketTeams.map((team) => (
                     <div
                       key={team.id}
-                      className="rounded-xl border border-[var(--surface-secondary)] bg-[var(--surface)] p-4"
+                      className="relative overflow-hidden rounded-xl border border-[var(--surface-secondary)] bg-[var(--surface)] p-4"
                     >
-                      <div className="flex items-center justify-between gap-2">
+                      {getCoverSrc(team) ? (
+                        <>
+                          <img
+                            src={getCoverSrc(team) ?? ""}
+                            alt=""
+                            aria-hidden
+                            className="absolute inset-0 h-full w-full object-cover opacity-20"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-[var(--surface)]" />
+                        </>
+                      ) : null}
+                      <div className="relative flex items-center justify-between gap-2">
                         <div>
                           <h3 className="text-lg font-semibold text-[var(--text-primary)]">{team.name}</h3>
                           <p className="text-sm text-[var(--text-secondary)]">{team.clubName}</p>
@@ -1357,7 +1433,7 @@ export default function CoachRosterPage() {
                               {team.squadHint}
                             </span>
                           )}
-                          {(role === "coach" || role === "admin") && (
+                          {(role === "coach" || role === "admin") && team.persisted !== false && (
                             <button
                               type="button"
                               onClick={() => requestDeleteTeam(team)}
@@ -1370,6 +1446,16 @@ export default function CoachRosterPage() {
                           )}
                         </div>
                       </div>
+                      {(role === "coach" || role === "admin") && (
+                        <div className="relative mt-3">
+                          <CoverImageField
+                            bannerFileName={team.bannerFileName}
+                            bannerImageUrl={team.bannerImageUrl}
+                            disabled={updatingTeamBannerId === team.id}
+                            onFile={(file) => void handleExistingTeamBanner(team, file)}
+                          />
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1391,7 +1477,7 @@ export default function CoachRosterPage() {
                           <td className="py-3 text-sm text-[var(--text-secondary)]">{team.clubName}</td>
                           <td className="py-3 text-sm text-[var(--text-secondary)]">{team.squadHint ?? "-"}</td>
                           <td className="py-3 text-right">
-                            {(role === "coach" || role === "admin") && (
+                            {(role === "coach" || role === "admin") && team.persisted !== false && (
                               <Button
                                 variant="secondary"
                                 className="border border-[var(--danger)]/40 text-[var(--danger)] hover:bg-[var(--danger)]/10"
@@ -2026,6 +2112,11 @@ export default function CoachRosterPage() {
                 onChange={(event) =>
                   setTeamFormState((current) => ({ ...current, squadHint: event.target.value }))
                 }
+              />
+              <CoverImageField
+                bannerFileName={teamFormState.bannerFileName}
+                bannerImageUrl={teamFormState.bannerImageUrl}
+                onFile={(file) => void handleTeamBannerFile(file)}
               />
               {teamFormError && <p className="text-sm text-[var(--danger)]">{teamFormError}</p>}
             </div>

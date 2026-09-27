@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import { RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { BackBar } from "@/components/ui/BackBar";
 import { Card, CardContent } from "@/components/ui/Card";
+import { GroupCoverCard } from "@/components/ui/GroupCoverCard";
 import { Button } from "@/components/ui/Button";
 import { FullScreenModal } from "@/components/ui/FullScreenModal";
 import { ScreenTitle } from "@/components/ui/ScreenTitle";
@@ -187,23 +188,26 @@ export default function LeaguesScreen() {
         ) : (
           <View className="gap-3 pb-8">
             {leagues.map((league) => (
-              <Pressable key={league.id} onPress={() => router.push(`/leagues/${league.id}`)}>
-                <Card>
-                  <CardContent>
-                    <View className="flex-row items-center justify-between">
-                      <Text className="text-base font-semibold text-text-primary dark:text-text-primary-dark">{league.name}</Text>
-                      <View className="rounded-full bg-surface-secondary dark:bg-surface-secondary-dark px-2 py-0.5">
-                        <Text className="text-[10px] font-medium text-text-secondary dark:text-text-secondary-dark">{league.scope}</Text>
-                      </View>
-                    </View>
-                    <Text className="mt-1 text-sm text-text-secondary dark:text-text-secondary-dark">
-                      {league.currentSeason
-                        ? `Rank ${league.userRank ?? "—"} of ${league.memberCount}`
-                        : "No active season"}
-                    </Text>
-                  </CardContent>
-                </Card>
-              </Pressable>
+              <GroupCoverCard
+                key={league.id}
+                title={league.name}
+                subtitle={
+                  league.currentSeason
+                    ? `Rank ${league.userRank ?? "—"} of ${league.memberCount}`
+                    : "No active season"
+                }
+                avatarName={league.name}
+                avatarId={league.id}
+                badges={[league.scope]}
+                fallbackTint={
+                  league.scope === "CLUB"
+                    ? "rgba(45, 106, 79, 0.22)"
+                    : league.scope === "GLOBAL"
+                      ? "rgba(230, 57, 70, 0.18)"
+                      : "rgba(26, 26, 46, 0.16)"
+                }
+                onPress={() => router.push(`/leagues/${league.id}`)}
+              />
             ))}
           </View>
         )}

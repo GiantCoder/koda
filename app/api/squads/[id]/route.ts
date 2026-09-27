@@ -57,6 +57,8 @@ export async function PUT(
   if (parsed.data.ageGroup !== undefined) data.ageGroup = parsed.data.ageGroup;
   if (parsed.data.clubName !== undefined) data.clubName = parsed.data.clubName;
   if (parsed.data.isActive !== undefined) data.isActive = parsed.data.isActive;
+  if (parsed.data.bannerFileName !== undefined) data.bannerFileName = parsed.data.bannerFileName;
+  if (parsed.data.bannerImageUrl !== undefined) data.bannerImageUrl = parsed.data.bannerImageUrl;
 
   const updated = await prisma.squad.update({
     where: { id },

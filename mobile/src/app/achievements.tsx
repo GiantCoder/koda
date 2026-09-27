@@ -40,6 +40,13 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
 
+function sentenceCaseReason(reason: string): string {
+  return reason
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/^./, (c) => c.toUpperCase());
+}
+
 export default function AchievementsScreen() {
   const [summary, setSummary] = useState<GamificationSummary | null>(null);
   const [badges, setBadges] = useState<BadgeCatalogueEntry[]>([]);
@@ -114,24 +121,26 @@ export default function AchievementsScreen() {
         >
           <View className="gap-4 pb-10 pt-3">
             {summary ? (
-              <View className="flex-row flex-wrap gap-2">
-                <View className="flex-1 min-w-[45%] items-center rounded-lg bg-surface-secondary dark:bg-surface-secondary-dark py-4">
-                  <Text className="text-2xl font-bold text-text-primary dark:text-text-primary-dark">{summary.totalPoints}</Text>
-                  <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">Total points</Text>
+              <Card className="overflow-hidden p-0">
+                <View className="flex-row flex-wrap">
+                  <View className="w-1/2 items-center border-b border-r border-surface-secondary py-4 dark:border-surface-secondary-dark">
+                    <Text className="text-2xl font-bold text-text-primary dark:text-text-primary-dark">{summary.totalPoints}</Text>
+                    <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">Total points</Text>
+                  </View>
+                  <View className="w-1/2 items-center border-b border-surface-secondary py-4 dark:border-surface-secondary-dark">
+                    <Text className="text-2xl font-bold text-text-primary dark:text-text-primary-dark">{summary.goldStarCount}</Text>
+                    <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">Gold stars</Text>
+                  </View>
+                  <View className="w-1/2 items-center border-r border-surface-secondary py-4 dark:border-surface-secondary-dark">
+                    <Text className="text-2xl font-bold text-text-primary dark:text-text-primary-dark">{summary.practiceStreakDays}</Text>
+                    <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">Day streak</Text>
+                  </View>
+                  <View className="w-1/2 items-center py-4">
+                    <Text className="text-2xl font-bold text-text-primary dark:text-text-primary-dark">{summary.currentSeasonPts}</Text>
+                    <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">This season</Text>
+                  </View>
                 </View>
-                <View className="flex-1 min-w-[45%] items-center rounded-lg bg-surface-secondary dark:bg-surface-secondary-dark py-4">
-                  <Text className="text-2xl font-bold text-text-primary dark:text-text-primary-dark">{summary.goldStarCount}</Text>
-                  <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">Gold stars</Text>
-                </View>
-                <View className="flex-1 min-w-[45%] items-center rounded-lg bg-surface-secondary dark:bg-surface-secondary-dark py-4">
-                  <Text className="text-2xl font-bold text-text-primary dark:text-text-primary-dark">{summary.practiceStreakDays}</Text>
-                  <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">Day streak</Text>
-                </View>
-                <View className="flex-1 min-w-[45%] items-center rounded-lg bg-surface-secondary dark:bg-surface-secondary-dark py-4">
-                  <Text className="text-2xl font-bold text-text-primary dark:text-text-primary-dark">{summary.currentSeasonPts}</Text>
-                  <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">This season</Text>
-                </View>
-              </View>
+              </Card>
             ) : null}
 
             {summary?.leagueSummary ? (
@@ -190,19 +199,34 @@ export default function AchievementsScreen() {
               {history.length === 0 ? (
                 <Text className="text-sm text-text-secondary dark:text-text-secondary-dark">No points earned yet.</Text>
               ) : (
-                <View className="gap-1">
-                  {history.map((tx) => (
-                    <View key={tx.id} className="flex-row items-center justify-between rounded-lg p-2">
-                      <View className="flex-1 pr-2">
-                        <Text className="text-sm text-text-primary dark:text-text-primary-dark">{tx.reason.replace(/_/g, " ")}</Text>
-                        <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">{formatDate(tx.createdAt)}</Text>
+                <View className="gap-3">
+                  <Card className="overflow-hidden p-0">
+                    {history.map((tx, index) => (
+                      <View key={tx.id}>
+                        {index > 0 ? (
+                          <View className="mx-4 h-px bg-surface-secondary dark:bg-surface-secondary-dark" />
+                        ) : null}
+                        <View className="flex-row items-center justify-between px-4 py-3.5">
+                          <View className="flex-1 pr-2">
+                            <Text className="text-sm text-text-primary dark:text-text-primary-dark">
+                              {sentenceCaseReason(tx.reason)}
+                            </Text>
+                            <Text className="text-xs text-text-secondary dark:text-text-secondary-dark">
+                              {formatDate(tx.createdAt)}
+                            </Text>
+                          </View>
+                          <Text
+                            className={`text-sm font-semibold ${
+                              tx.points >= 0 ? "text-success dark:text-success-dark" : "text-danger dark:text-danger-dark"
+                            }`}
+                          >
+                            {tx.points >= 0 ? "+" : ""}
+                            {tx.points}
+                          </Text>
+                        </View>
                       </View>
-                      <Text className={`text-sm font-semibold ${tx.points >= 0 ? "text-success dark:text-success-dark" : "text-danger dark:text-danger-dark"}`}>
-                        {tx.points >= 0 ? "+" : ""}
-                        {tx.points}
-                      </Text>
-                    </View>
-                  ))}
+                    ))}
+                  </Card>
                   {historyCursor ? (
                     <Button variant="secondary" size="sm" onPress={() => void loadMoreHistory()} isLoading={historyLoading}>
                       Load more
