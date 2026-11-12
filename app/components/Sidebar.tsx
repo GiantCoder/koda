@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import Image from "next/image";
 import { useMockAuth } from "@/app/hooks/useMockAuth";
 import { useProfileAvatar } from "@/app/hooks/useProfileAvatar";
+import { useTheme } from "@/app/hooks/useTheme";
 
 function ProgressChartIcon() {
   return (
@@ -35,6 +36,19 @@ function UploadIcon() {
   return (
     <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+    </svg>
+  );
+}
+
+function MyUploadsIcon() {
+  return (
+    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+      />
     </svg>
   );
 }
@@ -164,6 +178,62 @@ function TrophyIcon() {
   );
 }
 
+/** Square K mark. Dark ink on light backgrounds, light ink on dark. */
+const COLLAPSED_LOGO = {
+  light: "/logos/modedark2.svg",
+  dark: "/logos/modedark=dark.svg",
+} as const;
+
+/**
+ * Horizontal Koda lockup. `koda.svg` is the light-ink wordmark.
+ * The dark-ink Koda lives in the left artboard of `mode=black.svg`
+ * (that file continues into the word "cricket", which we crop off).
+ */
+const KODA_ARTBOARD = { width: 726, height: 376 };
+const FULL_LOCKUP_WIDTH = 1584;
+
+function BrandLockup({
+  expanded,
+  theme,
+}: {
+  expanded: boolean;
+  theme: "light" | "dark";
+}) {
+  if (!expanded) {
+    return (
+      <img
+        src={COLLAPSED_LOGO[theme]}
+        alt="Koda"
+        className="h-10 w-10 shrink-0"
+      />
+    );
+  }
+
+  if (theme === "dark") {
+    return (
+      <img
+        src="/logos/koda.svg"
+        alt="Koda"
+        className="h-10 w-auto shrink-0"
+      />
+    );
+  }
+
+  return (
+    <span
+      className="relative block h-10 shrink-0 overflow-hidden"
+      style={{ aspectRatio: `${KODA_ARTBOARD.width} / ${KODA_ARTBOARD.height}` }}
+    >
+      <img
+        src="/logos/mode=black.svg"
+        alt="Koda"
+        className="absolute top-0 left-0 h-full max-w-none"
+        style={{ width: `${(FULL_LOCKUP_WIDTH / KODA_ARTBOARD.width) * 100}%` }}
+      />
+    </span>
+  );
+}
+
 const baseNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: HomeIcon },
   { href: "/explore", label: "Explore", icon: ExploreIcon },
@@ -176,7 +246,7 @@ const baseNavItems = [
   { href: "/messages", label: "Messages", icon: MessageIcon },
   { href: "/notifications", label: "Notifications", icon: BellIcon },
   { href: "/upload", label: "Upload", icon: UploadIcon },
-  { href: "/uploads", label: "My Uploads", icon: UploadIcon },
+  { href: "/uploads", label: "My Uploads", icon: MyUploadsIcon },
   { href: "/saved", label: "Saved", icon: BookmarkIcon },
   { href: "/shadow-batting", label: "Shadow Batting", icon: TargetIcon },
   { href: "/player-card", label: "Player Card", icon: IdCardIcon },
@@ -187,6 +257,7 @@ const baseNavItems = [
 export default function Sidebar() {
   const [isExpanded, setIsExpanded] = useState(false);
   const pathname = usePathname();
+  const { theme } = useTheme();
   const { user } = useMockAuth();
   const avatarUrl = useProfileAvatar();
   const role = user?.role ?? "coach";
@@ -202,24 +273,13 @@ export default function Sidebar() {
       onMouseEnter={() => setIsExpanded(true)}
       onMouseLeave={() => setIsExpanded(false)}
     >
-      <div className="flex h-16 items-center justify-center border-b border-[var(--surface-secondary)] px-4">
-        <Link href="/dashboard" className="flex items-center gap-3">
-          <Image
-            src="/koda.svg"
-            alt="Koda Cricket logo"
-            width={32}
-            height={32}
-            className="h-8 w-8 rounded-md object-cover"
-          />
-          {isExpanded && (
-            <span className="whitespace-nowrap text-lg font-bold text-[var(--text-primary)]">
-              Koda Cricket
-            </span>
-          )}
+      <div className="flex h-16 items-center border-b border-[var(--surface-secondary)] px-3">
+        <Link href="/dashboard" className="flex items-center rounded-lg px-3">
+          <BrandLockup expanded={isExpanded} theme={theme} />
         </Link>
       </div>
 
-      <nav className="flex-1 overflow-y-auto py-6">
+      <nav className="sidebar-nav flex-1 overflow-y-auto py-6 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
         <ul className="space-y-2 px-3">
           {navItems.map(({ href, label, icon: Icon }) => {
             const isActive = pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
