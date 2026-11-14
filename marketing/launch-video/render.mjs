@@ -1,7 +1,8 @@
 // Render the launch film to MP4 (+ a poster PNG of frame 1).
-//   node marketing/launch-video/render.mjs                 -> all formats
-//   node marketing/launch-video/render.mjs 4x5             -> one format
-//   node marketing/launch-video/render.mjs stills 4x5 0,3.5,5.2
+//   node marketing/launch-video/render.mjs                         -> all themes x all formats
+//   node marketing/launch-video/render.mjs 4x5 dark                -> filter by format and/or theme
+//   node marketing/launch-video/render.mjs stills 4x5 0,3.5,5.2 [theme]
+// Output goes to out/<OUT_DIR or 2026-11-12>/koda-launch-<theme>-<format>.mp4
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
 import { mkdirSync, readdirSync, existsSync } from 'node:fs';
@@ -17,6 +18,7 @@ const FORMATS = {
   '9x16': [1080, 1920], // Reels / Stories
   '16x9': [1920, 1080], // website banner / X / LinkedIn landscape
 };
+const THEMES = ['multi', 'dark', 'redcream', 'blue'];
 
 mkdirSync(OUT, { recursive: true });
 const args = process.argv.slice(2);
@@ -35,10 +37,10 @@ function findChromium() {
 let browser;
 try { browser = await chromium.launch(); } catch { browser = await chromium.launch({ executablePath: findChromium() }); }
 
-async function open(name) {
+async function open(name, theme = 'multi') {
   const [w, h] = FORMATS[name];
   const page = await browser.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: 1 });
-  await page.goto(pathToFileURL(path.join(DIR, 'index.html')).href + `?w=${w}&h=${h}&render`);
+  await page.goto(pathToFileURL(path.join(DIR, 'index.html')).href + `?w=${w}&h=${h}&theme=${theme}&render`);
   await page.waitForFunction(() => window.__ready === true);
   return page;
 }
@@ -51,19 +53,20 @@ async function frame(page, t) {
 if (args[0] === 'stills') {
   const name = args[1] || '4x5';
   const times = (args[2] || '0,3.5,5.2,7,8.9,10.8,12.2,14,15.9,19').split(',').map(Number);
-  const page = await open(name);
-  for (const t of times) {
-    const { writeFileSync } = await import('node:fs');
-    writeFileSync(path.join(OUT, `still-${name}-${t.toFixed(2)}.png`), await frame(page, t));
-  }
+  const theme = args[3] || 'multi';
+  const page = await open(name, theme);
+  const { writeFileSync } = await import('node:fs');
+  for (const t of times) writeFileSync(path.join(OUT, `still-${theme}-${name}-${t.toFixed(2)}.png`), await frame(page, t));
   console.log(`stills written to ${OUT}`);
 } else {
-  for (const name of args.length ? args : Object.keys(FORMATS)) {
-    const page = await open(name);
+  const fmts = args.filter(a => FORMATS[a]), ths = args.filter(a => THEMES.includes(a));
+  for (const theme of ths.length ? ths : THEMES) for (const name of fmts.length ? fmts : Object.keys(FORMATS)) {
+    const page = await open(name, theme);
     const duration = await page.evaluate(() => window.DURATION);
     const { writeFileSync } = await import('node:fs');
-    writeFileSync(path.join(OUT, `koda-launch-${name}-poster.png`), await frame(page, 0));
-    const file = path.join(OUT, `koda-launch-${name}.mp4`);
+    const base = `koda-launch-${theme}-${name}`;
+    writeFileSync(path.join(OUT, `${base}-poster.png`), await frame(page, 0));
+    const file = path.join(OUT, `${base}.mp4`);
     const ff = spawn('ffmpeg', [
       '-y', '-loglevel', 'error',
       '-f', 'image2pipe', '-framerate', String(FPS), '-i', '-',
@@ -78,11 +81,11 @@ if (args[0] === 'stills') {
     for (let i = 0; i < total; i++) {
       const buf = await frame(page, i / FPS);
       if (!ff.stdin.write(buf)) await new Promise(r => ff.stdin.once('drain', r));
-      if (i % 60 === 0) process.stdout.write(`\r${name} ${i}/${total}`);
+      if (i % 60 === 0) process.stdout.write(`\r${base} ${i}/${total}`);
     }
     ff.stdin.end();
     await new Promise((res, rej) => ff.on('close', c => (c === 0 ? res() : rej(new Error('ffmpeg ' + c)))));
-    console.log(`\r${name} done -> ${file}`);
+    console.log(`\r${base} done -> ${file}`);
     await page.close();
   }
 }

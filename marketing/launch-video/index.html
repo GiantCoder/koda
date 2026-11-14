@@ -2,10 +2,11 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Koda — 20s launch film</title>
+<title>Koda — launch film</title>
 <!--
   Koda launch film. Deterministic: every frame is a pure function of time.
-  Open with ?w=1080&h=1350 (4:5), ?w=1080&h=1920 (9:16) or ?w=1920&h=1080 (16:9).
+  Open with ?w=1080&h=1350 (4:5), ?w=1080&h=1920 (9:16) or ?w=1920&h=1080 (16:9),
+  and &theme=multi (default), &theme=dark, &theme=redcream or &theme=blue.
   window.seek(seconds) draws that exact frame; render.mjs uses it to export MP4.
   Open without ?render to preview it playing in a browser.
 -->
@@ -13,7 +14,7 @@
 <style>
   @font-face { font-family: Spline; src: url(fonts/SplineSans_700Bold.ttf); font-weight: 700; }
   @font-face { font-family: Spline; src: url(fonts/SplineSans_500Medium.ttf); font-weight: 500; }
-  html, body { margin: 0; padding: 0; overflow: hidden; background: #FFFDD0; }
+  html, body { margin: 0; padding: 0; overflow: hidden; }
   #stage { position: relative; overflow: hidden; font-family: Spline, sans-serif; }
   .panel { position: absolute; inset: 0; overflow: hidden; }
   .layer { position: absolute; inset: 0; }
@@ -34,22 +35,55 @@
 (() => {
   const Q = new URLSearchParams(location.search);
   const W = +Q.get('w') || 1080, H = +Q.get('h') || 1350;
-  const DURATION = 20;
+  const THEME = Q.get('theme') || 'multi';
 
   // Brand tokens, taken from the Koda codebase:
   //   primaries — public/logos/*.svg (Nov 2026 logo set): red #C41E24, dark #0F0F0F, cream #FFFDD0
   //   secondaries — app/globals.css: --primary (vibrant red), --cricket-green (light + dark theme),
-  //   --warning (orange); accents — app/components/player-card/playerCardThemes.ts (bronze/silver/gold).
+  //   --warning (orange), dark-theme --surface (#1A1D27); accents — playerCardThemes.ts (bronze/silver/gold).
   const C = {
-    red: '#C41E24',        // logo red — primary
-    charcoal: '#0F0F0F',   // logo dark — primary
-    cream: '#FFFDD0',      // logo cream — primary
+    red: '#C41E24', charcoal: '#0F0F0F', cream: '#FFFDD0',
     green: '#2D6A4F', green2: '#52B788',
     orange: '#F59E0B', yellow: '#FDE047',
-    vibrant: '#E63946',    // web --primary — secondary "vibrant red"
+    vibrant: '#E63946',
     white: '#FFFFFF', blue: '#7B93B0',
     bronze: '#CD7F32', silver: '#C0C0C0', gold: '#FFD700',
+    surface: '#1A1D27',
+    cyan: '#2AB7CA',       // logo blue — public/logos/mode=blue.svg
   };
+
+  // Panel roles: every colour a scene uses comes from its role, so one scene renders in any theme.
+  //   fg = text + line art, hi = highlighted word, acc = joints/markers, bio = measurements,
+  //   good/bad = strengths/weaknesses, card = the panel a UI visual sits on (cardFg/cardAcc inside it).
+  const ROLE = {};
+  ROLE.light = { bg: C.cream, fg: C.charcoal, icon: C.charcoal, iconA: 0.07, logoK: C.charcoal, logoBall: C.red,
+    hi: C.red, acc: C.red, bio: C.red, good: C.green, bad: C.orange, gold: C.bronze, grid: C.blue,
+    card: C.charcoal, cardFg: C.cream, cardAcc: C.vibrant, cardAccFg: C.cream, rib: [C.red, C.charcoal], pill: C.red, pillFg: C.white };
+  ROLE.lightR = { ...ROLE.light, card: C.red, cardAcc: C.gold, cardAccFg: C.charcoal };
+  ROLE.dark = { bg: C.charcoal, fg: C.cream, icon: C.cream, iconA: 0.06, logoK: C.cream, logoBall: C.red,
+    hi: C.vibrant, acc: C.vibrant, bio: C.yellow, good: C.green2, bad: C.orange, gold: C.gold, grid: C.blue,
+    card: C.surface, cardFg: C.cream, cardAcc: C.vibrant, cardAccFg: C.cream, rib: [C.red, C.cream], pill: C.red, pillFg: C.white };
+  ROLE.dark2 = { ...ROLE.dark, bg: C.surface, card: C.charcoal };
+  ROLE.red = { bg: C.red, fg: C.cream, icon: C.cream, iconA: 0.08, logoK: C.cream, logoBall: C.charcoal,
+    hi: C.gold, acc: C.charcoal, bio: C.gold, good: C.gold, bad: C.charcoal, gold: C.gold, grid: C.cream,
+    card: C.charcoal, cardFg: C.cream, cardAcc: C.vibrant, cardAccFg: C.cream, rib: [C.charcoal, C.cream], pill: C.charcoal, pillFg: C.cream };
+
+  // Blue: logo blue panels with charcoal type (cream on cyan is too low-contrast), alternating with charcoal.
+  // Highlights on blue use a cream highlighter mark (hiMark) instead of coloured text.
+  ROLE.blue = { bg: C.cyan, fg: C.charcoal, icon: C.charcoal, iconA: 0.09, logoK: C.charcoal, logoBall: C.red,
+    hi: C.charcoal, hiMark: C.cream, acc: C.red, bio: C.red, good: C.green, bad: C.red, gold: C.cream, grid: C.charcoal,
+    card: C.charcoal, cardFg: C.cream, cardAcc: C.cyan, cardAccFg: C.charcoal, rib: [C.red, C.cream], pill: C.charcoal, pillFg: C.cream };
+  ROLE.darkB = { ...ROLE.dark, hi: C.cyan, acc: C.cyan, logoK: C.cyan, logoBall: C.red, cardAcc: C.cyan, cardAccFg: C.charcoal, rib: [C.cyan, C.cream] };
+
+  //                  hook      analysis  progress  shadow   game      credib.  end
+  const THEMES = {
+    multi:    ['light', 'dark',  'light', 'red',   'dark',   'red',   'light'],
+    dark:     ['dark',  'dark2', 'dark',  'dark2', 'dark',   'dark2', 'dark'],
+    redcream: ['lightR', 'red',  'lightR', 'red',  'lightR', 'red',   'lightR'],
+    blue:     ['blue',  'darkB', 'blue',  'darkB', 'blue',   'darkB', 'blue'],
+  };
+  const ROLES = (THEMES[THEME] || THEMES.multi).map(k => ROLE[k]);
+  document.body.style.background = ROLES[0].bg;
 
   // ---------- math ----------
   const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
@@ -63,10 +97,14 @@
   const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
 
   // ---------- timeline ----------
-  // Hook (thumbnail) 0–2.5 · 8 one-idea beats of 1.75s · end card settled at 17.0, held to 20.0
-  const BEATS = [2.5, 4.25, 6.0, 7.75, 9.5, 11.25, 13.0, 14.75];
-  const END = 16.5;
-  const PANEL_START = [0, 2.5, 7.75, 11.25, END];
+  // Hook (thumbnail) 0–2.5 · 13 one-idea beats of 1.75s · end card from 25.25, settled ~25.75, held to 29.0
+  const BEAT = 1.75, NB = 13;
+  const BEATS = Array.from({ length: NB }, (_, i) => 2.5 + i * BEAT);
+  const END = 2.5 + NB * BEAT;
+  const DURATION = 29;
+  // scene first beats: analysis 0–2, progress 3–4, shadow 5–6, gamification 7–9, credibility 10–12
+  const SC = { analysis: 0, progress: 3, shadow: 5, game: 7, cred: 10 };
+  const PANEL_START = [0, BEATS[0], BEATS[3], BEATS[5], BEATS[7], BEATS[10], END];
   const beatEnd = i => (i + 1 < BEATS.length ? BEATS[i + 1] : END);
 
   // ---------- layout ----------
@@ -78,7 +116,7 @@
     L.vis = { x: W - mx - vs, y: (H - vs) / 2, s: vs };
     L.text = { x: mx, y: my, w: L.vis.x - mx - W * 0.045, h: H - 2 * my, align: 'left' };
     L.fs = H * 0.083;
-    L.logo = { x: mx, y: my * 0.62, s: H * 0.075 };
+    L.logo = { x: mx, y: my * 0.62, s: H * 0.068 };
     L.safe = { x: mx, y: my, w: W - 2 * mx, h: H - 2 * my };
     L.heroFs = H * 0.095;
   } else {
@@ -86,7 +124,7 @@
     const side = W * 0.085;
     const top = tall ? H * 0.13 : H * 0.07;      // 9:16 keeps clear of Reels/Stories UI
     const bottom = tall ? H * 0.2 : H * 0.07;
-    L.logo = { x: side, y: top, s: MN * 0.075 };
+    L.logo = { x: side, y: top, s: MN * 0.068 };
     const vTop = top + MN * 0.115;
     const vs = Math.min(W - 2 * side, (H - vTop - bottom) * 0.64);
     L.vis = { x: (W - vs) / 2, y: vTop, s: vs };
@@ -101,46 +139,73 @@
   const NS = 'http://www.w3.org/2000/svg';
   const el = (tag, cls, parent, css) => { const e = document.createElement(tag); if (cls) e.className = cls; if (css) Object.assign(e.style, css); parent && parent.appendChild(e); return e; };
   const s = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent && parent.appendChild(e); return e; };
+  const txt = (parent, x, y, str, size, fill, anchor = 'start', weight = 700) => { const e = s('text', { x, y, fill, 'font-size': size, 'font-weight': weight, 'font-family': 'Spline', 'text-anchor': anchor }, parent); e.textContent = str; return e; };
   const px = v => v + 'px';
 
   const stage = document.getElementById('stage');
   stage.style.width = px(W); stage.style.height = px(H);
 
-  // Logo: the new Koda lockup / mark from public/logos (see logos.js, build-logos.mjs).
-  // Mark spans x 96–340, lockup x 96–1588, both y 44–332 in the source 376-high artboard.
+  // Logo: the new Koda artwork from public/logos (see logos.js, build-logos.mjs).
+  // variant 'mark' = the K, 'koda' = K + "oda" (public/logos/koda.svg), 'lockup' = "kodacricket".
+  // All share the source artboard's y 44–332; x runs 96 → 340 / 726 / 1588.
   let logoN = 0;
+  const LOGO_W = { mark: 244, koda: 630, lockup: 1492 };
   function logo(parent, height, kFill, ballFill, variant = 'mark') {
-    const vbW = variant === 'lockup' ? 1492 : 244;
+    const vbW = LOGO_W[variant];
     const L0 = window.KODA_LOGO, id = 'klogo' + (logoN++);
-    const body = L0.mark + (variant === 'lockup' ? L0.oda + L0.cricket : '');
+    const body = L0.mark + (variant !== 'mark' ? L0.oda : '') + (variant === 'lockup' ? L0.cricket : '');
     const svg = s('svg', { viewBox: `96 44 ${vbW} 288`, width: height * vbW / 288, height, fill: 'none' }, parent);
     svg.innerHTML = body.replace(/%ID%/g, id).replace(/%K%/g, kFill).replace(/%A%/g, ballFill);
     const top = [...svg.children].filter(n => n.tagName === 'path');
     return { svg, ring: top[0], trail: top[1], ball: top[2] };
   }
-  // Ball "drive": a small hop of the ball and trail, used as a living accent on the mark.
+  // Ball "drive": a small hop of the ball and trail, used as a living accent on the logo.
   function ballHop(lg, t, t0, period = 1.6) {
     const k = t > t0 ? ((t - t0) % period) / period : 0;
-    const hop = Math.sin(Math.min(1, k / 0.45) * Math.PI) * (k < 0.45 ? 1 : 0);
+    const hop = k < 0.45 ? Math.sin(k / 0.45 * Math.PI) : 0;
     lg.ball.setAttribute('transform', `translate(${hop * 10} ${-hop * 14})`);
     lg.trail.setAttribute('transform', `translate(${hop * 5} ${-hop * 7})`);
   }
 
-  // Background cricket icons (outline). Ball with seam; bat with handle + blade.
+  // Cricket ball: one straight-on seam band (two parallel rows of stitching) — not baseball "C" curves.
+  // Seam lines are gentle parallel arcs; stitches are short ticks on the outside of each line.
+  function cricketBall(g, r, stroke, sw, fill) {
+    s('circle', { r, fill: fill || 'none', stroke, 'stroke-width': sw }, g);
+    const gap = r * 0.13, bow = r * 0.32;
+    [-1, 1].forEach(side => {
+      const y0 = side * gap;
+      const P = u => { const x = lerp(-r, r, u); const y = y0 - bow * (1 - Math.pow(2 * u - 1, 2)); return [x, y]; };
+      const pts = []; for (let i = 0; i <= 16; i++) pts.push(P(i / 16));
+      // keep the seam inside the circle
+      const inside = pts.filter(([x, y]) => x * x + y * y < r * r * 0.97);
+      s('path', { d: 'M' + inside.map(q => q.map(v => v.toFixed(2)).join(' ')).join('L'), stroke, 'stroke-width': sw * 0.85, fill: 'none' }, g);
+      for (let i = 2; i <= 14; i += 1.5) {
+        const [x, y] = P(i / 16);
+        if (x * x + y * y > r * r * 0.72) continue;
+        const [x2, y2] = P(i / 16 + 0.01);
+        let nx = -(y2 - y), ny = x2 - x; const nl = Math.hypot(nx, ny); nx /= nl; ny /= nl;
+        if (ny * side < 0) { nx = -nx; ny = -ny; }        // point away from the seam centre
+        const k = r * 0.16;
+        s('path', { d: `M${x.toFixed(2)} ${y.toFixed(2)}l${(nx * k + (side * 0.25) * k).toFixed(2)} ${(ny * k).toFixed(2)}`, stroke, 'stroke-width': sw * 0.6, 'stroke-linecap': 'round' }, g);
+      }
+    });
+    return g;
+  }
+
+  // Background cricket icons (outline).
   function iconSvg(kind, color) {
     const svg = s('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: color, 'stroke-width': 1.3, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' });
     if (kind === 'ball') {
-      s('circle', { cx: 12, cy: 12, r: 9.5 }, svg);
-      s('path', { d: 'M7 4.2c2.6 4.7 2.6 10.9 0 15.6M17 4.2c-2.6 4.7-2.6 10.9 0 15.6' }, svg);
-      s('path', { d: 'M8.6 7.5l1.2-.4M8.9 12l1.3 0M8.6 16.5l1.2.4M15.4 7.5l-1.2-.4M15.1 12l-1.3 0M15.4 16.5l-1.2.4', 'stroke-width': .9 }, svg);
+      const g = s('g', { transform: 'translate(12 12) rotate(-18)' }, svg);
+      cricketBall(g, 9.5, color, 1.3);
     } else {
-      s('path', { d: 'M12 1.5v6.5' , 'stroke-width': 2.2 }, svg);
+      s('path', { d: 'M12 1.5v6.5', 'stroke-width': 2.2 }, svg);
       s('rect', { x: 9.2, y: 8, width: 5.6, height: 14.5, rx: 2.4 }, svg);
       s('path', { d: 'M12 10.5v9', 'stroke-width': .8 }, svg);
     }
     return svg;
   }
-  function addIcons(parent, color, opacity, n, avoid) {
+  function addIcons(parent, color, opacity, n) {
     const items = [];
     for (let i = 0; i < n; i++) {
       const size = MN * lerp(0.075, 0.13, rnd());
@@ -157,7 +222,8 @@
     });
   }
 
-  // Headline: words in masks so each one rises into place.
+  // Headline: words in masks so each one rises into place. Style: { color } or { mark } (highlighter).
+  const HI = R => (R.hiMark ? { mark: R.hiMark } : { color: R.hi });
   function headline(parent, words, color, fs, align) {
     const h = el('div', 'head', parent, { color, fontSize: px(fs), textAlign: align });
     const ws = [];
@@ -183,97 +249,100 @@
     hd.h.style.opacity = 1 - o;
     hd.h.style.transform = `translateY(${-o * 0.25}em)`;
   }
-  // Vertically centre a headline within its text box (it is absolutely positioned so beats can overlap).
   function placeHeads(box, heads) { heads.forEach(hd => { hd.h.style.top = px((box.offsetHeight - hd.h.offsetHeight) / 2); }); }
 
-  function panel(bg) { return el('div', 'panel', stage, { background: bg }); }
+  function panel(R) { return el('div', 'panel', stage, { background: R.bg }); }
   function textBox(parent) { return el('div', 'tbox', parent, { left: px(L.text.x), top: px(L.text.y), width: px(L.text.w), height: px(L.text.h) }); }
   function visBox(parent) {
     const d = el('div', 'vis', parent, { left: px(L.vis.x), top: px(L.vis.y), width: px(L.vis.s), height: px(L.vis.s) });
     return s('svg', { viewBox: '0 0 100 100' }, d);
   }
-  function cornerLogo(parent, k, dot) {
+  // Corner logo on content scenes: the "koda" wordmark (K + oda), as in public/logos/koda.svg.
+  function cornerLogo(parent, R) {
     const d = el('div', '', parent, { position: 'absolute', left: px(L.logo.x), top: px(L.logo.y), lineHeight: 0 });
-    logo(d, L.logo.s * 1.15, k, dot);
-    return d;
+    return logo(d, L.logo.s, R.logoK, R.logoBall, 'koda');
+  }
+  // Scene scaffold: panel, floating icons, corner logo, visual box, text box, headlines for its beats.
+  function scene(R, beat0, headWords) {
+    const p = panel(R); panels.push(p);
+    updaters.push(addIcons(el('div', 'layer', p), R.icon, R.iconA, 9));
+    const lg = cornerLogo(p, R);
+    const v = visBox(p);
+    const tb = textBox(p);
+    const heads = headWords.map(ws => headline(tb, ws, R.fg, L.fs, L.text.align));
+    updaters.push(t => { heads.forEach((hd, i) => animHeadline(hd, t, BEATS[beat0 + i], beatEnd(beat0 + i) - 0.4)); ballHop(lg, t, BEATS[beat0] + 0.6, 1.75); });
+    updaters.push(() => placeHeads(tb, heads));
+    return { p, v };
   }
   const lineDraw = (e, p) => { e.setAttribute('pathLength', 1); e.style.strokeDasharray = '1 1'; e.style.strokeDashoffset = 1 - p; };
   const tf = (e, x, y, sc = 1, r = 0) => e.setAttribute('transform', `translate(${x} ${y}) rotate(${r}) scale(${sc})`);
+  const fade = (e, o) => e.setAttribute('opacity', o);
 
   const updaters = [];
   const panels = [];
 
   // ================= P0 · HOOK (thumbnail) =================
   {
-    const p = panel(C.cream); panels.push(p);
-    updaters.push(addIcons(el('div', 'layer', p), C.charcoal, 0.07, 9));
+    const R = ROLES[0];
+    const p = panel(R); panels.push(p);
+    updaters.push(addIcons(el('div', 'layer', p), R.icon, R.iconA, 9));
     const c = el('div', 'center', p, { left: px(L.safe.x), top: px(L.safe.y), width: px(L.safe.w), height: px(L.safe.h) });
-    const lg = logo(c, Math.min(MN * 0.17, L.safe.w * 0.86 * 288 / 1492), C.charcoal, C.red, 'lockup');
+    const lg = logo(c, Math.min(MN * 0.17, L.safe.w * 0.86 * 288 / 1492), R.logoK, R.logoBall, 'lockup');
     const hd = headline(el('div', '', c, { position: 'relative', marginTop: px(MN * 0.055), width: '100%', maxWidth: px(ar > 1.2 ? W * 0.62 : L.safe.w) }),
-      ['Enhance', 'your', 'cricketing', 'future', 'with', ['AI.', { color: C.red }]], C.charcoal, L.heroFs, 'center');
+      ['Enhance', 'your', 'cricketing', 'future', 'with', ['AI.', HI(R)]], R.fg, L.heroFs, 'center');
     hd.h.style.position = 'relative';
     updaters.push(t => {
       ballHop(lg, t, 0.35, 1.5);
-      const drift = eio(prog(t, 2.0, 0.5));
-      c.style.transform = `scale(${1 - drift * 0.04})`;
+      c.style.transform = `scale(${1 - eio(prog(t, 2.0, 0.5)) * 0.04})`;
     });
   }
 
-  // ================= P1 · ANALYSIS (charcoal) =================
+  // ================= P1 · ANALYSIS =================
   {
-    const p = panel(C.charcoal); panels.push(p);
-    updaters.push(addIcons(el('div', 'layer', p), C.cream, 0.06, 9));
-    cornerLogo(p, C.cream, C.vibrant);
-    const v = visBox(p);
-    const tb = textBox(p);
-    const heads = [
-      headline(tb, [['AI-powered', { color: C.vibrant }], 'cricket', 'coaching'], C.cream, L.fs, L.text.align),
-      headline(tb, ['Detailed', ['biometric', { color: C.yellow }], 'analysis'], C.cream, L.fs, L.text.align),
-      headline(tb, ['Identify', 'each', "player's", ['strengths', { color: C.green2 }], 'and', ['weaknesses', { color: C.orange }]], C.cream, L.fs, L.text.align),
-    ];
+    const R = ROLES[1], b0 = SC.analysis;
+    const { v } = scene(R, b0, [
+      [['AI-powered', HI(R)], 'cricket', 'coaching'],
+      ['Detailed', ['biometric', { color: R.bio }], 'analysis'],
+      ['Identify', 'each', "player's", ['strengths', { color: R.good }], 'and', ['weaknesses', { color: R.bad }]],
+    ]);
 
-    // tracking grid + brackets
-    const grid = s('g', { stroke: C.blue, 'stroke-width': .18 }, v);
+    const grid = s('g', { stroke: R.grid, 'stroke-width': .18 }, v);
     for (let i = 10; i < 100; i += 10) { s('line', { x1: i, y1: 2, x2: i, y2: 98 }, grid); s('line', { x1: 2, y1: i, x2: 98, y2: i }, grid); }
-    const br = s('g', { stroke: C.blue, 'stroke-width': .9, fill: 'none', 'stroke-linecap': 'round' }, v);
-    const brackets = [['M20 12V5h7'], ['M80 12V5h-7'], ['M20 88v7h7'], ['M80 88v7h-7']].map(([d]) => s('path', { d }, br));
+    const br = s('g', { stroke: R.grid, 'stroke-width': .9, fill: 'none', 'stroke-linecap': 'round' }, v);
+    const brackets = ['M20 12V5h7', 'M80 12V5h-7', 'M20 88v7h7', 'M80 88v7h-7'].map(d => s('path', { d }, br));
 
-    // batter, side-on stance
     const J = { head: [50, 14], neck: [50, 23], shF: [44.5, 26.5], shB: [56, 27.5], elF: [40.5, 37.5], elB: [59.5, 37], wrF: [49, 46], wrB: [51.5, 44.5],
       hip: [50, 52], hipF: [46, 53], hipB: [55, 52.5], knF: [38.5, 68], knB: [61, 68], anF: [41, 85], anB: [59.5, 85] };
     const fig = s('g', {}, v);
-    const bat = s('g', { 'stroke-linecap': 'round' }, fig);
-    const batH = s('line', { x1: 50.3, y1: 45, x2: 52.6, y2: 56, stroke: C.cream, 'stroke-width': 1.7 }, bat);
-    const batB = s('line', { x1: 52.6, y1: 56.5, x2: 57.2, y2: 86, stroke: C.bronze, 'stroke-width': 5 }, bat);
+    const batH = s('line', { x1: 50.3, y1: 45, x2: 52.6, y2: 56, stroke: R.fg, 'stroke-width': 1.7, 'stroke-linecap': 'round' }, fig);
+    const batB = s('line', { x1: 52.6, y1: 56.5, x2: 57.2, y2: 86, stroke: C.bronze, 'stroke-width': 5, 'stroke-linecap': 'round' }, fig);
     const BONES = [['neck', 'shF'], ['neck', 'shB'], ['shF', 'elF'], ['elF', 'wrF'], ['shB', 'elB'], ['elB', 'wrB'], ['neck', 'hip'], ['hip', 'hipF'], ['hip', 'hipB'], ['hipF', 'knF'], ['knF', 'anF'], ['hipB', 'knB'], ['knB', 'anB']];
-    const bones = BONES.map(([a, b]) => s('path', { d: `M${J[a]}L${J[b]}`, stroke: C.cream, 'stroke-width': 1.5, 'stroke-linecap': 'round', fill: 'none' }, fig));
-    const headC = s('circle', { cx: J.head[0], cy: J.head[1], r: 5, stroke: C.cream, 'stroke-width': 1.5, fill: 'none' }, fig);
-    const JOINTS = ['shF', 'shB', 'elF', 'elB', 'wrF', 'hipF', 'hipB', 'knF', 'knB', 'anF', 'anB'];
-    const joints = JOINTS.map(k => {
+    const bones = BONES.map(([a, b]) => s('path', { d: `M${J[a]}L${J[b]}`, stroke: R.fg, 'stroke-width': 1.5, 'stroke-linecap': 'round', fill: 'none' }, fig));
+    const headC = s('circle', { cx: J.head[0], cy: J.head[1], r: 5, stroke: R.fg, 'stroke-width': 1.5, fill: 'none' }, fig);
+    const joints = ['shF', 'shB', 'elF', 'elB', 'wrF', 'hipF', 'hipB', 'knF', 'knB', 'anF', 'anB'].map(k => {
       const g = s('g', {}, fig);
-      const ring = s('circle', { cx: 0, cy: 0, r: 3.2, fill: C.vibrant, opacity: .25 }, g);
-      s('circle', { cx: 0, cy: 0, r: 1.9, fill: C.vibrant }, g);
+      const ring = s('circle', { r: 3.2, fill: R.acc, opacity: .25 }, g);
+      s('circle', { r: 1.9, fill: R.acc }, g);
       return { g, ring, k };
     });
-    // scan line
     const scan = s('g', {}, v);
-    s('rect', { x: 6, y: -8, width: 88, height: 8, fill: C.vibrant, opacity: .12 }, scan);
-    s('line', { x1: 6, y1: 0, x2: 94, y2: 0, stroke: C.vibrant, 'stroke-width': .5 }, scan);
+    s('rect', { x: 6, y: -8, width: 88, height: 8, fill: R.acc, opacity: .12 }, scan);
+    s('line', { x1: 6, y1: 0, x2: 94, y2: 0, stroke: R.acc, 'stroke-width': .5 }, scan);
 
     // biometric angles — values are the real angles of the drawn pose
     const ang = (a, o, b) => { const v1 = [J[a][0] - J[o][0], J[a][1] - J[o][1]], v2 = [J[b][0] - J[o][0], J[b][1] - J[o][1]];
       return Math.acos((v1[0] * v2[0] + v1[1] * v2[1]) / Math.hypot(...v1) / Math.hypot(...v2)) * 180 / Math.PI; };
-    function angleMark(a, o, b, labelDx, labelDy) {
+    function angleMark(a, o, b, dx, dy) {
       const g = s('g', {}, v);
       const [ox, oy] = J[o], r = 5.5;
       const a1 = Math.atan2(J[a][1] - oy, J[a][0] - ox), a2 = Math.atan2(J[b][1] - oy, J[b][0] - ox);
       let da = a2 - a1; while (da > Math.PI) da -= 2 * Math.PI; while (da < -Math.PI) da += 2 * Math.PI;
-      const arc = s('path', { d: `M${ox + r * Math.cos(a1)} ${oy + r * Math.sin(a1)}A${r} ${r} 0 0 ${da > 0 ? 1 : 0} ${ox + r * Math.cos(a2)} ${oy + r * Math.sin(a2)}`, stroke: C.yellow, 'stroke-width': .9, fill: 'none' }, g);
-      const label = s('text', { x: ox + labelDx, y: oy + labelDy, fill: C.yellow, 'font-size': 5, 'font-weight': 700, 'font-family': 'Spline', 'text-anchor': 'middle' }, g);
+      const arc = s('path', { d: `M${ox + r * Math.cos(a1)} ${oy + r * Math.sin(a1)}A${r} ${r} 0 0 ${da > 0 ? 1 : 0} ${ox + r * Math.cos(a2)} ${oy + r * Math.sin(a2)}`, stroke: R.bio, 'stroke-width': .9, fill: 'none' }, g);
+      const label = txt(g, ox + dx, oy + dy, '', 5, R.bio, 'middle');
       return { g, arc, label, val: Math.round(ang(a, o, b)) };
     }
     const angles = [angleMark('shB', 'elB', 'wrB', 11, 2), angleMark('hipF', 'knF', 'anF', -10, 2), angleMark('hipB', 'knB', 'anB', 10, 2)];
-    const stride = s('g', { stroke: C.blue, 'stroke-width': .7 }, v);
+    const stride = s('g', { stroke: R.grid, 'stroke-width': .7 }, v);
     const strideL = s('line', { x1: J.anF[0], y1: 92, x2: J.anB[0], y2: 92 }, stride);
     s('line', { x1: J.anF[0], y1: 90, x2: J.anF[0], y2: 94 }, stride); s('line', { x1: J.anB[0], y1: 90, x2: J.anB[0], y2: 94 }, stride);
 
@@ -281,12 +350,12 @@
     const radar = s('g', {}, v);
     const RC = [50, 50], RR = 36, VALS = [0.92, 0.68, 0.5, 0.86, 0.34, 0.7];
     const pt = (i, r) => { const a = (-90 + i * 60) * Math.PI / 180; return [RC[0] + Math.cos(a) * r, RC[1] + Math.sin(a) * r]; };
-    [1, .66, .33].forEach(k => s('polygon', { points: [0, 1, 2, 3, 4, 5].map(i => pt(i, RR * k)).join(' '), fill: 'none', stroke: C.cream, 'stroke-opacity': .2, 'stroke-width': .35 }, radar));
-    for (let i = 0; i < 6; i++) s('line', { x1: RC[0], y1: RC[1], x2: pt(i, RR)[0], y2: pt(i, RR)[1], stroke: C.cream, 'stroke-opacity': .2, 'stroke-width': .35 }, radar);
-    const poly = s('polygon', { fill: C.green2, 'fill-opacity': .35, stroke: C.green2, 'stroke-width': 1, 'stroke-linejoin': 'round' }, radar);
+    [1, .66, .33].forEach(k => s('polygon', { points: [0, 1, 2, 3, 4, 5].map(i => pt(i, RR * k)).join(' '), fill: 'none', stroke: R.fg, 'stroke-opacity': .2, 'stroke-width': .35 }, radar));
+    for (let i = 0; i < 6; i++) s('line', { x1: RC[0], y1: RC[1], x2: pt(i, RR)[0], y2: pt(i, RR)[1], stroke: R.fg, 'stroke-opacity': .2, 'stroke-width': .35 }, radar);
+    const poly = s('polygon', { fill: R.good, 'fill-opacity': .35, stroke: R.good, 'stroke-width': 1, 'stroke-linejoin': 'round' }, radar);
     const vdots = VALS.map((vv, i) => {
       const strong = vv > 0.8, weak = vv < 0.4;
-      const col = strong ? C.green2 : weak ? C.orange : C.cream;
+      const col = strong ? R.good : weak ? R.bad : R.fg;
       const g = s('g', {}, radar);
       const ring = s('circle', { r: 4, fill: 'none', stroke: col, 'stroke-width': .7 }, g);
       s('circle', { r: strong || weak ? 2.2 : 1.4, fill: col }, g);
@@ -299,79 +368,73 @@
       return { g, ring, sym, i, vv, emph: strong || weak };
     });
 
+    const T0 = BEATS[b0];
     updaters.push(t => {
-      // heads
-      heads.forEach((hd, i) => animHeadline(hd, t, BEATS[i], beatEnd(i) - 0.4));
-      // grid + brackets
-      const figOut = eio(prog(t, 5.95, 0.4));
-      grid.setAttribute('opacity', (eo(prog(t, 2.55, 0.5)) * (1 - figOut * .6)) * .5);
-      brackets.forEach((b, i) => lineDraw(b, eo(prog(t, 2.7 + i * 0.05, 0.4))));
-      br.setAttribute('opacity', 1 - figOut);
-      // figure
-      bones.forEach((b, i) => lineDraw(b, eo(prog(t, 2.75 + i * 0.03, 0.35))));
-      lineDraw(headC, eo(prog(t, 2.7, 0.4)));
-      const bp = eo(prog(t, 3.05, 0.4));
-      batH.setAttribute('opacity', bp); batB.setAttribute('opacity', bp);
+      const u = t - T0;
+      const figOut = eio(prog(u, 3.45, 0.4));
+      fade(grid, (eo(prog(u, 0.05, 0.5)) * (1 - figOut * .6)) * .5);
+      brackets.forEach((b, i) => lineDraw(b, eo(prog(u, 0.2 + i * 0.05, 0.4))));
+      fade(br, 1 - figOut);
+      bones.forEach((b, i) => lineDraw(b, eo(prog(u, 0.25 + i * 0.03, 0.35))));
+      lineDraw(headC, eo(prog(u, 0.2, 0.4)));
+      const bp = eo(prog(u, 0.55, 0.4)); fade(batH, bp); fade(batB, bp);
       joints.forEach((j, i) => {
-        const pop = back(prog(t, 2.6 + i * 0.045, 0.35));
-        const pulse = t > 4.25 ? 1 + 0.5 * Math.max(0, Math.sin((t - 4.25 - i * 0.07) * 4)) : 1;
-        tf(j.g, J[j.k][0], J[j.k][1], pop);
+        const pulse = u > 1.75 ? 1 + 0.5 * Math.max(0, Math.sin((u - 1.75 - i * 0.07) * 4)) : 1;
+        tf(j.g, J[j.k][0], J[j.k][1], back(prog(u, 0.1 + i * 0.045, 0.35)));
         j.ring.setAttribute('r', 3.2 * pulse);
       });
-      fig.setAttribute('opacity', 1 - figOut);
+      fade(fig, 1 - figOut);
       fig.setAttribute('transform', `translate(50 50) scale(${1 - figOut * .15}) translate(-50 -50)`);
-      // scan sweeps
-      const sw1 = prog(t, 2.85, 1.2), sw2 = prog(t, 4.35, 1.2);
-      const sw = t < 4.3 ? sw1 : sw2;
+      const sw = u < 1.8 ? prog(u, 0.35, 1.2) : prog(u, 1.85, 1.2);
       scan.setAttribute('transform', `translate(0 ${6 + 88 * eio(sw)})`);
-      scan.setAttribute('opacity', Math.sin(sw * Math.PI) * (1 - figOut));
-      // angles
+      fade(scan, Math.sin(sw * Math.PI) * (1 - figOut));
       angles.forEach((a, i) => {
-        const ap = eo(prog(t, 4.45 + i * 0.15, 0.5));
+        const ap = eo(prog(u, 1.95 + i * 0.15, 0.5));
         lineDraw(a.arc, ap);
         a.label.textContent = Math.round(a.val * ap) + '°';
-        a.g.setAttribute('opacity', ap * (1 - figOut));
+        fade(a.g, ap * (1 - figOut));
       });
-      lineDraw(strideL, eo(prog(t, 4.9, 0.45)));
-      stride.setAttribute('opacity', prog(t, 4.9, 0.1) * (1 - figOut));
-      // radar
-      const rIn = eo(prog(t, 6.1, 0.45)), grow = eo(prog(t, 6.25, 0.7));
-      const rOut = 0; // scene ends with the wipe
-      radar.setAttribute('opacity', rIn);
+      lineDraw(strideL, eo(prog(u, 2.4, 0.45)));
+      fade(stride, prog(u, 2.4, 0.1) * (1 - figOut));
+      const rIn = eo(prog(u, 3.6, 0.45)), grow = eo(prog(u, 3.75, 0.7));
+      fade(radar, rIn);
       radar.setAttribute('transform', `translate(50 50) scale(${0.85 + 0.15 * rIn}) rotate(${(1 - rIn) * -20}) translate(-50 -50)`);
       poly.setAttribute('points', VALS.map((vv, i) => pt(i, RR * vv * grow)).join(' '));
       vdots.forEach(d => {
         const [x, y] = pt(d.i, RR * d.vv * grow);
         tf(d.g, x, y, 1);
-        const pp = d.emph ? back(prog(t, 6.75 + d.i * 0.05, 0.35)) : 1;
-        const pulse = d.emph ? (t - 7) % 0.9 / 0.9 : 0;
+        const pp = d.emph ? back(prog(u, 4.25 + d.i * 0.05, 0.35)) : 1;
+        const pulse = d.emph ? (u - 4.5) % 0.9 / 0.9 : 0;
         d.ring.setAttribute('r', d.emph ? 2.5 + 4 * clamp(pulse) : 0);
-        d.ring.setAttribute('opacity', d.emph && t > 7 ? 1 - clamp(pulse) : 0);
-        d.g.setAttribute('opacity', grow);
+        fade(d.ring, d.emph && u > 4.5 ? 1 - clamp(pulse) : 0);
+        fade(d.g, grow);
         if (d.sym) { const [sx, sy] = pt(d.i, RR * d.vv * grow + 7.5); tf(d.sym, sx, sy, pp); }
       });
     });
-    updaters.push(() => placeHeads(tb, heads));
   }
 
-  // ================= P2 · PROGRESS (cream) =================
-  {
-    const p = panel(C.cream); panels.push(p);
-    updaters.push(addIcons(el('div', 'layer', p), C.charcoal, 0.07, 9));
-    cornerLogo(p, C.charcoal, C.red);
-    const v = visBox(p);
-    const tb = textBox(p);
-    const heads = [
-      headline(tb, ['Track', 'your', ['progress', { color: C.red }], 'over', 'time'], C.charcoal, L.fs, L.text.align),
-      headline(tb, ['Track', 'improvements', 'in', ['batting,', { mark: C.green2 }], ['bowling', { mark: C.orange }], 'and', ['fielding', { mark: C.yellow }]], C.charcoal, L.fs, L.text.align),
-    ];
-    const card = s('g', {}, v);
-    s('rect', { x: 3, y: 5, width: 94, height: 90, rx: 6, fill: C.charcoal }, card);
+  // Small row icons used inside cards
+  function rowIcon(kind, parent, fg, acc) {
+    const g = s('g', { fill: 'none', stroke: fg, 'stroke-width': 1.2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, parent);
+    if (kind === 'bat') { s('path', { d: 'M-4.5 -4.5L-2.2 -2.2', 'stroke-width': 1.8 }, g); s('rect', { x: -1.6, y: -2.6, width: 3.6, height: 10, rx: 1.5, transform: 'rotate(-45)' }, g); }
+    if (kind === 'ball') { const b = s('g', { transform: 'rotate(-18)' }, g); cricketBall(b, 5, fg, 0.8, acc); }
+    if (kind === 'glove') { s('path', { d: 'M-4.2 0.5V-2.5a1.05 1.05 0 0 1 2.1 0V-4.2a1.05 1.05 0 0 1 2.1 0V-4.6a1.05 1.05 0 0 1 2.1 0V-3.8a1.05 1.05 0 0 1 2.1 0V1.2a4.2 4.2 0 0 1-4.2 4.2h-.6a3.6 3.6 0 0 1-3.6-3.6Z' }, g); s('circle', { cx: 4.3, cy: -6.2, r: 1.5, fill: acc, stroke: 'none' }, g); }
+    return g;
+  }
+  const barCol = v => v > 0.8 ? C.green2 : v < 0.7 ? C.orange : C.yellow;
 
-    // chart
+  // ================= P2 · PROGRESS =================
+  {
+    const R = ROLES[2], b0 = SC.progress;
+    const { v } = scene(R, b0, [
+      ['Track', 'your', ['progress', HI(R)], 'over', 'time'],
+      ['Track', 'improvements', 'in', ['batting,', { mark: C.green2 }], ['bowling', { mark: C.orange }], 'and', ['fielding', { mark: C.yellow }]],
+    ]);
+    const card = s('g', {}, v);
+    s('rect', { x: 3, y: 5, width: 94, height: 90, rx: 6, fill: R.card }, card);
     const chart = s('g', {}, card);
-    [30, 50, 70].forEach(y => s('line', { x1: 12, y1: y, x2: 88, y2: y, stroke: C.cream, 'stroke-opacity': .1, 'stroke-width': .35 }, chart));
-    s('line', { x1: 12, y1: 82, x2: 88, y2: 82, stroke: C.cream, 'stroke-opacity': .35, 'stroke-width': .45 }, chart);
+    [30, 50, 70].forEach(y => s('line', { x1: 12, y1: y, x2: 88, y2: y, stroke: R.cardFg, 'stroke-opacity': .1, 'stroke-width': .35 }, chart));
+    s('line', { x1: 12, y1: 82, x2: 88, y2: 82, stroke: R.cardFg, 'stroke-opacity': .35, 'stroke-width': .45 }, chart);
     const YS = [72, 65, 68, 58, 60, 49, 43, 33, 22];
     const P = YS.map((y, i) => [12 + i * 9.5, y]);
     const dLine = 'M' + P.map(q => q.join(' ')).join('L');
@@ -379,113 +442,297 @@
     const cp = s('clipPath', { id: 'reveal' }, defs);
     const cpr = s('rect', { x: 10, y: 0, width: 0, height: 100 }, cp);
     const grad = s('linearGradient', { id: 'area', x1: 0, y1: 0, x2: 0, y2: 1 }, defs);
-    s('stop', { offset: 0, 'stop-color': C.vibrant, 'stop-opacity': .45 }, grad);
-    s('stop', { offset: 1, 'stop-color': C.vibrant, 'stop-opacity': 0 }, grad);
+    s('stop', { offset: 0, 'stop-color': R.cardAcc, 'stop-opacity': .45 }, grad);
+    s('stop', { offset: 1, 'stop-color': R.cardAcc, 'stop-opacity': 0 }, grad);
     s('path', { d: dLine + 'L88 82L12 82Z', fill: 'url(#area)', 'clip-path': 'url(#reveal)' }, chart);
-    const line = s('path', { d: dLine, stroke: C.vibrant, 'stroke-width': 1.6, fill: 'none', 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, chart);
-    const cdots = P.map(([x, y], i) => s('circle', { cx: x, cy: y, r: i === P.length - 1 ? 2.3 : 1.3, fill: i === P.length - 1 ? C.gold : C.cream }, chart));
+    const line = s('path', { d: dLine, stroke: R.cardAcc, 'stroke-width': 1.6, fill: 'none', 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, chart);
+    const cdots = P.map(([x, y], i) => s('circle', { cx: x, cy: y, r: i === P.length - 1 ? 2.3 : 1.3, fill: i === P.length - 1 ? C.gold : R.cardFg }, chart));
     const goldRing = s('circle', { cx: P[8][0], cy: P[8][1], r: 3, fill: 'none', stroke: C.gold, 'stroke-width': .7 }, chart);
     const arrow = s('path', { d: 'M0 3L0 -3M-2.6 -0.6L0 -3.2L2.6 -0.6', stroke: C.gold, 'stroke-width': 1.1, fill: 'none', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, chart);
 
-    // discipline rows
-    function rowIcon(kind, parent) {
-      const g = s('g', { fill: 'none', stroke: C.cream, 'stroke-width': 1.2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, parent);
-      if (kind === 'bat') { s('path', { d: 'M-4.5 -4.5L-2.2 -2.2', 'stroke-width': 1.8 }, g); s('rect', { x: -1.6, y: -2.6, width: 3.6, height: 10, rx: 1.5, transform: 'rotate(-45)' }, g); }
-      if (kind === 'ball') { s('circle', { r: 5, fill: C.vibrant, stroke: 'none' }, g); s('path', { d: 'M-2.4 -4.3c1.6 2.7 1.6 5.9 0 8.6M2.4 -4.3c-1.6 2.7-1.6 5.9 0 8.6', 'stroke-width': .6, 'stroke-dasharray': '.9 .6' }, g); }
-      if (kind === 'glove') { s('path', { d: 'M-4.2 0.5V-2.5a1.05 1.05 0 0 1 2.1 0V-4.2a1.05 1.05 0 0 1 2.1 0V-4.6a1.05 1.05 0 0 1 2.1 0V-3.8a1.05 1.05 0 0 1 2.1 0V1.2a4.2 4.2 0 0 1-4.2 4.2h-.6a3.6 3.6 0 0 1-3.6-3.6Z' }, g); s('circle', { cx: 4.3, cy: -6.2, r: 1.5, fill: C.vibrant, stroke: 'none' }, g); }
-      return g;
-    }
     const ROWS = [['bat', C.green2, 0.42, 0.86], ['ball', C.orange, 0.36, 0.76], ['glove', C.yellow, 0.48, 0.9]];
-    const rowsG = s('g', {}, card);
     const rows = ROWS.map(([kind, col, before, after], i) => {
       const y = 27 + i * 23;
-      const g = s('g', {}, rowsG);
-      const ic = rowIcon(kind, g); ic.setAttribute('transform', `translate(16 ${y})`);
-      s('rect', { x: 27, y: y - 4, width: 60, height: 8, rx: 4, fill: C.cream, 'fill-opacity': .1 }, g);
-      const was = s('rect', { x: 27, y: y - 4, height: 8, rx: 4, fill: C.cream, 'fill-opacity': .28 }, g);
+      const g = s('g', {}, card);
+      rowIcon(kind, g, R.cardFg, C.vibrant).setAttribute('transform', `translate(16 ${y})`);
+      s('rect', { x: 27, y: y - 4, width: 60, height: 8, rx: 4, fill: R.cardFg, 'fill-opacity': .1 }, g);
+      const was = s('rect', { x: 27, y: y - 4, height: 8, rx: 4, fill: R.cardFg, 'fill-opacity': .28 }, g);
       const bar = s('rect', { x: 27, y: y - 4, height: 8, rx: 4, fill: col }, g);
       const chev = s('path', { d: 'M-2.2 1.2L0 -1.2L2.2 1.2', stroke: col, 'stroke-width': 1.2, fill: 'none', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, g);
       return { g, was, bar, chev, before, after, y, i };
     });
 
+    const T0 = BEATS[b0];
     updaters.push(t => {
-      heads.forEach((hd, i) => animHeadline(hd, t, BEATS[3 + i], beatEnd(3 + i) - 0.4));
-      const cIn = back(prog(t, 7.75, 0.5));
-      card.setAttribute('transform', `translate(50 50) scale(${0.9 + 0.1 * cIn}) translate(-50 -50)`);
-      card.setAttribute('opacity', clamp(prog(t, 7.7, 0.25)));
-      const lp = eio(prog(t, 8.0, 1.15));
+      const u = t - T0;
+      card.setAttribute('transform', `translate(50 50) scale(${0.9 + 0.1 * back(prog(u, 0, 0.5))}) translate(-50 -50)`);
+      fade(card, clamp(prog(u, -0.05, 0.25)));
+      const lp = eio(prog(u, 0.25, 1.15));
       lineDraw(line, lp);
       cpr.setAttribute('width', lp * 78);
-      cdots.forEach((d, i) => d.setAttribute('opacity', prog(lp, i / 8 - 0.02, 0.04)));
-      const gp = (t - 9.1);
+      cdots.forEach((d, i) => fade(d, prog(lp, i / 8 - 0.02, 0.04)));
+      const gp = u - 1.35;
       goldRing.setAttribute('r', 2.3 + 5 * clamp((gp % 0.8) / 0.8));
-      goldRing.setAttribute('opacity', gp > 0 ? 1 - clamp((gp % 0.8) / 0.8) : 0);
-      const ap = back(prog(t, 9.05, 0.35));
-      arrow.setAttribute('transform', `translate(${P[8][0]} ${P[8][1] - 7 - 1.5 * Math.sin(Math.max(0, t - 9.4) * 5)}) scale(${ap})`);
-      const chartOut = eio(prog(t, 9.3, 0.3));
-      chart.setAttribute('opacity', 1 - chartOut);
+      fade(goldRing, gp > 0 ? 1 - clamp((gp % 0.8) / 0.8) : 0);
+      arrow.setAttribute('transform', `translate(${P[8][0]} ${P[8][1] - 7 - 1.5 * Math.sin(Math.max(0, u - 1.65) * 5)}) scale(${back(prog(u, 1.3, 0.35))})`);
+      const chartOut = eio(prog(u, 1.55, 0.3));
+      fade(chart, 1 - chartOut);
       chart.setAttribute('transform', `translate(0 ${-chartOut * 6})`);
       rows.forEach(r => {
-        const rin = eo(prog(t, 9.5 + r.i * 0.1, 0.4));
-        r.g.setAttribute('opacity', rin);
+        const rin = eo(prog(u, 1.75 + r.i * 0.1, 0.4));
+        fade(r.g, rin);
         r.g.setAttribute('transform', `translate(0 ${(1 - rin) * 5})`);
-        const w1 = eo(prog(t, 9.6 + r.i * 0.1, 0.35)) * r.before * 60;
-        const w2 = lerp(r.before, r.after, eio(prog(t, 10.05 + r.i * 0.12, 0.7))) * 60 * eo(prog(t, 9.6 + r.i * 0.1, 0.35));
-        r.was.setAttribute('width', Math.max(8, w1));
+        const grow = eo(prog(u, 1.85 + r.i * 0.1, 0.35));
+        const w2 = lerp(r.before, r.after, eio(prog(u, 2.3 + r.i * 0.12, 0.7))) * 60 * grow;
+        r.was.setAttribute('width', Math.max(8, grow * r.before * 60));
         r.bar.setAttribute('width', Math.max(8, w2));
-        r.bar.setAttribute('opacity', prog(t, 9.6 + r.i * .1, .1));
-        const cp2 = back(prog(t, 10.6 + r.i * 0.12, 0.3));
-        r.chev.setAttribute('transform', `translate(${27 + w2 + 4} ${r.y - Math.sin(Math.max(0, t - 10.9) * 6 + r.i) * .8}) scale(${cp2})`);
+        fade(r.bar, prog(u, 1.85 + r.i * .1, .1));
+        r.chev.setAttribute('transform', `translate(${27 + w2 + 4} ${r.y - Math.sin(Math.max(0, u - 3.15) * 6 + r.i) * .8}) scale(${back(prog(u, 2.85 + r.i * 0.12, 0.3))})`);
       });
     });
-    updaters.push(() => placeHeads(tb, heads));
   }
 
-  // ================= P3 · CREDIBILITY (red) =================
+  // ================= P3 · SHADOW BATTING =================
+  // Mirrors app/(dashboard)/shadow-batting: prep countdown, record a shot at home, six technique scores + a grade.
   {
-    const p = panel(C.red); panels.push(p);
-    updaters.push(addIcons(el('div', 'layer', p), C.cream, 0.08, 9));
-    cornerLogo(p, C.cream, C.charcoal);
-    const v = visBox(p);
-    const tb = textBox(p);
-    const heads = [
-      headline(tb, [['ECB-level', { color: C.gold }], 'coaching', 'advice'], C.cream, L.fs, L.text.align),
-      headline(tb, ['Trained', 'on', ['1000s', { color: C.gold }], 'of', 'professional', 'cricket', 'videos'], C.cream, L.fs, L.text.align),
-      headline(tb, ['Built', 'on', ['years', { color: C.gold }], 'of', 'sports', 'coaching', 'experience'], C.cream, L.fs, L.text.align),
-    ];
+    const R = ROLES[3], b0 = SC.shadow;
+    const { v } = scene(R, b0, [
+      [['Shadow', HI(R)], ['batting:', HI(R)], 'practise', 'your', 'shots', 'at', 'home'],
+      ['AI', 'scores', 'balance,', 'footwork', 'and', ['follow-through', HI(R)]],
+    ]);
+    const phone = s('g', {}, v);
+    s('rect', { x: 27, y: 2, width: 46, height: 96, rx: 7, fill: R.card, stroke: R.fg, 'stroke-width': .9 }, phone);
+    s('rect', { x: 44, y: 4.6, width: 12, height: 2.4, rx: 1.2, fill: R.cardFg, opacity: .35 }, phone);
+    const vf = s('g', { stroke: R.cardFg, 'stroke-width': .7, fill: 'none', opacity: .55, 'stroke-linecap': 'round' }, phone);
+    ['M32 21v-4h4', 'M68 21v-4h-4', 'M32 88v4h4', 'M68 88v4h-4'].forEach(d => s('path', { d }, vf));
+    const rec = s('g', {}, phone);
+    const recDot = s('circle', { cx: 34.5, cy: 11.5, r: 1.5, fill: C.vibrant }, rec);
+    txt(rec, 37.2, 12.8, 'REC', 3.6, R.cardFg);
+    const count = txt(phone, 50, 60, '3', 24, R.cardFg, 'middle');
 
-    // medals — Koda's bronze / silver / gold tiers
+    // front-on batter, swinging a drive
+    const bat = s('g', {}, phone);
+    const BJ = { head: [50, 30], neck: [50, 35], shL: [45.5, 37.5], shR: [54.5, 37.5], hip: [50, 55], hipL: [47, 56], hipR: [53, 56], knL: [45.5, 68], knR: [55, 67.5], anL: [44.5, 80], anR: [56.5, 80] };
+    const pclip = s('clipPath', { id: 'phoneclip' }, s('defs', {}, v));
+    s('rect', { x: 28, y: 3, width: 44, height: 94, rx: 6 }, pclip);
+    const trail = s('path', { d: '', stroke: R.cardAcc, 'stroke-width': 2.4, fill: 'none', opacity: .28, 'stroke-linecap': 'round', 'clip-path': 'url(#phoneclip)' }, bat);
+    const body = s('g', { stroke: R.cardFg, 'stroke-width': 1.4, 'stroke-linecap': 'round', fill: 'none' }, bat);
+    [['neck', 'shL'], ['neck', 'shR'], ['neck', 'hip'], ['hip', 'hipL'], ['hip', 'hipR'], ['hipL', 'knL'], ['knL', 'anL'], ['hipR', 'knR'], ['knR', 'anR']]
+      .forEach(([a, b]) => s('path', { d: `M${BJ[a]}L${BJ[b]}` }, body));
+    s('circle', { cx: BJ.head[0], cy: BJ.head[1], r: 3.6 }, body);
+    const armL = s('path', {}, body), armR = s('path', {}, body);
+    const batHandle = s('line', { stroke: R.cardFg, 'stroke-width': 1.3, 'stroke-linecap': 'round' }, bat);
+    const batBlade = s('line', { stroke: C.bronze, 'stroke-width': 3.6, 'stroke-linecap': 'round' }, bat);
+    const jd = ['shL', 'shR', 'hipL', 'hipR', 'knL', 'knR', 'anL', 'anR'].map(k => s('circle', { cx: BJ[k][0], cy: BJ[k][1], r: 1.2, fill: R.cardAcc }, bat));
+    const handDot = s('circle', { r: 1.3, fill: R.cardAcc }, bat);
+    const PIV = [50, 39];
+    const swingAt = a => { const hx = PIV[0] + 9 * Math.sin(a), hy = PIV[1] + 9 * Math.cos(a); return { hx, hy, ex: hx + 19 * Math.sin(a), ey: hy + 19 * Math.cos(a) }; };
+    // trail arc: the path the bat toe sweeps
+    const tr = []; for (let i = 0; i <= 24; i++) { const q = swingAt(lerp(2.5, -2.3, i / 24)); tr.push([q.ex, q.ey]); }
+    trail.setAttribute('d', 'M' + tr.map(q => q.map(n => n.toFixed(2)).join(' ')).join('L'));
+
+    // scores overlay — metric labels from DISPLAY_SCORE_METRICS in the shadow-batting page
+    const scores = s('g', {}, phone);
+    s('rect', { x: 30.5, y: 63, width: 39, height: 31, rx: 3.5, fill: R.card, opacity: .94, stroke: R.cardFg, 'stroke-opacity': .2, 'stroke-width': .4 }, scores);
+    const MET = [['BAL', .84], ['WGT', .74], ['BKL', .9], ['HDP', .66], ['FTH', .88], ['FTW', .78]];
+    const metBars = MET.map(([lab, val], i) => {
+      const x = 33 + (i % 2) * 18.5, y = 71 + Math.floor(i / 2) * 8;
+      txt(scores, x, y + 1.2, lab, 3, R.cardFg, 'start', 500);
+      s('rect', { x: x + 6.8, y: y - 1.2, width: 9, height: 2.6, rx: 1.3, fill: R.cardFg, 'fill-opacity': .12 }, scores);
+      const b = s('rect', { x: x + 6.8, y: y - 1.2, width: 0, height: 2.6, rx: 1.3, fill: barCol(val) }, scores);
+      return { b, val, i };
+    });
+    const grade = s('g', {}, phone);
+    s('circle', { r: 5.6, fill: C.gold }, grade);
+    txt(grade, 0, 2.6, 'A', 7.4, C.charcoal, 'middle');
+
+    const T0 = BEATS[b0];
+    updaters.push(t => {
+      const u = t - T0;
+      phone.setAttribute('transform', `translate(50 50) scale(${0.9 + 0.1 * back(prog(u, 0, 0.5))}) translate(-50 -50)`);
+      fade(phone, clamp(prog(u, -0.05, 0.25)));
+      fade(recDot, u > 0.85 && Math.floor((u - 0.85) * 2.4) % 2 === 0 ? 1 : 0.15);
+      // prep-timer countdown 3-2-1
+      const ci = Math.floor(prog(u, 0.1, 0.75) * 3);
+      const cp = (prog(u, 0.1, 0.75) * 3) % 1;
+      count.textContent = String(3 - Math.min(2, ci));
+      fade(count, u < 0.1 || u > 0.85 ? 0 : 1 - cp * 0.7);
+      count.setAttribute('transform', `translate(50 52) scale(${1.15 - 0.25 * eo(cp)}) translate(-50 -52)`);
+      // batter
+      const bin = eo(prog(u, 0.8, 0.3));
+      fade(bat, bin);
+      const k = u > 0.95 ? ((u - 0.95) % 1.25) / 1.25 : 0;
+      const a = k < 0.55 ? lerp(2.5, -2.3, eio(k / 0.55)) : lerp(-2.3, 2.5, eio((k - 0.55) / 0.45));
+      const q = swingAt(a);
+      armL.setAttribute('d', `M${BJ.shL}L${q.hx} ${q.hy}`); armR.setAttribute('d', `M${BJ.shR}L${q.hx} ${q.hy}`);
+      const mx = q.hx + (q.ex - q.hx) * 0.25, my = q.hy + (q.ey - q.hy) * 0.25;
+      batHandle.setAttribute('x1', q.hx); batHandle.setAttribute('y1', q.hy); batHandle.setAttribute('x2', mx); batHandle.setAttribute('y2', my);
+      batBlade.setAttribute('x1', mx); batBlade.setAttribute('y1', my); batBlade.setAttribute('x2', q.ex); batBlade.setAttribute('y2', q.ey);
+      handDot.setAttribute('cx', q.hx); handDot.setAttribute('cy', q.hy);
+      lineDraw(trail, k < 0.55 ? eio(k / 0.55) : 1 - eio((k - 0.55) / 0.45));
+      // scores
+      const sIn = eo(prog(u, 1.8, 0.4));
+      fade(scores, sIn);
+      scores.setAttribute('transform', `translate(0 ${(1 - sIn) * 8})`);
+      metBars.forEach(m => m.b.setAttribute('width', 9 * m.val * eo(prog(u, 2.0 + m.i * 0.07, 0.5))));
+      tf(grade, 63, 24, back(prog(u, 2.55, 0.35)));
+    });
+  }
+
+  // ================= P4 · GAMIFICATION =================
+  // Mirrors app/components/collections (share + saved clips) and app/(dashboard)/leagues (private leagues).
+  {
+    const R = ROLES[4], b0 = SC.game;
+    const { v } = scene(R, b0, [
+      [['Share', HI(R)], 'your', 'improvements'],
+      [['Compete', HI(R)], 'with', 'friends', 'in', 'private', 'leagues'],
+      [['Collect', HI(R)], 'your', 'best', 'shot', 'clips'],
+    ]);
+    const card = s('g', {}, v);
+    s('rect', { x: 3, y: 5, width: 94, height: 90, rx: 6, fill: R.card }, card);
+    const F = R.cardFg, A = R.cardAcc, AF = R.cardAccFg;
+
+    // (a) share: a progress card sent to friends
+    const share = s('g', {}, card);
+    const pc = s('g', {}, share);
+    s('rect', { x: 12, y: 18, width: 44, height: 62, rx: 4, fill: F, 'fill-opacity': .07, stroke: F, 'stroke-opacity': .25, 'stroke-width': .45 }, pc);
+    s('circle', { cx: 22, cy: 29, r: 5, fill: A }, pc);
+    s('rect', { x: 30, y: 25.6, width: 18, height: 2.6, rx: 1.3, fill: F, 'fill-opacity': .7 }, pc);
+    s('rect', { x: 30, y: 30.6, width: 11, height: 2.2, rx: 1.1, fill: F, 'fill-opacity': .3 }, pc);
+    const sp = s('path', { d: 'M17 68L24 63L30 65L37 56L43 52L50 43', stroke: A, 'stroke-width': 1.5, fill: 'none', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, pc);
+    const pb = s('g', {}, pc);
+    s('rect', { x: -8, y: -3.6, width: 16, height: 7.2, rx: 3.6, fill: C.gold }, pb);
+    txt(pb, 0, 1.6, 'NEW PB', 3.6, C.charcoal, 'middle');
+    const shareBtn = s('g', {}, share);
+    s('circle', { r: 6.5, fill: A }, shareBtn);
+    const sg = s('g', { stroke: AF, 'stroke-width': .9, fill: AF }, shareBtn);
+    s('path', { d: 'M-2.2 0L2 -2.6M-2.2 0L2 2.6', fill: 'none' }, sg);
+    [[-2.2, 0], [2, -2.6], [2, 2.6]].forEach(([x, y]) => s('circle', { cx: x, cy: y, r: 1.2, stroke: 'none' }, sg));
+    const FR = [[82, 24], [86, 48], [80, 72]];
+    const friends = FR.map(([x, y], i) => {
+      const g = s('g', {}, share);
+      const ln = s('line', { x1: 68, y1: 48, x2: x, y2: y, stroke: F, 'stroke-opacity': .3, 'stroke-width': .5, 'stroke-dasharray': '1.2 1.2' }, share);
+      share.insertBefore(ln, shareBtn);
+      s('circle', { r: 5, fill: [C.green2, C.orange, C.blue][i] }, g);
+      const heart = s('path', { d: 'M0 2.2C-3.2 0 -3 -2.4 -1.5 -2.4C-0.7 -2.4 0 -1.6 0 -1.2C0 -1.6 0.7 -2.4 1.5 -2.4C3 -2.4 3.2 0 0 2.2Z', fill: C.white }, g);
+      return { g, ln, x, y, i };
+    });
+
+    // (b) private league table
+    const league = s('g', {}, card);
+    const lock = s('g', { transform: 'translate(14 17)', stroke: F, 'stroke-width': .9, fill: 'none' }, league);
+    s('rect', { x: -2.6, y: -1, width: 5.2, height: 4.2, rx: .8, fill: A, stroke: 'none' }, lock);
+    s('path', { d: 'M-1.6 -1v-1.4a1.6 1.6 0 0 1 3.2 0V-1' }, lock);
+    txt(league, 19.5, 18.6, 'Private league', 4.4, F);
+    const NAMES = [[.8, .92], [.6, .78], [.7, .66], [null, .6], [.5, .44]];   // [name bar width, points bar]; null = You
+    const lRows = NAMES.map(([nw, pts], i) => {
+      const g = s('g', {}, league);
+      const you = nw == null;
+      const bg = s('rect', { x: 18, y: -4.4, width: 72, height: 8.8, rx: 2.4, fill: you ? A : F, 'fill-opacity': you ? 1 : .06 }, g);
+      s('circle', { cx: 24, cy: 0, r: 2.8, fill: you ? AF : [C.green2, C.orange, C.blue, null, C.silver][i] }, g);
+      if (you) txt(g, 29.5, 1.5, 'You', 4.2, AF);
+      else s('rect', { x: 29.5, y: -1.2, width: 22 * nw, height: 2.4, rx: 1.2, fill: F, 'fill-opacity': .55 }, g);
+      const pbar = s('rect', { x: 60, y: -1.4, width: 26 * pts, height: 2.8, rx: 1.4, fill: you ? AF : F, 'fill-opacity': you ? .9 : .3 }, g);
+      return { g, you, pbar, pts, i };
+    });
+    const ranks = [1, 2, 3, 4, 5].map(n => txt(league, 12.5, 30 + (n - 1) * 12 + 1.6, String(n), 4.4, F, 'middle'));
+    const crown = s('path', { d: 'M-4 2L-4.6 -3L-1.8 -0.6L0 -3.8L1.8 -0.6L4.6 -3L4 2Z', fill: C.gold }, league);
+
+    // (c) collection of best-shot clips
+    const coll = s('g', {}, card);
+    const folder = s('g', {}, coll);
+    s('path', { d: 'M18 34h20l4 5h40a3 3 0 0 1 3 3v38a3 3 0 0 1-3 3H18a3 3 0 0 1-3-3V37a3 3 0 0 1 3-3Z', fill: F, 'fill-opacity': .08, stroke: F, 'stroke-opacity': .3, 'stroke-width': .5 }, folder);
+    txt(folder, 50, 91, 'Best shots', 4.6, F, 'middle');
+    const clips = [0, 1, 2, 3].map(i => {
+      const g = s('g', {}, coll);
+      s('rect', { x: -15, y: -9.5, width: 30, height: 19, rx: 2.4, fill: R.card, stroke: F, 'stroke-opacity': .45, 'stroke-width': .5 }, g);
+      s('rect', { x: -15, y: -9.5, width: 30, height: 19, rx: 2.4, fill: F, 'fill-opacity': .1 }, g);
+      s('path', { d: 'M-2 -3.2L3.4 0L-2 3.2Z', fill: F }, g);
+      const st = s('path', { d: 'M0 -2.4L.7 -.8L2.4 -.7L1.1 .4L1.5 2.1L0 1.2L-1.5 2.1L-1.1 .4L-2.4 -.7L-.7 -.8Z', fill: C.gold, transform: 'translate(11 -5.6)' }, g);
+      return { g, i };
+    });
+    const SLOT = [[36, 52, -8], [64, 52, 7], [36, 70, 5], [64, 70, -6]];
+
+    const T0 = BEATS[b0];
+    updaters.push(t => {
+      const u = t - T0;
+      card.setAttribute('transform', `translate(50 50) scale(${0.9 + 0.1 * back(prog(u, 0, 0.5))}) translate(-50 -50)`);
+      fade(card, clamp(prog(u, -0.05, 0.25)));
+      const segOut = (a) => 1 - eio(prog(u, a, 0.25));
+      // share
+      fade(share, segOut(1.55));
+      lineDraw(sp, eo(prog(u, 0.2, 0.7)));
+      tf(pb, 42, 72, back(prog(u, 0.75, 0.35)));
+      tf(shareBtn, 68, 48, back(prog(u, 0.55, 0.35)));
+      friends.forEach(f => {
+        const fp = eo(prog(u, 0.85 + f.i * 0.1, 0.4));
+        tf(f.g, lerp(68, f.x, fp), lerp(48, f.y, fp), back(prog(u, 0.85 + f.i * 0.1, 0.4)) * (1 + 0.12 * Math.sin(Math.max(0, u - 1.3) * 8 + f.i)));
+        fade(f.g, prog(u, 0.85 + f.i * 0.1, 0.1));
+        lineDraw(f.ln, fp);
+      });
+      // league
+      const lIn = eo(prog(u, 1.75, 0.35));
+      fade(league, lIn * segOut(3.3));
+      const climb = eio(prog(u, 2.35, 0.75));
+      lRows.forEach(r => {
+        let slot = r.i;
+        if (r.you) slot = lerp(3, 0, climb);
+        else if (r.i < 3) slot = r.i + climb;                   // the three above slide down one place
+        const rin = eo(prog(u, 1.8 + r.i * 0.06, 0.35));
+        r.g.setAttribute('transform', `translate(${(1 - rin) * 10} ${30 + slot * 12})`);
+        fade(r.g, rin);
+        if (r.you) r.pbar.setAttribute('width', 26 * lerp(r.pts, 0.97, climb));
+      });
+      ranks.forEach((rk, i) => fade(rk, eo(prog(u, 1.8 + i * 0.06, 0.35))));
+      tf(crown, 24, 30 - 6.4, back(prog(u, 3.05, 0.3)));
+      // collection
+      const cIn = eo(prog(u, 3.5, 0.3));
+      fade(coll, cIn);
+      clips.forEach(c => {
+        const cp = eo(prog(u, 3.6 + c.i * 0.13, 0.5));
+        const [sx, sy, sr] = SLOT[c.i];
+        const settle = Math.sin(Math.max(0, u - 4.4) * 3 + c.i) * 0.6;
+        tf(c.g, lerp(110, sx, cp), lerp(12, sy, cp) + settle, 0.85 + 0.15 * cp, lerp(25, sr, cp));
+        fade(c.g, prog(u, 3.6 + c.i * 0.13, 0.1));
+      });
+    });
+  }
+
+  // ================= P5 · CREDIBILITY =================
+  {
+    const R = ROLES[5], b0 = SC.cred;
+    const { v } = scene(R, b0, [
+      [['ECB-level', HI(R)], 'coaching', 'advice'],
+      ['Trained', 'on', ['1000s', HI(R)], 'of', 'professional', 'cricket', 'videos'],
+      ['Built', 'on', ['years', HI(R)], 'of', 'sports', 'coaching', 'experience'],
+    ]);
     const medalsG = s('g', {}, v);
     function medal(cx, cy, r, col, dark, star) {
       const g = s('g', {}, medalsG);
-      const rib = s('g', {}, g);
-      s('path', { d: `M${-r * .55} ${-r * 2.3}L${-r * .55 + r * .6} ${-r * 2.3}L${r * .25} ${-r * .6}L${-r * .25} ${-r * .6}Z`, fill: C.charcoal }, rib);
-      s('path', { d: `M${r * .55} ${-r * 2.3}L${r * .55 - r * .6} ${-r * 2.3}L${-r * .25} ${-r * .6}L${r * .25} ${-r * .6}Z`, fill: C.cream }, rib);
+      s('path', { d: `M${-r * .55} ${-r * 2.3}L${-r * .55 + r * .6} ${-r * 2.3}L${r * .25} ${-r * .6}L${-r * .25} ${-r * .6}Z`, fill: R.rib[0] }, g);
+      s('path', { d: `M${r * .55} ${-r * 2.3}L${r * .55 - r * .6} ${-r * 2.3}L${-r * .25} ${-r * .6}L${r * .25} ${-r * .6}Z`, fill: R.rib[1] }, g);
       s('circle', { r, fill: col }, g);
       s('circle', { r: r * .76, fill: 'none', stroke: dark, 'stroke-width': r * .07 }, g);
       if (star) {
         const pts = []; for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? r * .22 : r * .5; pts.push([Math.cos(a) * rr, Math.sin(a) * rr]); }
         s('polygon', { points: pts.join(' '), fill: dark }, g);
-      } else {
-        s('circle', { r: r * .22, fill: dark }, g);
-      }
-      const shine = s('rect', { x: -r * .25, y: -r * 1.2, width: r * .22, height: r * 2.4, fill: C.white, opacity: .45, transform: 'rotate(25)' }, g);
-      const clip = s('clipPath', { id: 'mc' + col.slice(1) }, g); s('circle', { r }, clip);
-      shine.setAttribute('clip-path', `url(#mc${col.slice(1)})`);
+      } else s('circle', { r: r * .22, fill: dark }, g);
+      const id = 'mc' + col.slice(1);
+      const clip = s('clipPath', { id }, g); s('circle', { r }, clip);
+      const shine = s('rect', { x: -r * .25, y: -r * 1.2, width: r * .22, height: r * 2.4, fill: C.white, opacity: .45, transform: 'rotate(25)', 'clip-path': `url(#${id})` }, g);
       return { g, shine, cx, cy, r };
     }
     const medals = [medal(25, 64, 11, C.bronze, '#8B4513', false), medal(75, 64, 11, C.silver, '#7A7A7A', false), medal(50, 56, 15.5, C.gold, '#B8860B', true)];
-    const delays = [11.4, 11.55, 11.72];
+    const delays = [0.15, 0.3, 0.47];
 
-    // video wall
     const wall = s('g', {}, v);
     const tiles = [];
     const COLS = 6, ROWSN = 6, TW = 13, TH = 8.6, G = 2.4;
     const x0 = 50 - (COLS * TW + (COLS - 1) * G) / 2, y0 = 50 - (ROWSN * TH + (ROWSN - 1) * G) / 2;
     for (let r = 0; r < ROWSN; r++) for (let c = 0; c < COLS + 2; c++) {
       const g = s('g', {}, wall);
-      s('rect', { x: -TW / 2, y: -TH / 2, width: TW, height: TH, rx: 1.4, fill: C.charcoal, 'fill-opacity': .55, stroke: C.cream, 'stroke-opacity': .25, 'stroke-width': .3 }, g);
-      s('path', { d: 'M-1.3 -2L2.2 0L-1.3 2Z', fill: C.cream }, g);
+      s('rect', { x: -TW / 2, y: -TH / 2, width: TW, height: TH, rx: 1.4, fill: R.card, 'fill-opacity': .55, stroke: R.fg, 'stroke-opacity': .25, 'stroke-width': .3 }, g);
+      s('path', { d: 'M-1.3 -2L2.2 0L-1.3 2Z', fill: R.fg }, g);
       const hl = s('rect', { x: -TW / 2, y: -TH / 2, width: TW, height: TH, rx: 1.4, fill: 'none', stroke: C.gold, 'stroke-width': .6, opacity: 0 }, g);
       tiles.push({ g, hl, r, c: c - 1, seedv: rnd() });
     }
@@ -493,65 +740,58 @@
     s('rect', { x: 2, y: 2, width: 96, height: 96, rx: 6 }, wallMask);
     wall.setAttribute('clip-path', 'url(#wallclip)');
 
-    // logo + year rings
     const yearsG = s('g', {}, v);
     const rings = [0, 1, 2, 3].map(() => s('circle', { cx: 50, cy: 50, fill: 'none', stroke: C.gold, 'stroke-width': .55 }, yearsG));
     const lgWrap = s('g', {}, yearsG);
-    s('circle', { cx: 50, cy: 50, r: 21, fill: C.cream, opacity: .08 }, lgWrap);
-    const lgG = s('g', { transform: 'translate(37.3 35)' }, lgWrap);
-    const lgInner = logo(lgG, 30, C.cream, C.charcoal);
+    s('circle', { cx: 50, cy: 50, r: 21, fill: R.fg, opacity: .08 }, lgWrap);
+    const lgInner = logo(s('g', { transform: 'translate(37.3 35)' }, lgWrap), 30, R.logoK, R.logoBall);
 
+    const T0 = BEATS[b0];
     updaters.push(t => {
-      heads.forEach((hd, i) => animHeadline(hd, t, BEATS[5 + i], beatEnd(5 + i) - 0.4));
-      const mOut = eio(prog(t, 12.75, 0.3));
+      const u = t - T0;
+      const mOut = eio(prog(u, 1.5, 0.3));
       medals.forEach((m, i) => {
-        const pp = back(prog(t, delays[i], 0.45));
-        const bob = Math.sin((t - delays[i]) * 2.2 + i) * .8 * prog(t, delays[i] + .4, .3);
-        tf(m.g, m.cx, m.cy + (1 - eo(prog(t, delays[i], 0.45))) * 14 + bob, pp * (1 - mOut * .3));
-        m.g.setAttribute('opacity', clamp(prog(t, delays[i], .15)) * (1 - mOut));
-        const sh = prog(t, 12.0 + i * 0.12, 0.5);
-        m.shine.setAttribute('x', lerp(-m.r * 2, m.r * 2, sh) - m.r * .11);
+        const bob = Math.sin((u - delays[i]) * 2.2 + i) * .8 * prog(u, delays[i] + .4, .3);
+        tf(m.g, m.cx, m.cy + (1 - eo(prog(u, delays[i], 0.45))) * 14 + bob, back(prog(u, delays[i], 0.45)) * (1 - mOut * .3));
+        fade(m.g, clamp(prog(u, delays[i], .15)) * (1 - mOut));
+        m.shine.setAttribute('x', lerp(-m.r * 2, m.r * 2, prog(u, 0.75 + i * 0.12, 0.5)) - m.r * .11);
       });
-      // wall: rows scroll in alternating directions
-      const conv = eio(prog(t, 14.7, 0.55));
+      const conv = eio(prog(u, 3.45, 0.55));
       tiles.forEach(tl => {
-        const pin = back(prog(t, 13.0 + (tl.r + Math.max(0, tl.c)) * 0.035, 0.4));
+        const st = 1.75 + (tl.r + Math.max(0, tl.c)) * 0.035;
         const dir = tl.r % 2 ? 1 : -1;
-        const scroll = ((t - 13) * 6 * dir) % (TW + G);
-        let x = x0 + TW / 2 + tl.c * (TW + G) + scroll + (dir > 0 ? -(TW + G) : 0) + (TW + G) * (dir > 0 ? 1 : 0);
+        const scroll = ((u - 1.75) * 6 * dir) % (TW + G);
+        let x = x0 + TW / 2 + tl.c * (TW + G) + scroll;
         let y = y0 + TH / 2 + tl.r * (TH + G);
         x = lerp(x, 50, conv); y = lerp(y, 50, conv);
-        tf(tl.g, x, y, pin * (1 - conv));
-        tl.g.setAttribute('opacity', clamp(prog(t, 13.0 + (tl.r + Math.max(0, tl.c)) * 0.035, .12)) * (1 - conv));
-        const flick = Math.sin((t * 1.7 + tl.seedv * 20)) > 0.93 ? 1 : 0;
-        tl.hl.setAttribute('opacity', t > 13.6 ? flick : 0);
+        tf(tl.g, x, y, back(prog(u, st, 0.4)) * (1 - conv));
+        fade(tl.g, clamp(prog(u, st, .12)) * (1 - conv));
+        fade(tl.hl, u > 2.35 && Math.sin(t * 1.7 + tl.seedv * 20) > 0.93 ? 1 : 0);
       });
-      const lp = back(prog(t, 14.95, 0.5));
-      lgWrap.setAttribute('transform', `translate(50 50) scale(${lp}) translate(-50 -50)`);
-      lgWrap.setAttribute('opacity', clamp(prog(t, 14.95, .15)));
-      ballHop(lgInner, t, 15.3, 1.28);
+      lgWrap.setAttribute('transform', `translate(50 50) scale(${back(prog(u, 3.7, 0.5))}) translate(-50 -50)`);
+      fade(lgWrap, clamp(prog(u, 3.7, .15)));
+      ballHop(lgInner, u, 4.05, 1.28);
       rings.forEach((r, i) => {
-        const k = (t - 15.2 - i * 0.32);
+        const k = u - 3.95 - i * 0.32;
         const q = k > 0 ? (k % 1.28) / 1.28 : 0;
         r.setAttribute('r', 22 + 26 * q);
-        r.setAttribute('opacity', k > 0 ? (1 - q) * .9 : 0);
+        fade(r, k > 0 ? (1 - q) * .9 : 0);
       });
     });
-    updaters.push(() => placeHeads(tb, heads));
   }
 
-  // ================= P4 · END CARD (cream) =================
-  let endParts;
+  // ================= P6 · END CARD =================
   {
-    const p = panel(C.cream); panels.push(p);
-    updaters.push(addIcons(el('div', 'layer', p), C.charcoal, 0.07, 9));
+    const R = ROLES[6];
+    const p = panel(R); panels.push(p);
+    updaters.push(addIcons(el('div', 'layer', p), R.icon, R.iconA, 9));
     const c = el('div', 'center', p, { left: px(L.safe.x), top: px(L.safe.y), width: px(L.safe.w), height: px(L.safe.h) });
     const lgD = el('div', '', c);
-    const lg = logo(lgD, Math.min(MN * 0.14, L.safe.w * 0.75 * 288 / 1492), C.charcoal, C.red, 'lockup');
+    const lg = logo(lgD, Math.min(MN * 0.14, L.safe.w * 0.75 * 288 / 1492), R.logoK, R.logoBall, 'lockup');
     const hWrap = el('div', '', c, { position: 'relative', marginTop: px(MN * 0.05), width: '100%' });
-    const hd = headline(hWrap, ['Sign-up', 'for', 'a', 'free', 'account:'], C.charcoal, L.heroFs * 0.9, 'center');
+    const hd = headline(hWrap, ['Sign-up', 'for', 'a', 'free', 'account:'], R.fg, L.heroFs * 0.9, 'center');
     hd.h.style.position = 'relative';
-    const pill = el('div', 'pill', c, { marginTop: px(MN * 0.045), background: C.red, color: C.white, fontSize: px(L.heroFs * 0.8), padding: `${L.heroFs * 0.22}px ${L.heroFs * 0.6}px` });
+    const pill = el('div', 'pill', c, { marginTop: px(MN * 0.045), background: R.pill, color: R.pillFg, fontSize: px(L.heroFs * 0.8), padding: `${L.heroFs * 0.22}px ${L.heroFs * 0.6}px` });
     pill.textContent = 'kodacricket.com';
     updaters.push(t => {
       const lp = eo(prog(t, END + 0.05, 0.4));
@@ -559,24 +799,20 @@
       lgD.style.opacity = lp;
       ballHop(lg, t, END + 0.6, 1.5);
       animHeadline(hd, t, END + 0.1, null);
-      const pp = back(prog(t, END + 0.22, 0.28));
-      pill.style.transform = `scale(${pp})`;
+      pill.style.transform = `scale(${back(prog(t, END + 0.22, 0.28))})`;
       pill.style.opacity = clamp(prog(t, END + 0.22, .1));
     });
   }
 
   // ---------- scene wipes: a circle grows from the centre of the visual ----------
-  const R = Math.hypot(W, H);
+  const RAD = Math.hypot(W, H);
   function wipes(t) {
     panels.forEach((p, k) => {
       if (k === 0) return;
-      const st = PANEL_START[k];
-      const q = eio(prog(t, st - 0.22, 0.5));
-      const cx = L.vis.x + L.vis.s / 2, cy = L.vis.y + L.vis.s / 2;
-      p.style.clipPath = `circle(${q * R}px at ${cx}px ${cy}px)`;
+      const q = eio(prog(t, PANEL_START[k] - 0.22, 0.5));
+      p.style.clipPath = `circle(${q * RAD}px at ${L.vis.x + L.vis.s / 2}px ${L.vis.y + L.vis.s / 2}px)`;
       p.style.visibility = q > 0 ? 'visible' : 'hidden';
     });
-    // panels fully covered by a later one are hidden
     panels.forEach((p, k) => { if (k + 1 < panels.length && t > PANEL_START[k + 1] + 0.3) p.style.visibility = 'hidden'; });
   }
 
