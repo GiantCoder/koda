@@ -57,7 +57,7 @@
     "langfuse": "^3.38.6",
     "mariadb": "^3.5.1",
     "nanoid": "^5.1.6",
-    "next": "16.1.6",
+    "next": "16.4.6",
     "node-cron": "^4.2.1",
     "openai": "^6.25.0",
     "postcss": "^8.5.6",
